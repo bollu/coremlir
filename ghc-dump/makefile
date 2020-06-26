@@ -11,4 +11,4 @@ build:
 	cabal exec ghc-dump show  dump/fib.pass-0018.cbor | tee fib.pass-0018.core
 	cabal exec ghc-dump show  dump/fib.pass-0000.cbor | tee fib.pass-0000.core
 	cabal exec ghc-dump-mlir show dump/fib.pass-0000.cbor  | tee fib.pass-0000.mlir
-	mlir-opt fib.pass-0000.mlir -allow-unregistered-dialect
+# 	mlir-opt fib.pass-0000.mlir -allow-unregistered-dialect

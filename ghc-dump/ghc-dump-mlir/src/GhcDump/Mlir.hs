@@ -51,10 +51,17 @@ instance Pretty BinderId where
 instance Pretty Binder where
     pretty = pprBinder defaultPrettyOpts
 
+-- pprBinder :: PrettyOpts -> Binder -> Doc
+-- pprBinder opts b
+--   | showUniques opts =  pretty (binderUniqueName b)
+--   | otherwise        =  pretty (binderName $ unBndr b)
+
+
 pprBinder :: PrettyOpts -> Binder -> Doc
 pprBinder opts b
-  | showUniques opts = pretty $ binderUniqueName b
-  | otherwise        = pretty $ binderName $ unBndr b
+  | showUniques opts =  "%" <> pretty (binderUniqueName b)
+  | otherwise        =  "%" <> pretty (binderName $ unBndr b)
+
 
 instance Pretty TyCon where
     pretty (TyCon t _) = text $ T.unpack t
@@ -158,32 +165,76 @@ instance Pretty Type where
 pprExpr :: PrettyOpts -> Expr -> Doc
 pprExpr opts = pprExpr' opts False
 
+pprLambdaArgs :: [Binder] -> Doc
+pprLambdaArgs as = "[" <> hsep (punctuate "," ["%" <> pretty (binderName (unBndr a)) | a <- as ] ) <> "]"
+
+pprApArgs :: PrettyOpts -> Bool -> [Expr] -> Doc
+pprApArgs opts _parens es = vsep (punctuate ", " ["{" <> pprExpr' opts _parens e <> "}"| e <- es ] )
+
 pprExpr' :: PrettyOpts -> Bool -> Expr -> Doc
-pprExpr' opts _parens (EVar v)         = pprBinder opts v
+pprExpr' opts _parens (EVar v)         = "standalone.return(" <> pprBinder opts v <> ")"
 pprExpr' opts _parens (EVarGlobal v)   = pretty v
 pprExpr' opts _parens (ELit l)         = pretty l
-pprExpr' opts parens  e@(EApp{})       = let (x, ys) = collectArgs e
-                                         in maybeParens parens $ hang' (pprExpr' opts True x) 2 (sep $ map pprArg ys)
-  where pprArg (EType t) = char '@' <> pprType' opts TyConPrec t
-        pprArg x         = pprExpr' opts True x
+-- pprExpr' opts parens  e@(EApp{})       = let (x, ys) = collectArgs e
+--                                         in maybeParens parens $ hang' (pprExpr' opts True x) 2 (sep $ map pprArg ys)
+--  where pprArg (EType t) = char '@' <> pprType' opts TyConPrec t
+--        pprArg x         = pprExpr' opts True x
+
+pprExpr' opts parens  e@(EApp{}) = let (x, ys) = collectArgs e
+                                        in hang' ("standalone.ap(") 2 (pprApArgs opts parens (x:ys) <> line <> ")")
+ 
+
 pprExpr' opts parens  x@(ETyLam _ _)   = let (bs, x') = collectTyBinders x
                                          in maybeParens parens
                                             $ hang' ("Λ" <+> sep (map (pprBinder opts) bs) <+> smallRArrow) 2 (pprExpr' opts False x')
-pprExpr' opts parens  x@(ELam _ _)     = let (bs, x') = collectBinders x
-                                         in maybeParens parens
-                                            $ hang' ("λ" <+> sep (map (pprBinder opts) bs) <+> smallRArrow) 2 (pprExpr' opts False x')
+pprExpr' opts parens  x@(ELam _ _)     = 
+  let (bs, x') = collectBinders x
+  in maybeParens parens
+  $ hang' ("standalone.lambda" <+> pprLambdaArgs bs <+> "{") 
+          2
+          ((pprExpr' opts False x') <>
+            line <> "}  // end λ(" <> pprLambdaArgs bs  <> ")")
 pprExpr' opts parens  (ELet xs y)      = maybeParens parens $ "let" <+> (align $ vcat $ map (uncurry (pprBinding opts)) xs)
                                          <$$> "in" <+> align (pprExpr' opts False y)
   where pprBind (b, rhs) = pprBinder opts b <+> equals <+> align (pprExpr' opts False rhs)
-pprExpr' opts parens  (ECase x b alts) = maybeParens parens
-                                         $ sep [ sep [ "case" <+> pprExpr' opts False x
-                                                     , "of" <+> pprBinder opts b <+> "{" ]
-                                               , indent 2 $ vcat $ map pprAlt alts
-                                               , "}"
-                                               ]
+
+-- There is a subtlety here. We can have 'case' as either 
+-- 1. variable
+-- 2. Expression
+-- The problem is that depending on which we need, we will need to generate code:
+-- case ( %scrutinee = %var) ... (versus)
+-- case { %scrutinee = %var } ... (versus)
+-- For now, since we know that the scrutinee will be a variable, we generate
+--     "core.return" (%ds_arg) : (none) -> (none)
+-- Another subtlety: We are avoiding a binding here: We usually have
+--
+--  case (f x) of <wildcard-name-for-f-x> {
+--  ....
+-- }
+--
+-- But I do not implement the <wildcard-name-for-f-x> here.
+-- We can always fill this in later.
+pprExpr' opts parens  (ECase x b alts) = 
+    maybeParens parens
+    $ sep [ "standalone.case" <+> 
+                ("{" <> pprExpr' opts False x <> "}")
+                -- ,  pprBinder opts b <+> "{"
+                , indent 2 $ pprAltsLhs opts alts
+                , indent 2 $ pprAltsRhs opts alts
+                , "}"
+        ]
   where pprAlt (Alt con bndrs rhs) = hang' (hsep (pretty con : map (pprBinder opts) bndrs) <+> smallRArrow) 2 (pprExpr' opts False rhs)
 pprExpr' opts parens  (EType t)        = maybeParens parens $ "TYPE:" <+> pprType opts t
 pprExpr' opts parens  ECoercion        = "CO"
+
+-- we write down all the LHSs as an attribute set.
+-- This is perfect because all we have are strings/ints on the LHSs.
+pprAltsLhs :: PrettyOpts -> [Alt] -> Doc
+pprAltsLhs _ _= ""
+
+pprAltsRhs :: PrettyOpts -> [Alt] -> Doc
+pprAltsRhs _ _= ""
+
 
 instance Pretty AltCon where
     pretty (AltDataCon t) = text $ T.unpack t
@@ -206,8 +257,8 @@ pprTopBinding opts tb =
         pprTypeSig opts b
         -- <$$> pprIdInfo opts (binderIdInfo b') (binderIdDetails b') don't want it
         -- <$$> comment (pretty s) // don't want it either
-        <$$> hang' ("func" <+> ("@" <> pprBinder opts b) <+> "{") 2 (pprExpr opts rhs)
-        <> line
+        <$$> hang' ("func" <+> ("@" <> (pretty . binderName $ b' )) <+> "()" <+> "{") 2 (pprExpr opts rhs)
+        <> line <> "}"  
 
 pprTypeSig :: PrettyOpts -> Binder -> Doc
 pprTypeSig opts b@(Bndr b') =

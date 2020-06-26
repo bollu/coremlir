@@ -1,3 +1,4 @@
+// The ideal syntax that I dreamed up.
 // module Main where
 // 
 // $trModule :: Module
