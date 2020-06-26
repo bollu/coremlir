@@ -57,7 +57,7 @@
 "core.module" () ({
   // %ghc_types_ihash
 
-  %constructor_ihash  = "core.make_none" () : () ->  none
+  %constructor_ihash  = "core.make_data_constructor" () : () ->  none
   %c0 = constant 0 : i32
   %c1 = constant 1 : i32
 
