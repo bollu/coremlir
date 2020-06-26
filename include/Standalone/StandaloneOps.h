@@ -19,6 +19,9 @@ namespace standalone {
 #define GET_OP_CLASSES
 #include "Standalone/StandaloneOps.h.inc"
 
+class LambdaOp : public Op<LambdaOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::OneOperand> {
+};
+
 } // namespace standalone
 } // namespace mlir
 

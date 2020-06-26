@@ -53,39 +53,52 @@
 //     @() Main.main)
 
 
-
-
 "core.module" () ({
-  %altdefault = "core.case_default" () : () -> (none)
-  // encode all alts
-  %alt_int_0 = "core.case_alt" () : () -> (none)
-  %alt_int_1 = "core.case_alt" () : () -> (none)
-  %coreIhash = "core.case_alt" () : () -> (none)
+  // %ghc_types_ihash
+
+  %constructor_ihash  = "core.make_none" () : () ->  none
+  %c0 = constant 0 : i32
+  %c1 = constant 1 : i32
+
   %fact = "core.lambda" () ({ // λ i ...
         ^entry(%i: none):
-	          "core.case" () ({ //case i of ...
-	          	"core.return" (%i) : (none) -> ()
+	          "core.case" () ({ //[[case]]  ...
+	          	"core.return" (%i) : (none) -> () // case [[i]] of
 	          },
 	          { // I# ds -> 
 	           	  	^entry(%ds: none): 
-	           	  			"core.case" (%ds) ({
-	           	  				^entry(%ds_arg: i64):	
-	           	  				"core.finish" () : () -> ()
+	           	  			"core.case" (%ds) ({ // [[case]] ds of
+	           	  				^entry(%ds_arg: none):	 // [[ds]]
+	           	  				"core.return" (%ds_arg) : (none) -> (none)
 	           	  			},
-	           	  			{
+	           	  			{ // default -> 
 	           	  				"core.app" () ({ //lhs
 
 	           	  				}, { //rhs
+	           	  					"core.app" (%fact) : (none) -> (none)
 
 	           	  				}) : () -> () 
            	  					"core.finish" () : () -> ()
 	           	  			},
-	           	  			{
-	           	  				"core.finish" () : () -> ()
+	           	  			{ // 0# -> // APP(GHC.Types.I# 0#)
+           	  					"core.app" () ({
+           	  						"core.return" (%constructor_ihash) : (none) -> ()
+           	  					}, 
+           	  					{
+           	  						"core.make_i32" (%c0) : (i32) -> (none)
+           	  					}) : () -> (none)
+	           	  			},
+	           	  			{ // 1# ->
+	           	  					// APP(GHC.Types.I# 1#)
+	           	  					"core.app" () ({
+	           	  						"core.return" (%constructor_ihash) : (none) -> ()
+	           	  					}, 
+	           	  					{
+	           	  						"core.make_i32" (%c1) : (i32) -> (none)
+	           	  					}) : () -> (none)
+
 	           	  			}) {alt0="default", alt1=1, alt2=2}: (none) -> (none) 
-	          		
-	          		"core.finish" () : () -> () 			
+	          				
 	           }): ()-> (none) 
-	          "core.finish" () : () -> ()
   }): () -> (none)
-}): () -> ()
+}): () -> (none)
