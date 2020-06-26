@@ -74,6 +74,7 @@ int main(int argc, char **argv) {
                                     "MLIR modular optimizer driver\n");
 
   mlir::MLIRContext context;
+  
   if (showDialects) {
     llvm::outs() << "Registered Dialects:\n";
     for (mlir::Dialect *dialect : context.getRegisteredDialects()) {
