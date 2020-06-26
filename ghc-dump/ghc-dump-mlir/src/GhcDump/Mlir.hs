@@ -225,10 +225,14 @@ pprBinding opts b@(Bndr TyBinder{}) rhs =
 instance Pretty TopBinding where
     pretty = pprTopBinding defaultPrettyOpts
 
+
+prelude :: Doc; prelude = ""
+
 pprModule :: PrettyOpts -> Module -> Doc
 pprModule opts m =
     comment (pretty $ modulePhase m)
     <$$> text "module" <+> ("@" <> pretty (moduleName m)) <+> "{" <> line
+    <$$> prelude
     <$$> vsep (map (pprTopBinding opts) (drop 1 (moduleTopBindings m)))
 
 instance Pretty Module where
