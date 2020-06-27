@@ -27,7 +27,7 @@
   
           standalone.ap({ standalone.return (%constructor_plus) }, // GHC.Num.+
                             { standalone.return (%value_dict_num_int) }, // GHC.Num.$fNumInt
-                            { standalone.ap({ standalone.dominance_free_scope { standalone.return (%fib) } },  {standalone.return (%i)}) }, //(APP(Main.fib i))
+                            { standalone.ap({ standalone.return (%fib) },  {standalone.return (%i)}) }, //(APP(Main.fib i))
                             // { standalone.ap({ standalone.return (%constructor_plus) },  {standalone.return (%i)}) }, // FOR TESTING WITHOUT RECURSION!: (APP(Main.fib i))
                             {   //APP(GHC.Num.- ...
                                 standalone.ap({ standalone.return (%constructor_minus)}, // (APP(GHC.Num.-
