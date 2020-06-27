@@ -1,24 +1,61 @@
-# An out-of-tree dialect template for MLIR
+# Core-MLIR
 
-This repository contains a template for an out-of-tree [MLIR](https://mlir.llvm.org/) dialect as well as a
-standalone `opt`-like tool to operate on that dialect.
+## Concerns about this `Graph` version of region
 
-## How to build
+The code that looks like below is considered as a non-dominated use. So it
+checks **use-sites**, not **def-sites**.
 
-This setup assumes that you have built LLVM and MLIR in `$BUILD_DIR` and installed them to `$PREFIX`. To build and launch the tests, run
-```sh
-mkdir build && cd build
-cmake -G Ninja .. -DMLIR_DIR=$PREFIX/lib/cmake/mlir -DLLVM_EXTERNAL_LIT=$BUILD_DIR/bin/llvm-lit
-cmake --build . --target check-standalone-opt
+```cpp
+standalone.module { 
+standalone.dominance_free_scope {
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^-Blocking dominance_free_scope
+    vvvv-DEF
+    %fib = standalone.toplevel_binding {  
+        // ... standalone.dominance_free_scope { standalone.return (%fib) } ...
+        ... standalone.return (%fib) } ...
+                           USE-^^^^
+    }
+} // end dominance_free_scope
 ```
-To build the documentation from the TableGen description of the dialect
-operations, run
-```sh
-cmake --build . --target mlir-doc
+
+On the other hand, the code below is considered a dominated use (well, the domaintion
+that is masked by `standalone.dominance_free_scope`:
+
+```cpp
+standalone.module { 
+// standalone.dominance_free_scope {
+
+    vvvv-DEF
+    %fib = standalone.toplevel_binding {  
+        ... standalone.dominance_free_scope { standalone.return (%fib) } ...
+   BLOCKING-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                 USE-^^^^
+        //... standalone.return (%fib) } ...
+                                    
+    }
+//} // end dominance_free_scope
 ```
-**Note**: Make sure to pass `-DLLVM_INSTALL_UTILS=ON` when building LLVM with
-CMake so that it installs `FileCheck` to the chosen installation prefix.
 
-## License
+So, this blocks:
+```
+DEF
+   BLOCKING----------->
+     | USE
+     |
+     v
+```
 
-This dialect template is made available under the Apache License 2.0 with LLVM Exceptions. See the `LICENSE.txt` file for more details.
+This does not:
+
+```
+BLOCKING----------->
+|DEF
+|   USE
+|    
+v    
+```
+
+- My mental model of the "blocking" was off! I thought it meant that
+  everything inside this region can disobey SSA conditions. Rather,
+  it means that everything **inside** this region can disobey SSA _with respect to_
+  everything **outside** this region. [Maybe the other way round as well, I have not tried,
+  nor do I have a good mental model of this].
