@@ -214,10 +214,8 @@ ParseResult DominanceFreeScopeOp::parse(OpAsmParser &parser,
   // magic++, wtf++;
   // DominanceFreeScopeOp::ensureTerminator(*body, parser.getBuilder(), result.location);
 }
-
 void DominanceFreeScopeOp::print(OpAsmPrinter &p) {
-    p << getOperationName();
-    p.printRegion(getRegion(), /*printEntry=*/false);
+    p << getOperationName(); p.printRegion(getRegion(), /*printEntry=*/false);
 };
 
 void DominanceFreeScopeOp::build(OpBuilder &odsBuilder, OperationState &odsState, Type resultType) {
@@ -242,7 +240,7 @@ ParseResult TopLevelBindingOp::parse(OpAsmParser &parser, OperationState &result
 };
 
 void TopLevelBindingOp::print(OpAsmPrinter &p) {
-    p.printRegion(getBody(), /*printEntry=*/false);
+    p << getOperationName(); p.printRegion(getBody(), /*printEntry=*/false);
 };
 
 // === Module OP ===
@@ -259,7 +257,7 @@ ParseResult ModuleOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void ModuleOp::print(OpAsmPrinter &p) {
-    p.printRegion(getBody(), /*printEntry=*/false);
+    p << getOperationName(); p.printRegion(getBody(), /*printEntry=*/false);
 };
 
 // === DummyFinish OP ===
