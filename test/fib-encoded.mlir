@@ -1,5 +1,5 @@
 standalone.module { 
-  standalone.dominance_free_scope {
+  // standalone.dominance_free_scope {
 
     %constructor_ihash  = standalone.make_data_constructor<"I#"> 
     // This is kind of a lie, we should call it as inbuilt fn or whatever.
@@ -64,7 +64,7 @@ standalone.module {
     // %cNONE = standalone.make_data_constructor<"DUMMY_RETURN_PLEASE_DONT_BE_A_PETULANT_CHILD">
     // standalone.return(%cNONE)
     standalone.dummy_finish
-  } // end dominance_free_scope
+  // } // end dominance_free_scope
 
   // standalone.dummy_finish
 } // end module
