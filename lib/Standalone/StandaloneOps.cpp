@@ -235,7 +235,6 @@ void DominanceFreeScopeOp::build(OpBuilder &odsBuilder, OperationState &odsState
 ParseResult TopLevelBindingOp::parse(OpAsmParser &parser, OperationState &result) {
     OpAsmParser::OperandType body;
 
-    // if(parser.parseOperand(body)) return failure();
 
     if(parser.parseRegion(*result.addRegion(), {}, {})) return failure();
     result.addTypes(parser.getBuilder().getNoneType());

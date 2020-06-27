@@ -116,16 +116,19 @@ public:
   static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   // build a single region.
+
   static void build(OpBuilder &odsBuilder, OperationState &odsState, Type resultTy);
 
 };
 
 
-class TopLevelBindingOp : public Op<TopLevelBindingOp, OpTrait::OneResult> {
+class TopLevelBindingOp : public Op<TopLevelBindingOp, OpTrait::OneResult, OpTrait::OneRegion, RegionKindInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "standalone.toplevel_binding"; };
-  Region &getBody() { this->getOperation()->getRegion(0); }; 
+  Region &getRegion() { return this->getOperation()->getRegion(0); };
+  Region &getBody() { this->getRegion(); }; 
+  static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
