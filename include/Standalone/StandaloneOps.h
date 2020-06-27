@@ -107,7 +107,7 @@ public:
   void print(OpAsmPrinter &p);
 };
 
-class DominanceFreeScopeOp : public Op<DominanceFreeScopeOp, OpTrait::OneRegion, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::ZeroOperands, RegionKindInterface::Trait> {
+class DominanceFreeScopeOp : public Op<DominanceFreeScopeOp, OpTrait::OneRegion, OpTrait::ZeroOperands, RegionKindInterface::Trait, OpTrait::ZeroResult, OpTrait::IsTerminator> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "standalone.dominance_free_scope"; };
@@ -122,17 +122,37 @@ public:
 };
 
 
-class TopLevelBindingOp : public Op<TopLevelBindingOp, OpTrait::OneResult, OpTrait::OneRegion, RegionKindInterface::Trait> {
+class TopLevelBindingOp : public Op<TopLevelBindingOp, OpTrait::OneResult, OpTrait::OneRegion> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "standalone.toplevel_binding"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
   Region &getBody() { this->getRegion(); }; 
-  static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
 
+
+class ModuleOp : public Op<ModuleOp, OpTrait::OneResult, OpTrait::OneRegion> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "standalone.module"; };
+  Region &getRegion() { return this->getOperation()->getRegion(0); };
+  Region &getBody() { this->getRegion(); }; 
+  static RegionKind getRegionKind(unsigned index) { return RegionKind::SSACFG; }
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  void print(OpAsmPrinter &p);
+};
+
+
+class DummyFinishOp : public Op<DummyFinishOp, OpTrait::OneResult, OpTrait::IsTerminator> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "standalone.dummy_finish"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  void print(OpAsmPrinter &p);
+
+};
 
 
 } // namespace standalone

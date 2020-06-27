@@ -209,10 +209,10 @@ ParseResult DominanceFreeScopeOp::parse(OpAsmParser &parser,
   Region *body = result.addRegion();
   if (parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
     return failure();
+  return success();
 
   // magic++, wtf++;
   // DominanceFreeScopeOp::ensureTerminator(*body, parser.getBuilder(), result.location);
-  return success();
 }
 
 void DominanceFreeScopeOp::print(OpAsmPrinter &p) {
@@ -243,6 +243,38 @@ ParseResult TopLevelBindingOp::parse(OpAsmParser &parser, OperationState &result
 
 void TopLevelBindingOp::print(OpAsmPrinter &p) {
     p.printRegion(getBody(), /*printEntry=*/false);
+};
+
+// === Module OP ===
+// === Module OP ===
+// === Module OP ===
+// === Module OP ===
+// === Module OP ===
+
+ParseResult ModuleOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType body;
+    if(parser.parseRegion(*result.addRegion(), {}, {})) return failure();
+    result.addTypes(parser.getBuilder().getNoneType());
+    return success();
+};
+
+void ModuleOp::print(OpAsmPrinter &p) {
+    p.printRegion(getBody(), /*printEntry=*/false);
+};
+
+// === DummyFinish OP ===
+// === DummyFinish OP ===
+// === DummyFinish OP ===
+// === DummyFinish OP ===
+// === DummyFinish OP ===
+
+ParseResult DummyFinishOp::parse(OpAsmParser &parser, OperationState &result) {
+    result.addTypes(parser.getBuilder().getNoneType());
+    return success();
+};
+
+void DummyFinishOp::print(OpAsmPrinter &p) {
+    p << getOperationName();
 };
 
 
