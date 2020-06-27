@@ -1,12 +1,12 @@
 
 
 module {
-  %0 =  {
+  %0 = standalone.module {
     %1 = standalone.make_data_constructor<"I#">
     %2 = standalone.make_data_constructor<"GHC.Num.+">
     %3 = standalone.make_data_constructor<"GHC.Num.-">
     %4 = standalone.make_data_constructor<"GHC.Num.$fNumInt">
-    %5 =  {
+    %5 = standalone.toplevel_binding {
       standalone.lambda[%arg0] {
         standalone.case {
           standalone.return(%arg0)
@@ -56,7 +56,7 @@ module {
         }
       }
     }
-    %6 =  {
+    %6 = standalone.toplevel_binding {
       standalone.ap( {
         standalone.return(%5)
       }, {
