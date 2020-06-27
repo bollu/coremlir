@@ -43,9 +43,6 @@ ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
 
     Region *r = result.addRegion();
     return parser.parseRegion(*r, regionArgs, {parser.getBuilder().getNoneType()});
-    // return success();
-
-    // assert(	false);
 }
 
 void LambdaOp::print(OpAsmPrinter &p) {
@@ -88,7 +85,6 @@ ParseResult CaseOp::parse(OpAsmParser &parser, OperationState &result) {
 
 void CaseOp::print(OpAsmPrinter &p) {
     p << "standalone.case";
-    
     p.printRegion(this->getScrutineeRegion());
     p.printOptionalAttrDict(this->getAltLHSs().getValue());
     for(int i = 0; i < this->getNumAlts(); ++i) {
@@ -105,11 +101,27 @@ void CaseOp::print(OpAsmPrinter &p) {
 
 
 ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
-    assert(false);
+    
+    Region *fn = result.addRegion();
+    // (<fn-arg>
+    if (parser.parseLParen() || parser.parseRegion(*fn, {}, {})) { return failure(); }
+
+
+    // ["," <arg>]
+    while(succeeded(parser.parseOptionalComma())) {
+            Region *arg = result.addRegion(); parser.parseRegion(*arg, {}, {});
+    }   
+    //)
+    return parser.parseRParen();
 };
 
 void ApOp::print(OpAsmPrinter &p) {
-    p << "ap";
+    p << "standalone.ap("; p.printRegion(getFn(), /*blockArgs=*/false);
+    
+    for(int i = 0; i < getNumFnArguments(); ++i) {
+        p << ","; p.printRegion(getFnArgument(i), /*blockArgs=*/false);
+    }
+    p << ")";
 };
 
 
@@ -134,6 +146,107 @@ ParseResult ReturnOp::parse(OpAsmParser &parser, OperationState &result) {
 void ReturnOp::print(OpAsmPrinter &p) {
     p << "standalone.return(" << getInput() << ")";
 };
+
+
+
+// === MakeI32 OP ===
+// === MakeI32 OP ===
+// === MakeI32 OP ===
+// === MakeI32 OP ===
+// === MakeI32 OP ===
+
+
+ParseResult MakeI32Op::parse(OpAsmParser &parser, OperationState &result) {
+    mlir::OpAsmParser::OperandType i;
+    if (parser.parseLParen() || parser.parseOperand(i) || parser.parseRParen())
+        return failure();
+    SmallVector<Value, 1> vi;
+    parser.resolveOperand(i, parser.getBuilder().getIntegerType(32), vi);
+    result.addOperands(vi);
+    return success();
+};
+
+void MakeI32Op::print(OpAsmPrinter &p) {
+    p << "standalone.make_i32(" << getInput() << ")";
+};
+
+// === MakeDataConstructor OP ===
+// === MakeDataConstructor OP ===
+// === MakeDataConstructor OP ===
+// === MakeDataConstructor OP ===
+// === MakeDataConstructor OP ===
+
+ParseResult MakeDataConstructorOp::parse(OpAsmParser &parser, OperationState &result) {
+    // parser.parseAttribute(, parser.getBuilder().getStringAttr )
+    Attribute attr;
+    if(parser.parseLess()) return failure();
+    if(parser.parseAttribute(attr, "name", result.attributes)) { assert(false && "unable to parse attribute!");  return failure(); }
+    if(parser.parseGreater()) return failure();
+    llvm::errs() << "- " << __FUNCTION__ << ":" << __LINE__ << "attribute: " << attr << "\n";
+    llvm::errs() << "- " << __FUNCTION__ << ":" << __LINE__ << "attribute ty: " << attr.getType() << "\n";
+
+    result.addTypes(parser.getBuilder().getNoneType());
+    return success();
+};
+void MakeDataConstructorOp::print(OpAsmPrinter &p) {
+    p << getOperationName() << "<" << getAttr("name")  << ">";
+};
+
+
+
+
+// === DomninanceFreeScope OP ===
+// === DomninanceFreeScope OP ===
+// === DomninanceFreeScope OP ===
+// === DomninanceFreeScope OP ===
+// === DomninanceFreeScope OP ===
+
+
+
+ParseResult DominanceFreeScopeOp::parse(OpAsmParser &parser,
+                                             OperationState &result) {
+  // Parse the body region, and reuse the operand info as the argument info.
+  Region *body = result.addRegion();
+  if (parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
+    return failure();
+
+  // magic++, wtf++;
+  // DominanceFreeScopeOp::ensureTerminator(*body, parser.getBuilder(), result.location);
+  return success();
+}
+
+void DominanceFreeScopeOp::print(OpAsmPrinter &p) {
+    p << getOperationName();
+    p.printRegion(getRegion(), /*printEntry=*/false);
+};
+
+void DominanceFreeScopeOp::build(OpBuilder &odsBuilder, OperationState &odsState, Type resultType) {
+      odsState.addTypes(resultType);
+};
+
+
+
+// === MakeTopLevelBinding OP ===
+// === MakeTopLevelBinding OP ===
+// === MakeTopLevelBinding OP ===
+// === MakeTopLevelBinding OP ===
+// === MakeTopLevelBinding OP ===
+
+ParseResult TopLevelBindingOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType body;
+
+    // if(parser.parseOperand(body)) return failure();
+
+    if(parser.parseRegion(*result.addRegion(), {}, {})) return failure();
+    result.addTypes(parser.getBuilder().getNoneType());
+    return success();
+};
+
+void TopLevelBindingOp::print(OpAsmPrinter &p) {
+    p.printRegion(getBody(), /*printEntry=*/false);
+};
+
+
 
 } // namespace standalone
 } // namespace mlir
