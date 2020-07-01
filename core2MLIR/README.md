@@ -1,0 +1,53 @@
+# Core2MLIR
+
+Core plugin to convert Core into MLIR.
+
+- [ANF](https://gitlab.haskell.org/ghc/ghc/blob/master/compiler/GHC/CoreToStg/Prep.hs)
+
+
+To run these, first install the GHC plugin from `ghc-dump`. This installs
+both the plugin that is loaded with `-fplugin GhcDump.Plugin` [The package `ghc-dump-core`]
+as well as the utility tool for dumping these called `ghc-dump` [The package `ghc-dump-util`].
+
+```
+# install tool and compiler plugin 
+$ cd ghc-dump && cabal install --lib all && cabal install all
+```
+
+
+Then run the command:
+
+```
+ghc -fplugin Core2MLIR.Plugin -dumpdir=dump -O fib.hs -o fib.out
+```
+
+
+## More detailed instructions.
+
+GHC can only load plugins that are registered against its package database,
+hence all this song-and-dance. 
+- The first time we run `cabal install --lib --overwrite-policy=always`, cabal writes a bunch of stuff
+  into a bunch of global locations, including the path `/home/bollu/.ghc/x86_64-linux-8.8.3/environments/default`.
+
+- From now on, **only run `cabal build && cabal install --lib --overwrite-policy=always`**. If one re-runs `cabal install --lib`
+  _without_ `--ovewrite-policy=always`,
+  it goes and writes __a second entry__ into the aforementioned `environments/default` file.
+  _This will succeed_. It will fail when one attempts to run `ghc -fplugin Core2MLIR.Plugin`
+  with an error: `Ambiguous module name ‘Core2MLIR.Plugin'`.
+
+- Indeed, _eat flaming death_ seems like a totally valid response to this state
+  of affairs. Why do pure functional programmers build _more horribly stateful_,
+  fragile systems than the UNIX folks who wrote in (gasp) C?
+
+#### `cabal` warts one may run into:
+- https://github.com/haskell/cabal/issues/6391
+- https://github.com/haskell/cabal/issues/6394
+
+
+#### References
+
+- [GHC plugins](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/extending_ghc.html#annotation-pragmas)
+- [GHC Source code viewer](https://haskell-code-explorer.mfix.io/package/ghc-8.6.1/show/main/Finder.hs)
+- [GHCPlugins module: `CoreSyn`](https://hackage.haskell.org/package/ghc-8.2.1/docs/CoreSyn.html)
+- [GHCPlugins module: `CoreMonad`](https://hackage.haskell.org/package/ghc-8.2.1/docs/CoreMonad.html)
+

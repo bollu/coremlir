@@ -10,11 +10,15 @@ import GhcPlugins hiding (TB)
 import CoreMonad (pprPassDetails)
 #endif
 import ErrUtils (showPass)
+import GHC
+import CorePrep
 -- import Text.Printf
 -- import System.FilePath
 -- import System.Directory
+--
 
--- import GhcDump.Convert
+
+import Core2MLIR.Convert
 
 plugin :: Plugin
 plugin = defaultPlugin { installCoreToDos = install }
@@ -22,21 +26,30 @@ plugin = defaultPlugin { installCoreToDos = install }
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 install _opts todo = do
     dflags <- getDynFlags
-    return (intersperseDumps dflags todo)
+    hscenv <- getHscEnv
+    return ([CoreDoPluginPass "Core2MLIR" (liftIO . dumpIn dflags hscenv)]) -- (intersperseDumps dflags todo)
 
-intersperseDumps :: DynFlags -> [CoreToDo] -> [CoreToDo]
-intersperseDumps dflags = go 0 "desugar"
-  where
-    go n phase (todo : rest) = pass n phase : todo : go (n+1) phase' rest
-      where phase' = showSDocDump dflags (ppr todo GhcPlugins.<> text ":" <+> pprPassDetails todo)
-    go n phase [] = [pass n phase]
 
-    pass n phase = CoreDoPluginPass "DumpCore" (liftIO . dumpIn dflags n phase)
-
-dumpIn :: DynFlags -> Int -> String -> ModGuts -> IO ModGuts
-dumpIn dflags n phase guts = do
-    putStrLn $ "haha, plugin go vroom"
+dumpIn :: DynFlags -> HscEnv -> ModGuts -> IO ModGuts
+dumpIn dflags hscenv guts = do
+    putStrLn $ "running Core2MLIR..."
+    -- let hscenv =  _ :: HscEnv
+    -- hscenv <- liftIO $ getHscEnv
+    -- core_prep_env <- mkInitialCorePrepEnv hscenv
+    let module_ = mg_module guts
+    -- | https://haskell-code-explorer.mfix.io/package/ghc-8.6.1/show/main/HscMain.hs#L1590
+    -- Synthesize a location from thin air
+    let modloc =  ModLocation{ ml_hs_file = Nothing, 
+                               ml_hi_file = panic "CorePrepSynthLoc:ml_hi_file",
+                               ml_obj_file  = panic "CorePrepSynthLoc:ml_obj_file" }
+    let coreprogram = mg_binds guts
+    let tcs = mg_tcs guts
+    (coreprogram', _) <- corePrepPgm hscenv module_ modloc coreprogram tcs
+    let guts' = guts { mg_binds = coreprogram' }
+    putStrLn $ "ran Core2MLIR..."
     return guts
+
+
     -- let prefix = fromMaybe "dump" $ dumpPrefix dflags
     --     fname = printf "%spass-%04u.cbor" prefix n
     -- showPass dflags $ "GhcDump: Dumping core to "++fname
