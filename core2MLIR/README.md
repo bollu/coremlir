@@ -46,9 +46,17 @@ hence all this song-and-dance.
 - Also, it looks like `cabal install --lib` may soon be moved into a separate command
   because it "behaves very differently". You don't say. 
 
+- Unfortunately, we _need to register_ a Core plugin with the GHC package
+  registration system: [Compiler plugins](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/extending_ghc.html#compiler-plugins) states:
+
+> Plugins can be added on the command line with the -fplugin=⟨module⟩ option
+> where **⟨module⟩ is a module in a registered package that exports the plugin**.
+
+Ergo, one seems to be hosed.
+
 #### `cabal` warts one may run into:
-- https://github.com/haskell/cabal/issues/6391
-- https://github.com/haskell/cabal/issues/6394
+- [Reinstall of package breaks things](https://github.com/haskell/cabal/issues/6391)
+- [cabal install `--lib` is not idempotent](https://github.com/haskell/cabal/issues/6394)
 
 
 #### References
