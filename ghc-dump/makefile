@@ -17,8 +17,8 @@ install:
 	cabal build ghc-dump-util ghc-dump-mlir ghc-dump-core
 	# HUGE FUCKING HACK.
 	# 
-	echo "" > ~/.ghc/x86_64-linux-8.6.5/environments/default 
-	cabal install ghc-dump-core --lib 
+	rm ~/.ghc/x86_64-linux-8.6.5/environments/default 
+	cabal install ghc-dump-core --lib  --overwrite-policy=always --global
 
 fib: clean
 	ghc -ddump-simpl -ddump-to-file -fplugin GhcDump.Plugin -O0 -dumpdir=dump -O fib.hs -o fib.out
