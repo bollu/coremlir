@@ -21,7 +21,7 @@ install:
 	cabal install ghc-dump-core --lib  --overwrite-policy=always --global
 
 fib: clean
-	ghc -ddump-simpl -ddump-to-file -fplugin GhcDump.Plugin -O0 -dumpdir=dump -O fib.hs -o fib.out
+	ghc -O0 -dverbose-core2core -ddump-simpl  -ddump-to-file -fplugin GhcDump.Plugin -dumpdir=dump -O fib.hs -o fib.out
 	cabal exec ghc-dump show  dump/fib.pass-0018.cbor | tee dump/fib.pass-0018.core
 	cabal exec ghc-dump show  dump/fib.pass-0000.cbor | tee dump/fib.pass-0000.core
 	cabal exec ghc-dump-mlir show dump/fib.pass-0000.cbor  | tee dump/fib.pass-0000.mlir
