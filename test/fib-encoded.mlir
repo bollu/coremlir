@@ -6,6 +6,9 @@
 // main :: IO (); main = print (fib 10)
 // module Main where
 // 
+
+// Pretty printed core from `ghc-dump-core` [output directly from `desugar`]:
+// =========================================================================
 // $trModule :: Module
 // 
 // {- Core Size{terms=5 types=0 cos=0 vbinds=0 jbinds=0} -}
@@ -129,3 +132,49 @@ standalone.module {
 
   // standalone.dummy_finish
 } // end module
+
+
+
+// ==================== Desugar (after optimization) ====================
+// 2020-07-01 23:19:58.257881266 UTC
+// 
+// Result size of Desugar (after optimization)
+//   = {terms: 39, types: 15, coercions: 0, joins: 0/0}
+// 
+// -- RHS size: {terms: 5, types: 0, coercions: 0, joins: 0/0}
+// Main.$trModule :: GHC.Types.Module
+// [LclIdX]
+// Main.$trModule
+//   = GHC.Types.Module
+//       (GHC.Types.TrNameS "main"#) (GHC.Types.TrNameS "Main"#)
+// 
+// Rec {
+// -- RHS size: {terms: 23, types: 6, coercions: 0, joins: 0/0}
+// fib [Occ=LoopBreaker] :: Int -> Int
+// [LclId]
+// fib
+//   = \ (i_a11V :: Int) ->
+//       case i_a11V of { GHC.Types.I# ds_d2PQ ->
+//       case ds_d2PQ of {
+//         __DEFAULT ->
+//           + @ Int
+//             GHC.Num.$fNumInt
+//             (fib i_a11V)
+//             (fib (- @ Int GHC.Num.$fNumInt i_a11V (GHC.Types.I# 1#)));
+//         0# -> GHC.Types.I# 0#;
+//         1# -> GHC.Types.I# 1#
+//       }
+//       }
+// end Rec }
+// 
+// -- RHS size: {terms: 5, types: 1, coercions: 0, joins: 0/0}
+// main :: IO ()
+// [LclIdX]
+// main = print @ Int GHC.Show.$fShowInt (fib (GHC.Types.I# 10#))
+// 
+// -- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+// :Main.main :: IO ()
+// [LclIdX]
+// :Main.main = GHC.TopHandler.runMainIO @ () main
+
+
