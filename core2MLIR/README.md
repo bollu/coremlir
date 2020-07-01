@@ -39,6 +39,13 @@ hence all this song-and-dance.
   of affairs. Why do pure functional programmers build _more horribly stateful_,
   fragile systems than the UNIX folks who wrote in (gasp) C?
 
+- This will still fucking _not work_ because the latest versions of Cabal
+  build stuff in "environments". So we need to append a `--global`, or remember
+  sandbox names. I wish this transition of `cabal` tooling was documented someplace.
+
+- Also, it looks like `cabal install --lib` may soon be moved into a separate command
+  because it "behaves very differently". You don't say. 
+
 #### `cabal` warts one may run into:
 - https://github.com/haskell/cabal/issues/6391
 - https://github.com/haskell/cabal/issues/6394

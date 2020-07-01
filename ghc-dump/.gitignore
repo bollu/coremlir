@@ -30,3 +30,5 @@ cabal.project.local~
 .HTF/
 .ghc.environment.*
 *.out
+fib
+fibraw
