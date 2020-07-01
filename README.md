@@ -126,3 +126,45 @@ makes sense. I should maybe clean-slate from a Core plugin.
 - Hence, we should really be reusing the
   [code in `ghc-dump` that traverses `Core` from within GHC](https://github.com/bgamari/ghc-dump/blob/master/ghc-dump-core/GhcDump/Convert.hs#L237).
 
+
+# 1 July 2020
+
+- [Reading GHC core sources paid off, the `CorePrep` invariants are documented here](https://haskell-code-explorer.mfix.io/package/ghc-8.6.1/show/coreSyn/CorePrep.hs#L142)
+- In particular we have `case <body> of`. So nested cases are legal, 
+  which is something we need to flatten.
+- Outside of nested cases, everything else seems "reasonable": laziness is
+  at each point of `let`. We can lower `let var = e` as `%let_var = lazy(e)`
+  for example.
+- Will first transcribe our `fibstrict` example by hand, then write a small
+  Core plugin to do this automagically.
+- I don't understand WTF `cabal` is doing. In particular, why `cabal install --library`
+  installs the library twice :(
+- It _seems_ like the cabal documentation on [how to install a system library](https://downloads.haskell.org/~cabal/Cabal-latest/doc/users-guide/installing-packages.html#building-and-installing-a-system-package)
+  should do the trick.
+
+```hs
+$ runghc Setup.hs configure --ghc
+$ runghc Setup.hs build
+$ runghc Setup.hs install
+```
+
+- OK, so the problem was that I somehow had `cabal` hidden in my package management.
+  It turns that even `ghc-pkg` maintains a local and a global package directory,
+  and I was exposing stuff in my _local_ package directory (which is in `~/.ghc/.../package.conf.d`),
+  note the global one (which is in `/usr/lib/ghc-6.12.1/package.conf.d`).
+- The solution is to ask `ghc-pkg --global expose Cabal` which exposes `cabal`,
+  which contains `Distribution.Simple`, which is needed to run `Setup.hs`.
+- `runghc` is some kind of wrapper around `ghc` runs a file directly without
+  having to compile things.
+- Of course, this is disjoint from `cabal`'s `exposed-modules`, which is a layer
+  disjoint from `ghc-pkg`. I think cabal commands `ghc-pkg` to expose and hide
+  what it needs. This is fucking hilarious if it weren't so complex.
+
+- To quote the GHC manual on `Cabal`'s `Distribution.Simple`:
+
+> This module isn't called "Simple" because it's simple. Far from it. It's
+> called "Simple" because it does complicated things to simple software.
+> The original idea was that there could be different build systems that all
+> presented the same compatible command line interfaces. There is still a
+> Distribution.Make system but in practice no packages use it.
+> https://hackage.haskell.org/package/Cabal-3.2.0.0/docs/Distribution-Simple.html
