@@ -381,7 +381,7 @@ ParseResult CaseSSAOp::parse(OpAsmParser &parser, OperationState &result) {
 
 void CaseSSAOp::print(OpAsmPrinter &p) {
     p << "standalone.caseSSA ";
-    p << "[ " << this->getOperation()->getNumOperands() << " | " << this->getNumAlts() << "] ";
+    // p << "[ " << this->getOperation()->getNumOperands() << " | " << this->getNumAlts() << "] ";
     // p << this->getOperation()->getOperand(0);
     p <<  this->getScrutinee();
     p.printOptionalAttrDict(this->getAltLHSs().getValue());
