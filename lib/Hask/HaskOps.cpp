@@ -390,6 +390,28 @@ void CaseSSAOp::print(OpAsmPrinter &p) {
     }
 };
 
+// === RECURSIVEREF OP ===
+// === RECURSIVEREF OP ===
+// === RECURSIVEREF OP ===
+// === RECURSIVEREF OP ===
+// === RECURSIVEREF OP ===
+
+ParseResult RecursiveRefOp::parse(OpAsmParser &parser,
+                                    OperationState &result) {
+  // Parse the body region, and reuse the operand info as the argument info.
+  Region *body = result.addRegion();
+  if (parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
+    return failure();
+
+  result.addTypes(parser.getBuilder().getNoneType());
+  return success();
+
+  // magic++, wtf++;
+  // RecursiveRefOp::ensureTerminator(*body, parser.getBuilder(), result.location);
+}
+void RecursiveRefOp::print(OpAsmPrinter &p) {
+    p << getOperationName(); p.printRegion(getRegion(), /*printEntry=*/false);
+};
 
 
 

@@ -122,12 +122,13 @@ public:
 };
 
 
-class TopLevelBindingOp : public Op<TopLevelBindingOp, OpTrait::OneResult, OpTrait::OneRegion> {
+class TopLevelBindingOp : public Op<TopLevelBindingOp, OpTrait::OneResult, OpTrait::OneRegion, RegionKindInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.toplevel_binding"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
   Region &getBody() { this->getRegion(); }; 
+  static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
@@ -191,6 +192,21 @@ public:
   void print(OpAsmPrinter &p);
 
 };
+
+class RecursiveRefOp : public Op<RecursiveRefOp, OpTrait::OneRegion, OpTrait::ZeroOperands, RegionKindInterface::Trait, OpTrait::OneResult> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.recursive_ref"; };
+  Region &getRegion() { return this->getOperation()->getRegion(0); };
+  void print(OpAsmPrinter &p);
+  static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  // build a single region.
+
+  static void build(OpBuilder &odsBuilder, OperationState &odsState, Type resultTy);
+
+};
+
 
 
 
