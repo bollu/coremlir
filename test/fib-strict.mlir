@@ -146,7 +146,7 @@
 
 
 hask.module { 
-  // hask.dominance_free_scope {
+  hask.dominance_free_scope {
 
     %constructor_ihash  = hask.make_data_constructor<"I#"> 
     // This is kind of a lie, we should call it as inbuilt fn or whatever.
@@ -178,8 +178,9 @@ hask.module {
                       %one = constant 1 : i32
                       %core_one = hask.constant(%one, i32)
                       %i_minus_one = hask.apSSA(%constructor_minus, %i, %core_one)
-                      %fib_proxy = hask.constant(%one, i32)
-                      // TODO: replace %fib_proxy with %fib
+                      // TODO: It is annoying that I need to define it like this; Is there
+                      // _really_ no nicer way? If so, that just seems sad. 
+                      %fib_proxy = hask.recursive_ref { hask.return(%fib) }
                       %fib_i_minus_one = hask.apSSA(%fib_proxy, %i_minus_one)
                       // hask.return(%fib_i_minus_one)
                       %result = hask.caseSSA %fib_i_minus_one { alt0="default"}
@@ -228,7 +229,7 @@ hask.module {
     // %cNONE = hask.make_data_constructor<"DUMMY_RETURN_PLEASE_DONT_BE_A_PETULANT_CHILD">
     // hask.return(%cNONE)
     hask.dummy_finish
-  // } // end dominance_free_scope
+  } // end dominance_free_scope
 
   // hask.dummy_finish
 } // end module
