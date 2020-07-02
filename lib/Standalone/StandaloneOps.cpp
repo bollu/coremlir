@@ -275,6 +275,123 @@ void DummyFinishOp::print(OpAsmPrinter &p) {
     p << getOperationName();
 };
 
+// === CONSTANT OP ===
+// === CONSTANT OP ===
+// === CONSTANT OP ===
+// === CONSTANT OP ===
+// === CONSTANT OP ===
+
+ParseResult ConstantOp::parse(OpAsmParser &parser, OperationState &result) {
+    // TODO: how to parse an int32?
+
+    mlir::OpAsmParser::OperandType const_operand;
+    Type const_type;
+    
+    if (parser.parseLParen() || parser.parseOperand(const_operand) ||
+        parser.parseComma() || parser.parseType(const_type) || parser.parseRParen()) {
+            return failure();
+        }
+    SmallVector<mlir::Value, 1> const_value;
+    if(parser.resolveOperand(const_operand, const_type, const_value)) { return failure(); }
+    result.addOperands(const_value);
+    result.addTypes(parser.getBuilder().getNoneType());
+    return success();
+};
+
+void ConstantOp::print(OpAsmPrinter &p) {
+    // p << getOperationName() << "(" << "[" << getOperation()->getNumOperands() << "]" << ")";
+    p << getOperationName() << "(" << getConstantValue() << ", " << getConstantType() << ")";
+};
+
+// === APSSA OP ===
+// === APSSA OP ===
+// === APSSA OP ===
+// === APSSA OP ===
+// === APSSA OP ===
+
+ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
+    // OpAsmParser::OperandType operand_fn;
+    OpAsmParser::OperandType op_fn;
+    SmallVector<Value, 4> results;
+    // (<fn-arg>
+    if (parser.parseLParen() || parser.parseOperand(op_fn)) { return failure(); }
+    if(parser.resolveOperand(op_fn, parser.getBuilder().getNoneType(), results)) return failure();
+
+    // ["," <arg>]
+    while(succeeded(parser.parseOptionalComma())) {
+        OpAsmParser::OperandType op;
+        if (parser.parseOperand(op)) return failure();
+        if(parser.resolveOperand(op, parser.getBuilder().getNoneType(), results)) return failure();
+    }   
+    
+    if (parser.parseRParen()) return failure();
+
+    result.addOperands(results);
+    result.addTypes(parser.getBuilder().getNoneType());
+    return success();
+};
+
+void ApSSAOp::print(OpAsmPrinter &p) {
+    p << "standalone.apSSA("; 
+    p.printOperand(getFn());
+    for(int i = 0; i < getNumFnArguments(); ++i) {
+        p << ","; p.printOperand(getFnArgument(i));
+    }
+    p << ")";
+};
+
+// === CASESSA OP ===
+// === CASESSA OP ===
+// === CASESSA OP ===
+// === CASESSA OP ===
+// === CASESSA OP ===
+ParseResult CaseSSAOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType scrutinee;
+
+    if(parser.parseOperand(scrutinee)) return failure();
+
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    if(parser.parseOptionalAttrDict(result.attributes)) return failure();
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+    // for (auto attr : result.attributes.getAttrs()) llvm::errs() << "-" << attr.first <<"=" << attr.second << "\n";
+    // llvm::errs() << << "\n";
+    for(int i = 0; i < result.attributes.getAttrs().size(); ++i) {
+        llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+        Region *r = result.addRegion();
+        if(parser.parseRegion(*r, {}, {})) return failure(); 
+        llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+    }
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+    SmallVector<Value, 4> results;
+    if(parser.resolveOperand(scrutinee, parser.getBuilder().getNoneType(), results)) return failure();
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+    result.addOperands(results);
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+    result.addTypes(parser.getBuilder().getNoneType());
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+    return success();
+
+};
+
+void CaseSSAOp::print(OpAsmPrinter &p) {
+    p << "standalone.caseSSA ";
+    p << "[ " << this->getOperation()->getNumOperands() << " | " << this->getNumAlts() << "] ";
+    // p << this->getOperation()->getOperand(0);
+    p <<  this->getScrutinee();
+    p.printOptionalAttrDict(this->getAltLHSs().getValue());
+    for(int i = 0; i < this->getNumAlts(); ++i) {
+        p.printRegion(this->getAltRHS(i)); 
+    }
+};
+
+
+
 
 
 } // namespace standalone

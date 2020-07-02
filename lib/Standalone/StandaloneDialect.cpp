@@ -22,5 +22,7 @@ StandaloneDialect::StandaloneDialect(mlir::MLIRContext *context)
 #define GET_OP_LIST
 #include "Standalone/StandaloneOps.cpp.inc"
   >();
- addOperations<LambdaOp, CaseOp, ApOp, ReturnOp, MakeI32Op, MakeDataConstructorOp, TopLevelBindingOp, DominanceFreeScopeOp, ModuleOp, DummyFinishOp>();
+ addOperations<LambdaOp, CaseOp, ApOp, ReturnOp, MakeI32Op, 
+  MakeDataConstructorOp, TopLevelBindingOp, DominanceFreeScopeOp, ModuleOp, 
+  DummyFinishOp, ConstantOp, ApSSAOp, CaseSSAOp>();
 }

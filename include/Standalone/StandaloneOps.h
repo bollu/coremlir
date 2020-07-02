@@ -154,6 +154,48 @@ public:
 
 };
 
+class ConstantOp : public Op<ConstantOp, OpTrait::OneResult> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "standalone.constant"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  void print(OpAsmPrinter &p);
+  Value getConstantValue() { return this->getOperation()->getOperand(0); }
+  Type getConstantType() { return this->getConstantValue().getType(); }
+
+};
+
+class ApSSAOp : public Op<ApSSAOp, OpTrait::OneResult> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "standalone.apSSA"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  // void print(OpAsmPrinter &p);
+  Value getFn() { return getOperation()->getOperand(0); }
+  int getNumFnArguments() { return getOperation()->getNumOperands()-1; }
+  Value getFnArgument(int i) { return getOperation()->getOperand(1+i); }
+  void print(OpAsmPrinter &p);
+
+};
+
+class CaseSSAOp : public Op<CaseSSAOp, OpTrait::OneResult> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "standalone.caseSSA"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  Value getScrutinee() { this->getOperation()->getOperand(0); }
+  int getNumAlts() { return this->getOperation()->getNumRegions(); }
+  Region &getAltRHS(int i) { return this->getOperation()->getRegion(i); }
+  mlir::DictionaryAttr getAltLHSs() { return this->getOperation()->getAttrDictionary(); }
+  Attribute getAltLHS(int i) { return getAltLHSs().get("arg" + std::to_string(i)); }
+  void print(OpAsmPrinter &p);
+
+};
+
+
+
+
+
 
 } // namespace standalone
 } // namespace mlir

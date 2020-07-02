@@ -182,3 +182,8 @@ to be maintained. [This is from CorePrep.hs:1450](https://haskell-code-explorer.
 
 - Brilliant, my tooling suddenly died thanks to https://github.com/well-typed/cborg/issues/242: GHC Prim
   and `cborg` started overlapping an export. 
+
+
+- [`cabal install --lib` is not idempotent](https://github.com/haskell/cabal/issues/6394).
+  Only haskellers would have issue citing a problem about **library installs**,
+  while describing the issue as one of **idempotence**.
