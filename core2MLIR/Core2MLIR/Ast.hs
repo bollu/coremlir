@@ -7,7 +7,7 @@ import GHC.Generics
 import Data.Monoid hiding ((<>))
 import Data.Semigroup as Sem
 import qualified Data.ByteString as BS
--- import Codec.Serialise
+import Codec.Serialise
 import qualified Data.Text as T
 
 import Unique (mkUnique)
@@ -15,7 +15,7 @@ import Prelude
 
 data Unique = Unique !Char !Int
             deriving (Eq, Ord, Generic)
--- instance Serialise Unique
+instance Serialise Unique
 
 -- | This is dependent upon GHC
 instance Show Unique where
@@ -27,18 +27,18 @@ data ExternalName = ExternalName { externalModuleName :: !ModuleName
                                  }
                   | ForeignCall
                   deriving (Eq, Ord, Generic, Show)
--- instance Serialise ExternalName
+instance Serialise ExternalName
 
 newtype BinderId = BinderId Unique
-                 deriving (Eq, Ord, Show)
+                 deriving (Eq, Ord, Serialise, Show)
 
 newtype SBinder = SBndr { unSBndr :: Binder' SBinder BinderId }
                 deriving (Eq, Ord, Generic, Show)
--- instance Serialise SBinder
+instance Serialise SBinder
 
 newtype Binder = Bndr { unBndr :: Binder' Binder Binder }
                deriving (Eq, Ord, Generic, Show)
--- instance Serialise Binder
+instance Serialise Binder
 
 binderUniqueName :: Binder -> T.Text
 binderUniqueName (Bndr b) =
@@ -56,7 +56,7 @@ data Binder' bndr var = Binder { binderName   :: !T.Text
                                  , binderKind :: Type' bndr var
                                  }
                       deriving (Eq, Ord, Generic, Show)
--- instance (Serialise bndr, Serialise var) => Serialise (Binder' bndr var)
+instance (Serialise bndr, Serialise var) => Serialise (Binder' bndr var)
 
 data IdInfo bndr var
     = IdInfo { idiArity         :: !Int
@@ -69,7 +69,7 @@ data IdInfo bndr var
              , idiCallArity     :: !Int
              }
     deriving (Eq, Ord, Generic, Show)
--- instance (Serialise bndr, Serialise var) => Serialise (IdInfo bndr var)
+instance (Serialise bndr, Serialise var) => Serialise (IdInfo bndr var)
 
 data Unfolding bndr var
     = NoUnfolding
@@ -83,14 +83,14 @@ data Unfolding bndr var
                     , unfGuidance   :: T.Text
                     }
     deriving (Eq, Ord, Generic, Show)
--- instance (Serialise bndr, Serialise var) => Serialise (Unfolding bndr var)
+instance (Serialise bndr, Serialise var) => Serialise (Unfolding bndr var)
 
 data OccInfo = OccManyOccs -- | introduced in GHC 8.2
              | OccDead
              | OccOneOcc
              | OccLoopBreaker { occStrongLoopBreaker :: Bool }
     deriving (Eq, Ord, Generic, Show)
--- instance Serialise OccInfo
+instance Serialise OccInfo
 
 data IdDetails = VanillaId
                | RecSelId
@@ -104,7 +104,7 @@ data IdDetails = VanillaId
                | CoVarId -- | introduced in GHC 8.0
                | JoinId { joinIdArity :: !Int }
                deriving (Eq, Ord, Generic, Show)
--- instance Serialise IdDetails
+instance Serialise IdDetails
 
 data Lit = MachChar Char
          | MachStr BS.ByteString
@@ -120,11 +120,11 @@ data Lit = MachChar Char
          | LitNatural Integer
          | LitRubbish
          deriving (Eq, Ord, Generic, Show)
--- instance Serialise Lit
+instance Serialise Lit
 
 data TyCon = TyCon !T.Text !Unique
            deriving (Eq, Ord, Generic, Show)
--- instance Serialise TyCon
+instance Serialise TyCon
 
 type SType = Type' SBinder BinderId
 type Type = Type' Binder Binder
@@ -138,10 +138,10 @@ data Type' bndr var
     | LitTy
     | CoercionTy
     deriving (Eq, Ord, Generic, Show)
---instance (Serialise bndr, Serialise var) => Serialise (Type' bndr var)
+instance (Serialise bndr, Serialise var) => Serialise (Type' bndr var)
 
 newtype ModuleName = ModuleName {getModuleName :: T.Text}
-                   deriving (Eq, Ord, Show)
+                   deriving (Eq, Ord, Serialise, Show)
 
 type Module = Module' Binder Binder
 type SModule = Module' SBinder BinderId
@@ -152,7 +152,7 @@ data Module' bndr var
              , moduleTopBindings :: [TopBinding' bndr var]
              }
     deriving (Generic, Show)
--- instance (Serialise bndr, Serialise var) => Serialise (Module' bndr var)
+instance (Serialise bndr, Serialise var) => Serialise (Module' bndr var)
 
 moduleBindings :: Module' bndr var -> [(bndr, CoreStats, Expr' bndr var)]
 moduleBindings = concatMap topBindings . moduleTopBindings
@@ -182,7 +182,7 @@ data Expr' bndr var
     | EType (Type' bndr var)
     | ECoercion
     deriving (Eq, Ord, Generic, Show)
--- instance (Serialise bndr, Serialise var) => Serialise (Expr' bndr var)
+instance (Serialise bndr, Serialise var) => Serialise (Expr' bndr var)
 
 type SAlt = Alt' SBinder BinderId
 type Alt = Alt' Binder Binder
@@ -192,13 +192,13 @@ data Alt' bndr var = Alt { altCon     :: !AltCon
                          , altRHS     :: Expr' bndr var
                          }
                   deriving (Eq, Ord, Generic, Show)
--- instance (Serialise bndr, Serialise var) => Serialise (Alt' bndr var)
+instance (Serialise bndr, Serialise var) => Serialise (Alt' bndr var)
 
 data AltCon = AltDataCon !T.Text
             | AltLit Lit
             | AltDefault
             deriving (Eq, Ord, Generic, Show)
--- -instance Serialise AltCon
+instance Serialise AltCon
 
 type STopBinding = TopBinding' SBinder BinderId
 type TopBinding = TopBinding' Binder Binder
@@ -207,7 +207,7 @@ data TopBinding' bndr var
     = NonRecTopBinding bndr CoreStats (Expr' bndr var)
     | RecTopBinding [(bndr, CoreStats, Expr' bndr var)]
     deriving (Generic, Show)
--- instance (Serialise bndr, Serialise var) => Serialise (TopBinding' bndr var)
+instance (Serialise bndr, Serialise var) => Serialise (TopBinding' bndr var)
 
 topBindings :: TopBinding' bndr var -> [(bndr, CoreStats, Expr' bndr var)]
 topBindings (NonRecTopBinding a b c) = [(a,b,c)]
@@ -221,7 +221,7 @@ data CoreStats
                 , csJoinBinds  :: !Int
                 }
     deriving (Generic, Show)
--- instance Serialise CoreStats
+instance Serialise CoreStats
 
 instance Sem.Semigroup CoreStats where
     CoreStats a b c d e <> CoreStats a' b' c' d' e' =

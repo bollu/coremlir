@@ -4,7 +4,7 @@ module Core2MLIR.Plugin where
 
 import Data.Maybe
 import qualified Data.ByteString.Lazy as BSL
--- import qualified Codec.Serialise as Ser
+import qualified Codec.Serialise as Ser
 import GhcPlugins hiding (TB)
 #if !MIN_VERSION_ghc(8,8,0)
 import CoreMonad (pprPassDetails)
@@ -12,26 +12,28 @@ import CoreMonad (pprPassDetails)
 import ErrUtils (showPass)
 import GHC
 import CorePrep
--- import Text.Printf
--- import System.FilePath
--- import System.Directory
---
-
+import Text.Printf
+import System.FilePath
+import System.Directory
 
 import Core2MLIR.Convert
 
 plugin :: Plugin
 plugin = defaultPlugin { installCoreToDos = install }
 
+-- where phase' = showSDocDump dflags (ppr todo GhcPlugins.<> text ":" <+> pprPassDetails todo)
+
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 install _opts todo = do
     dflags <- getDynFlags
     hscenv <- getHscEnv
-    return ([CoreDoPluginPass "Core2MLIR" (liftIO . dumpIn dflags hscenv)]) -- (intersperseDumps dflags todo)
+    return [CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 0 "Core2MLIR: BeforeCorePrep"),
+            CoreDoPluginPass "RunCorePrep" (liftIO . runCorePrep dflags hscenv),
+            CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 1 "Core2MLIR: AfterCorePrep")]
 
 
-dumpIn :: DynFlags -> HscEnv -> ModGuts -> IO ModGuts
-dumpIn dflags hscenv guts = do
+runCorePrep :: DynFlags -> HscEnv -> ModGuts -> IO ModGuts
+runCorePrep dflags hscenv guts = do
     putStrLn $ "running Core2MLIR..."
     -- let hscenv =  _ :: HscEnv
     -- hscenv <- liftIO $ getHscEnv
@@ -47,7 +49,7 @@ dumpIn dflags hscenv guts = do
     (coreprogram', _) <- corePrepPgm hscenv module_ modloc coreprogram tcs
     let guts' = guts { mg_binds = coreprogram' }
     putStrLn $ "ran Core2MLIR..."
-    return guts
+    return guts'
 
 
     -- let prefix = fromMaybe "dump" $ dumpPrefix dflags
@@ -57,3 +59,13 @@ dumpIn dflags hscenv guts = do
     -- createDirectoryIfMissing True $ takeDirectory $ in_dump_dir fname
     -- BSL.writeFile (in_dump_dir fname) $ Ser.serialise (cvtModule phase guts)
     -- return guts
+
+dumpIntersperse :: DynFlags -> Int -> String -> ModGuts -> IO ModGuts
+dumpIntersperse dflags n phase guts = do
+    let prefix = fromMaybe "dump" $ dumpPrefix dflags
+        fname = printf "%spass-%04u.cbor" prefix n
+    showPass dflags $ "GhcDump: Dumping core to "++fname
+    let in_dump_dir = maybe id (</>) (dumpDir dflags)
+    createDirectoryIfMissing True $ takeDirectory $ in_dump_dir fname
+    BSL.writeFile (in_dump_dir fname) $ Ser.serialise (cvtModule phase guts)
+    return guts

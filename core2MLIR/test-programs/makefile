@@ -1,13 +1,31 @@
-.PHONY: clean fib.hs fibstrict.hs
+.PHONY: build core2mlir fib fibstrict clean install
 
-fib:
-	ghc -fplugin Core2MLIR.Plugin -dumpdir=dump -O fib.hs -o fib.out  -ddump-simpl -O0
+# on getting multiple package error, remove the repeated package line from
+# vim ~/.ghc/x86_64-linux-8.6.5/environments/default
+# the GHC version above is an example.
 
+install:
+	(cd ../ && cabal build Core2MLIR)
+	# HUGE FUCKING HACK.
+	rm ~/.ghc/x86_64-linux-8.6.5/environments/default 
+	(cd ../ && cabal install Core2MLIR --lib  --overwrite-policy=always --global)
 
-fibstrict:
-	ghc -fplugin Core2MLIR.Plugin -dumpdir=dump -O fibstrict.hs -o fib.out  -ddump-simpl -O0
+fib: clean install
+	ghc -O0 -dverbose-core2core -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fib.hs -o fib.out
+	ghc-dump show  dump/fib.pass-0000.cbor | tee dump/fib.pass-0000.core
+	ghc-dump show  dump/fib.pass-0001.cbor | tee dump/fib.pass-0001.core
+	# ghc-dump show  dump/fib.pass-0001.cbor | tee dump/fib.pass-0001.core
+	# cabal exec ghc-dump-mlir show dump/fib.pass-0000.cbor  | tee dump/fib.pass-0000.mlir
+	# cabal exec ghc-dump-mlir show dump/fib.pass-0001.cbor  | tee dump/fib.pass-0001.mlir
+
+fibstrict: clean install
+	ghc -O0 -dverbose-core2core -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fibstrict.hs -o fibstrict.out
 
 clean:
 	-rm -rf dump/
 	-rm *.hi *.o *.out
 	-rm *.core *.mlir
+
+core2mlir:
+	rm fib.hi rm.o fib || true
+	ghc -fplugin Core2MLIR.Plugin -dumpdir=dump -O fib.hs -o fib.out

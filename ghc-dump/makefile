@@ -22,9 +22,8 @@ install:
 
 fib: clean
 	ghc -O0 -dverbose-core2core -ddump-simpl  -ddump-to-file -fplugin GhcDump.Plugin -dumpdir=dump -O fib.hs -o fib.out
-	cabal exec ghc-dump show  dump/fib.pass-0018.cbor | tee dump/fib.pass-0018.core
-	cabal exec ghc-dump show  dump/fib.pass-0000.cbor | tee dump/fib.pass-0000.core
-	cabal exec ghc-dump-mlir show dump/fib.pass-0000.cbor  | tee dump/fib.pass-0000.mlir
+	ghc-dump show  dump/fib.pass-0001.cbor | tee dump/fib.pass-0001.core
+	ghc-dump show  dump/fib.pass-0000.cbor | tee dump/fib.pass-0000.core
 
 fibstrict: clean
 	ghc -O0 -dverbose-core2core -ddump-simpl  -ddump-to-file -fplugin GhcDump.Plugin -dumpdir=dump -O fibstrict.hs -o fibstrict.out
