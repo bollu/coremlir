@@ -1,4 +1,4 @@
-//===- StandaloneOps.td - Standalone dialect ops -----------*- tablegen -*-===//
+//===- HaskOps.td - Hask dialect ops -----------*- tablegen -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,16 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STANDALONE_OPS
-#define STANDALONE_OPS
+#ifndef HASK_OPS
+#define HASK_OPS
 
-include "StandaloneDialect.td"
+include "HaskDialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/IR/OpBase.td
 
-def Standalone_FooOp : Standalone_Op<"foo", [NoSideEffect,
-                                             SameOperandsAndResultType]> {
+def Hask_FooOp : Hask_Op<"foo", [NoSideEffect, SameOperandsAndResultType]> {
     let summary = "Illustrates how to define an operation.";
     let description = [{
         The `standalone.foo` operation illustrates how to define a new
@@ -42,4 +41,4 @@ def Standalone_FooOp : Standalone_Op<"foo", [NoSideEffect,
 }
 
 
-#endif // STANDALONE_OPS
+#endif // HASK_OPS

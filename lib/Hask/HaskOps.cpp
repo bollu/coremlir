@@ -1,4 +1,4 @@
-//===- StandaloneOps.cpp - Standalone dialect ops ---------------*- C++ -*-===//
+//===- HaskOps.cpp - Hask dialect ops ---------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Standalone/StandaloneOps.h"
-#include "Standalone/StandaloneDialect.h"
+#include "Hask/HaskOps.h"
+#include "Hask/HaskDialect.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/StandardTypes.h"
 
@@ -24,7 +24,7 @@
 namespace mlir {
 namespace standalone {
 #define GET_OP_CLASSES
-#include "Standalone/StandaloneOps.cpp.inc"
+#include "Hask/HaskOps.cpp.inc"
 
 
 // === LAMBDA OP ===
@@ -46,7 +46,7 @@ ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void LambdaOp::print(OpAsmPrinter &p) {
-    p << "standalone.lambda";
+    p << "hask.lambda";
     p << "[";
         for(int i = 0; i < this->getNumInputs(); ++i) {
             p << this->getInput(i);
@@ -84,7 +84,7 @@ ParseResult CaseOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void CaseOp::print(OpAsmPrinter &p) {
-    p << "standalone.case";
+    p << "hask.case";
     p.printRegion(this->getScrutineeRegion());
     p.printOptionalAttrDict(this->getAltLHSs().getValue());
     for(int i = 0; i < this->getNumAlts(); ++i) {
@@ -116,7 +116,7 @@ ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void ApOp::print(OpAsmPrinter &p) {
-    p << "standalone.ap("; p.printRegion(getFn(), /*blockArgs=*/false);
+    p << "hask.ap("; p.printRegion(getFn(), /*blockArgs=*/false);
     
     for(int i = 0; i < getNumFnArguments(); ++i) {
         p << ","; p.printRegion(getFnArgument(i), /*blockArgs=*/false);
@@ -144,7 +144,7 @@ ParseResult ReturnOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void ReturnOp::print(OpAsmPrinter &p) {
-    p << "standalone.return(" << getInput() << ")";
+    p << "hask.return(" << getInput() << ")";
 };
 
 
@@ -167,7 +167,7 @@ ParseResult MakeI32Op::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void MakeI32Op::print(OpAsmPrinter &p) {
-    p << "standalone.make_i32(" << getInput() << ")";
+    p << "hask.make_i32(" << getInput() << ")";
 };
 
 // === MakeDataConstructor OP ===
@@ -332,7 +332,7 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void ApSSAOp::print(OpAsmPrinter &p) {
-    p << "standalone.apSSA("; 
+    p << "hask.apSSA("; 
     p.printOperand(getFn());
     for(int i = 0; i < getNumFnArguments(); ++i) {
         p << ","; p.printOperand(getFnArgument(i));
@@ -380,7 +380,7 @@ ParseResult CaseSSAOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void CaseSSAOp::print(OpAsmPrinter &p) {
-    p << "standalone.caseSSA ";
+    p << "hask.caseSSA ";
     // p << "[ " << this->getOperation()->getNumOperands() << " | " << this->getNumAlts() << "] ";
     // p << this->getOperation()->getOperand(0);
     p <<  this->getScrutinee();

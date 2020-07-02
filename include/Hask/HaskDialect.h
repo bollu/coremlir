@@ -1,4 +1,4 @@
-//===- StandaloneDialect.h - Standalone dialect -----------------*- C++ -*-===//
+//===- HaskDialect.h - Hask dialect -----------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,7 +14,7 @@
 namespace mlir {
 namespace standalone {
 
-#include "Standalone/StandaloneOpsDialect.h.inc"
+#include "Hask/HaskOpsDialect.h.inc"
 
 } // namespace standalone
 } // namespace mlir

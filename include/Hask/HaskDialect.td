@@ -1,4 +1,4 @@
-//===- StandaloneDialect.td - Standalone dialect -----------*- tablegen -*-===//
+//===- HaskDialect.td - Hask dialect -----------*- tablegen -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,17 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef STANDALONE_DIALECT
-#define STANDALONE_DIALECT
+#ifndef HASK_DIALECT
+#define HASK_DIALECT
 
 include "mlir/IR/OpBase.td"
 
 //===----------------------------------------------------------------------===//
-// Standalone dialect definition.
+// Hask dialect definition.
 //===----------------------------------------------------------------------===//
 
-def Standalone_Dialect : Dialect {
-    let name = "standalone";
+def Hask_Dialect : Dialect {
+    let name = "hask";
     let summary = "A standalone out-of-tree MLIR dialect.";
     let description = [{
         This dialect is an example of an out-of-tree MLIR dialect designed to
@@ -30,7 +30,7 @@ def Standalone_Dialect : Dialect {
 // Base standalone operation definition.
 //===----------------------------------------------------------------------===//
 
-class Standalone_Op<string mnemonic, list<OpTrait> traits = []> :
-        Op<Standalone_Dialect, mnemonic, traits>;
+class Hask_Op<string mnemonic, list<OpTrait> traits = []> :
+        Op<Hask_Dialect, mnemonic, traits>;
 
-#endif // STANDALONE_DIALECT
+#endif // HASK_DIALECT

@@ -19,7 +19,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
-#include "Standalone/StandaloneDialect.h"
+#include "Hask/HaskDialect.h"
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
   mlir::registerAllDialects();
   mlir::registerAllPasses();
 
-  mlir::registerDialect<mlir::standalone::StandaloneDialect>();
+  mlir::registerDialect<mlir::standalone::HaskDialect>();
   // TODO: Register standalone passes here.
 
   llvm::InitLLVM y(argc, argv);

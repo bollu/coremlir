@@ -4,9 +4,9 @@ set(LIBS
         ${dialect_libs}
         ${conversion_libs}
         MLIROptLib
-        MLIRStandalone
+        MLIRHask
         )
-add_llvm_executable(standalone-opt standalone-opt.cpp)
+add_llvm_executable(hask-opt hask-opt.cpp)
 
-llvm_update_compile_flags(standalone-opt)
-target_link_libraries(standalone-opt PRIVATE ${LIBS})
+llvm_update_compile_flags(hask-opt)
+target_link_libraries(hask-opt PRIVATE ${LIBS})

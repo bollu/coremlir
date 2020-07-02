@@ -1,4 +1,4 @@
-//===- StandaloneDialect.cpp - Standalone dialect ---------------*- C++ -*-===//
+//===- HaskDialect.cpp - Hask dialect ---------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,21 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Standalone/StandaloneDialect.h"
-#include "Standalone/StandaloneOps.h"
+#include "Hask/HaskDialect.h"
+#include "Hask/HaskOps.h"
 
 using namespace mlir;
 using namespace mlir::standalone;
 
 //===----------------------------------------------------------------------===//
-// Standalone dialect.
+// Hask dialect.
 //===----------------------------------------------------------------------===//
 
-StandaloneDialect::StandaloneDialect(mlir::MLIRContext *context)
+HaskDialect::HaskDialect(mlir::MLIRContext *context)
     : Dialect(getDialectNamespace(), context) {
   addOperations<
 #define GET_OP_LIST
-#include "Standalone/StandaloneOps.cpp.inc"
+#include "Hask/HaskOps.cpp.inc"
   >();
  addOperations<LambdaOp, CaseOp, ApOp, ReturnOp, MakeI32Op, 
   MakeDataConstructorOp, TopLevelBindingOp, DominanceFreeScopeOp, ModuleOp, 

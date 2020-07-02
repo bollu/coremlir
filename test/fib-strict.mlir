@@ -145,23 +145,23 @@
 // }
 
 
-standalone.module { 
-  // standalone.dominance_free_scope {
+hask.module { 
+  // hask.dominance_free_scope {
 
-    %constructor_ihash  = standalone.make_data_constructor<"I#"> 
+    %constructor_ihash  = hask.make_data_constructor<"I#"> 
     // This is kind of a lie, we should call it as inbuilt fn or whatever.
-    %constructor_plus = standalone.make_data_constructor<"GHC.Num.+"> 
-    %constructor_minus = standalone.make_data_constructor<"GHC.Num.-"> 
-    %value_dict_num_int = standalone.make_data_constructor<"GHC.Num.$fNumInt">
+    %constructor_plus = hask.make_data_constructor<"GHC.Num.+"> 
+    %constructor_minus = hask.make_data_constructor<"GHC.Num.-"> 
+    %value_dict_num_int = hask.make_data_constructor<"GHC.Num.$fNumInt">
 
     // The syntax that I encoded into the parser
     // fib =
     //   λ i →
      //     case i of ds {
     // %fib :: Int -> Int
-    %fib = standalone.toplevel_binding  {  
-      standalone.lambda [%i] {
-        %resulttop = standalone.caseSSA %i  { alt0 = "default", alt1=0, alt2=1 }
+    %fib = hask.toplevel_binding  {  
+      hask.lambda [%i] {
+        %resulttop = hask.caseSSA %i  { alt0 = "default", alt1=0, alt2=1 }
                   { //default
                     // DEFAULT →
                     //   case APP(Main.fib
@@ -174,15 +174,15 @@ standalone.module {
                     //             APP(GHC.Prim.+# wild)
                     //         })
                     //         wild)
-                    ^entry(%ds: !core.return):
+                    ^entry(%ds: none):
                       %one = constant 1 : i32
-                      %core_one = standalone.constant(%one, i32)
-                      %i_minus_one = standalone.apSSA(%constructor_minus, %i, %core_one)
-                      %fib_proxy = standalone.constant(%one, i32)
+                      %core_one = hask.constant(%one, i32)
+                      %i_minus_one = hask.apSSA(%constructor_minus, %i, %core_one)
+                      %fib_proxy = hask.constant(%one, i32)
                       // TODO: replace %fib_proxy with %fib
-                      %fib_i_minus_one = standalone.apSSA(%fib_proxy, %i_minus_one)
-                      // standalone.return(%fib_i_minus_one)
-                      %result = standalone.caseSSA %fib_i_minus_one { alt0="default"}
+                      %fib_i_minus_one = hask.apSSA(%fib_proxy, %i_minus_one)
+                      // hask.return(%fib_i_minus_one)
+                      %result = hask.caseSSA %fib_i_minus_one { alt0="default"}
                                      { //default
                                          //     DEFAULT →
                                          //       APP((case APP(Main.fib i)
@@ -192,45 +192,45 @@ standalone.module {
                                          //         })
                                          //         wild)
                                        ^entry(%wild: none):
-                                         %fib_i = standalone.apSSA(%fib_proxy, %i)
-                                         %add_wild_fn = standalone.caseSSA %fib_i {alt0="default"} 
+                                         %fib_i = hask.apSSA(%fib_proxy, %i)
+                                         %add_wild_fn = hask.caseSSA %fib_i {alt0="default"} 
                                                                { //default
                                                                     // DEFAULT →
                                                                    //             APP(GHC.Prim.+# wild)
                                                                    ^entry(%wild_inner: none):
-                                                                     %plus_wild_inner = standalone.apSSA(%constructor_plus, %wild_inner)
-                                                                     standalone.return(%plus_wild_inner)
+                                                                     %plus_wild_inner = hask.apSSA(%constructor_plus, %wild_inner)
+                                                                     hask.return(%plus_wild_inner)
                                                                }
-                                         %result = standalone.apSSA(%add_wild_fn, %wild)
-                                         standalone.return(%result)
+                                         %result = hask.apSSA(%add_wild_fn, %wild)
+                                         hask.return(%result)
                                      }
-                    standalone.return(%result)
+                    hask.return(%result)
                   }
                   { // 0 ->
-                    ^entry(%ds: !core.return):
-                    standalone.return (%i)
+                    ^entry(%ds: none):
+                    hask.return (%i)
                   }
                   { // 1 -> 
-                    ^entry(%ds: !core.return):
-                    standalone.return (%i)
+                    ^entry(%ds: none):
+                    hask.return (%i)
                   }
-      standalone.return(%resulttop)
+      hask.return(%resulttop)
       } //end lambda
   } // end fib
   
 
-    %main = standalone.toplevel_binding { 
-      standalone.ap ({ standalone.return (%fib) }, {%c10 = constant 10 : i32 standalone.make_i32(%c10)}) 
+    %main = hask.toplevel_binding { 
+      hask.ap ({ hask.return (%fib) }, {%c10 = constant 10 : i32 hask.make_i32(%c10)}) 
     }
 
     // need to add dummy terminator, FFS.
-    // standalone.dummy_finish
-    // %cNONE = standalone.make_data_constructor<"DUMMY_RETURN_PLEASE_DONT_BE_A_PETULANT_CHILD">
-    // standalone.return(%cNONE)
-    standalone.dummy_finish
+    // hask.dummy_finish
+    // %cNONE = hask.make_data_constructor<"DUMMY_RETURN_PLEASE_DONT_BE_A_PETULANT_CHILD">
+    // hask.return(%cNONE)
+    hask.dummy_finish
   // } // end dominance_free_scope
 
-  // standalone.dummy_finish
+  // hask.dummy_finish
 } // end module
 
 

@@ -1,4 +1,4 @@
-//===- StandaloneOps.h - Standalone dialect ops -----------------*- C++ -*-===//
+//===- HaskOps.h - Hask dialect ops -----------------*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -30,12 +30,12 @@ namespace mlir {
 namespace standalone {
 
 #define GET_OP_CLASSES
-#include "Standalone/StandaloneOps.h.inc"
+#include "Hask/HaskOps.h.inc"
 
 class LambdaOp : public Op<LambdaOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.lambda"; };
+  static StringRef getOperationName() { return "hask.lambda"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
   Region &getBody() { assert(this->getOperation()->getNumRegions() == 1);  return this->getOperation()->getRegion(0);  }
@@ -49,7 +49,7 @@ public:
 class CaseOp : public Op<CaseOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.case"; };
+  static StringRef getOperationName() { return "hask.case"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   Region &getScrutineeRegion() { this->getOperation()->getRegion(0); }
   int getNumAlts() { return this->getOperation()->getNumRegions() - 1; }
@@ -64,7 +64,7 @@ public:
 class ApOp : public Op<ApOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.ap"; };
+  static StringRef getOperationName() { return "hask.ap"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   Region &getFn() { return getOperation()->getRegion(0); }
   int getNumFnArguments() { return getOperation()->getNumRegions()-1; }
@@ -76,7 +76,7 @@ public:
 class ReturnOp : public Op<ReturnOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.return"; };
+  static StringRef getOperationName() { return "hask.return"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   Value getValue() { return this->getOperation()->getOperand(0); }
   Value getInput() { return this->getValue(); }
@@ -88,7 +88,7 @@ public:
 class MakeI32Op : public Op<MakeI32Op, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.make_i32"; };
+  static StringRef getOperationName() { return "hask.make_i32"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
 
   Value getValue() { return this->getOperation()->getOperand(0); }
@@ -100,7 +100,7 @@ public:
 class MakeDataConstructorOp : public Op<MakeDataConstructorOp, OpTrait::OneResult> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.make_data_constructor"; };
+  static StringRef getOperationName() { return "hask.make_data_constructor"; };
     //  getDataConstructorName() { this->getOperation()->getAttr("name") ; }; 
   Attribute getDataConstructorNameAttr() { this->getOperation()->getAttr("name"); }; 
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
@@ -110,7 +110,7 @@ public:
 class DominanceFreeScopeOp : public Op<DominanceFreeScopeOp, OpTrait::OneRegion, OpTrait::ZeroOperands, RegionKindInterface::Trait, OpTrait::ZeroResult, OpTrait::IsTerminator> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.dominance_free_scope"; };
+  static StringRef getOperationName() { return "hask.dominance_free_scope"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
   void print(OpAsmPrinter &p);
   static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
@@ -125,7 +125,7 @@ public:
 class TopLevelBindingOp : public Op<TopLevelBindingOp, OpTrait::OneResult, OpTrait::OneRegion> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.toplevel_binding"; };
+  static StringRef getOperationName() { return "hask.toplevel_binding"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
   Region &getBody() { this->getRegion(); }; 
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
@@ -136,7 +136,7 @@ public:
 class ModuleOp : public Op<ModuleOp, OpTrait::OneResult, OpTrait::OneRegion> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.module"; };
+  static StringRef getOperationName() { return "hask.module"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
   Region &getBody() { this->getRegion(); }; 
   static RegionKind getRegionKind(unsigned index) { return RegionKind::SSACFG; }
@@ -148,7 +148,7 @@ public:
 class DummyFinishOp : public Op<DummyFinishOp, OpTrait::OneResult, OpTrait::IsTerminator> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.dummy_finish"; };
+  static StringRef getOperationName() { return "hask.dummy_finish"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 
@@ -157,7 +157,7 @@ public:
 class ConstantOp : public Op<ConstantOp, OpTrait::OneResult> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.constant"; };
+  static StringRef getOperationName() { return "hask.constant"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
   Value getConstantValue() { return this->getOperation()->getOperand(0); }
@@ -168,7 +168,7 @@ public:
 class ApSSAOp : public Op<ApSSAOp, OpTrait::OneResult> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.apSSA"; };
+  static StringRef getOperationName() { return "hask.apSSA"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   // void print(OpAsmPrinter &p);
   Value getFn() { return getOperation()->getOperand(0); }
@@ -181,7 +181,7 @@ public:
 class CaseSSAOp : public Op<CaseSSAOp, OpTrait::OneResult> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "standalone.caseSSA"; };
+  static StringRef getOperationName() { return "hask.caseSSA"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   Value getScrutinee() { this->getOperation()->getOperand(0); }
   int getNumAlts() { return this->getOperation()->getNumRegions(); }
