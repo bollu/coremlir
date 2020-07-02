@@ -4,7 +4,8 @@ fibstrict:
 	make -C ~/work/mlir/coremlir/build
 	make -C ~/work/mlir/coremlir/ghc-dump
 	# test round-tripping. Is vital!
-	../build/bin/standalone-opt ./fib-strict.mlir
+	../build/bin/standalone-opt ./fib-strict.mlir | tee fib-strict-roundtrip.mlir
+	../build/bin/standalone-opt ./fib-strict-roundtrip.mlir
 fib: 
 	make -C ~/work/mlir/coremlir/build
 	make -C ~/work/mlir/coremlir/ghc-dump
