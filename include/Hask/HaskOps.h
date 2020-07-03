@@ -188,7 +188,7 @@ public:
   int getNumAlts() { return this->getOperation()->getNumRegions(); }
   Region &getAltRHS(int i) { return this->getOperation()->getRegion(i); }
   mlir::DictionaryAttr getAltLHSs() { return this->getOperation()->getAttrDictionary(); }
-  Attribute getAltLHS(int i) { return getAltLHSs().get("arg" + std::to_string(i)); }
+  Attribute getAltLHS(int i) { return getAltLHSs().get("alt" + std::to_string(i)); }
   void print(OpAsmPrinter &p);
 
 };

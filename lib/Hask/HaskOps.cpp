@@ -351,18 +351,22 @@ ParseResult CaseSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     if(parser.parseOperand(scrutinee)) return failure();
 
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-    if(parser.parseOptionalAttrDict(result.attributes)) return failure();
+    // if(parser.parseOptionalAttrDict(result.attributes)) return failure();
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
 
-    // for (auto attr : result.attributes.getAttrs()) llvm::errs() << "-" << attr.first <<"=" << attr.second << "\n";
-    // llvm::errs() << << "\n";
-    for(int i = 0; i < result.attributes.getAttrs().size(); ++i) {
-        llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    // "[" altname "->" region "]"
+    int nattr = 0;
+    while (succeeded(parser.parseOptionalLSquare())) {
+        Attribute alt_type_attr;
+        const std::string attrname = "alt" + std::to_string(nattr);
+        parser.parseAttribute(alt_type_attr, attrname, result.attributes);
+        nattr++;
+        parser.parseArrow();
         Region *r = result.addRegion();
         if(parser.parseRegion(*r, {}, {})) return failure(); 
-        llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-
+        parser.parseRSquare();
     }
+
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
 
     SmallVector<Value, 4> results;
@@ -384,9 +388,11 @@ void CaseSSAOp::print(OpAsmPrinter &p) {
     // p << "[ " << this->getOperation()->getNumOperands() << " | " << this->getNumAlts() << "] ";
     // p << this->getOperation()->getOperand(0);
     p <<  this->getScrutinee();
-    p.printOptionalAttrDict(this->getAltLHSs().getValue());
+    // p.printOptionalAttrDict(this->getAltLHSs().getValue());
     for(int i = 0; i < this->getNumAlts(); ++i) {
+        p <<" [" << this->getAltLHS(i) <<" -> ";
         p.printRegion(this->getAltRHS(i)); 
+        p << "]\n";
     }
 };
 

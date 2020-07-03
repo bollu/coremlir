@@ -11,7 +11,7 @@ install:
 	(cd ../ && cabal install Core2MLIR --lib  --overwrite-policy=always --global)
 
 fib: clean install
-	ghc -O0 -dverbose-core2core -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fib.hs -o fib.out
+	ghc -O0 -dverbose-core2core -ddump-prep -ddump-ds -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fib.hs -o fib.out
 	ghc-dump show  dump/fib.pass-0000.cbor | tee dump/fib.pass-0000.core
 	ghc-dump show  dump/fib.pass-0001.cbor | tee dump/fib.pass-0001.core
 	# ghc-dump show  dump/fib.pass-0001.cbor | tee dump/fib.pass-0001.core
@@ -19,7 +19,9 @@ fib: clean install
 	# cabal exec ghc-dump-mlir show dump/fib.pass-0001.cbor  | tee dump/fib.pass-0001.mlir
 
 fibstrict: clean install
-	ghc -O0 -dverbose-core2core -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fibstrict.hs -o fibstrict.out
+	ghc -O0 -dverbose-core2core -ddump-prep -ddump-ds -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fibstrict.hs -o fibstrict.out
+	ghc-dump show  dump/fibstrict.pass-0000.cbor | tee dump/fibstrict.pass-0000.core
+	ghc-dump show  dump/fibstrict.pass-0001.cbor | tee dump/fibstrict.pass-0001.core
 
 clean:
 	-rm -rf dump/

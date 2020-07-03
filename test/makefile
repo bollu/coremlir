@@ -15,3 +15,8 @@ fib:
 
 	# ../build/bin/hask-opt ../ghc-dump/fib.pass-0000.mlir -allow-unregistered-dialect
 	#
+
+test-ops: 
+	make -C ~/work/mlir/coremlir/build
+	../build/bin/hask-opt ./test-ops.mlir | tee test-ops-roundtrip.mlir
+	../build/bin/hask-opt ./test-ops-roundtrip.mlir

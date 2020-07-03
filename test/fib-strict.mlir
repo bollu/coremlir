@@ -161,8 +161,8 @@ hask.module {
     // %fib :: Int -> Int
     %fib = hask.toplevel_binding  {  
       hask.lambda [%i] {
-        %resulttop = hask.caseSSA %i  { alt0 = "default", alt1=0, alt2=1 }
-                  { //default
+        %resulttop = hask.caseSSA %i 
+            ["default" -> { //default
                     // DEFAULT →
                     //   case APP(Main.fib
                     //          (APP(GHC.Prim.-# i 1#)))
@@ -183,8 +183,8 @@ hask.module {
                       %fib_proxy = hask.recursive_ref { hask.return(%fib) }
                       %fib_i_minus_one = hask.apSSA(%fib_proxy, %i_minus_one)
                       // hask.return(%fib_i_minus_one)
-                      %result = hask.caseSSA %fib_i_minus_one { alt0="default"}
-                                     { //default
+                      %result = hask.caseSSA %fib_i_minus_one
+                                ["default" -> { //default
                                          //     DEFAULT →
                                          //       APP((case APP(Main.fib i)
                                          //         of wild {
@@ -194,27 +194,27 @@ hask.module {
                                          //         wild)
                                        ^entry(%wild: none):
                                          %fib_i = hask.apSSA(%fib_proxy, %i)
-                                         %add_wild_fn = hask.caseSSA %fib_i {alt0="default"} 
-                                                               { //default
+                                         %add_wild_fn = hask.caseSSA %fib_i
+                                                               ["default" -> { //default
                                                                     // DEFAULT →
                                                                    //             APP(GHC.Prim.+# wild)
                                                                    ^entry(%wild_inner: none):
                                                                      %plus_wild_inner = hask.apSSA(%constructor_plus, %wild_inner)
                                                                      hask.return(%plus_wild_inner)
-                                                               }
+                                                               }]
                                          %result = hask.apSSA(%add_wild_fn, %wild)
                                          hask.return(%result)
-                                     }
+                                     }]
                     hask.return(%result)
-                  }
-                  { // 0 ->
+                  }]
+                  [0 -> { // 0 ->
                     ^entry(%ds: none):
                     hask.return (%i)
-                  }
-                  { // 1 -> 
+                  }]
+                  [1 -> { // 1 -> 
                     ^entry(%ds: none):
                     hask.return (%i)
-                  }
+                  }]
       hask.return(%resulttop)
       } //end lambda
   } // end fib
