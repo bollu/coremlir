@@ -12,9 +12,11 @@ import CoreSyn (Expr(..), CoreExpr, Bind(..), CoreAlt, CoreBind, AltCon(..),)
 import TyCoRep as Type (Type(..))
 import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
                    ($+$), hang, (<>), ($$), blankLine, lparen, rparen,
-                   lbrack, rbrack)
+                   lbrack, rbrack, pprWithCommas, empty, comma)
 import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
+import Control.Monad (ap)
+import FastString
 -- import Text.PrettyPrint.ANSI.Leijen
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/Outputable.html#v:SDoc
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/src/Pretty.html#Doc
@@ -46,19 +48,38 @@ cvtModuleToMLIR phase guts =
 recBindsScope :: SDoc
 recBindsScope = text "hask.recursive_ref"
 
+
+
+cvtBindRhs :: CoreExpr -> SDoc
+cvtBindRhs rhs = 
+  let (_, rhs_name, rhs_preamble) = runBuilder_ (flattenExpr rhs) 0
+      body = rhs_preamble $+$ ((text "hask.return(") >< rhs_name >< (text ")"))  
+  in body
+
+
+
+cvtVar :: Var -> SDoc
+cvtVar v = 
+  let  var2string :: Var -> String
+       var2string v = unpackFS $ occNameFS $ getOccName v
+
+       -- | this is completely broken. 
+       escapeString :: String -> String
+       escapeString "-#" = "minushash"
+       escapeString "+#" = "plushash"
+       escapeString s = s -- error $ "unknown string (" ++ s ++ ")"
+  in (text "%var__X_") >< (text $ escapeString . var2string $ v) >< (text "_X_")
+
+
 cvtTopBind :: CoreBind -> SDoc
-cvtTopBind (NonRec b e) = hsep [cvtBinder b, text "=", braces_scoped (text "hask.toplevel_binding") (cvtExpr e)]
+cvtTopBind (NonRec b e) = 
+    ((cvtVar b) <+> (text "=")) $$ 
+    (nest 2 $ (text "hask.toplevel_binding") <+> (text "{") $$ (nest 2 $  (cvtBindRhs e)) $$ (text "}"))
 cvtTopBind (Rec bs) = 
     braces_scoped (recBindsScope)
-      (vcat $ [hsep [cvtBinder b, text "=",
-               braces_scoped (text "hask.toplevel_binding") (cvtExpr e)] | (b, e) <- bs])
+      (vcat $ [hsep [cvtVar b, text "=",
+               braces_scoped (text "hask.toplevel_binding") (cvtBindRhs e)] | (b, e) <- bs])
 
-
-ssavar :: SDoc -> SDoc
-ssavar v = text "%" >< v
-
-cvtBinder :: Var -> SDoc
-cvtBinder v = ssavar (ppr v)
 
 parenthesize :: SDoc -> SDoc
 parenthesize sdoc = lparen >< sdoc >< rparen
@@ -92,23 +113,83 @@ cvtAltCon DEFAULT          = text "\"default\""
 
 arrow :: SDoc; arrow = text "->"
 
-cvtAltRHS :: Var -> [Var] -> CoreExpr  -> SDoc
-cvtAltRHS wild bnds expr = 
- let inner = (text "^entry(" >< params >< text "):") $$ (nest 2 (cvtExpr expr))
-     params = ppr bnds
+cvtAltRHS :: Var -> [Var] -> CoreExpr -> SDoc
+cvtAltRHS wild bnds rhs =
+ -- | HACK: we need to start from something other than 100...
+ let (i1, name_rhs, preamble_rhs) = runBuilder_ (flattenExpr rhs) 100
+     params = pprWithCommas (\v -> cvtVar v ><  text ": none") (wild:bnds)
+     inner = (text "^entry(" >< params >< text "):") $$ (nest 2 $ preamble_rhs $$ ((text "hask.return(") >< name_rhs >< (text ")")))
  in (text "{") $$ (nest 2 inner) $$ (text "}")
 
 cvtAlt :: Var -> CoreAlt -> SDoc
-cvtAlt (con, bs, e) wild = lbrack >< cvtAltCon con <+> arrow <+>  cvtAltRHS wild bs e  >< rbrack
+cvtAlt wild (con, bs, e) = (lbrack >< cvtAltCon con <+> arrow) $$ (nest 2 $ cvtAltRHS wild bs e  >< rbrack)
 
+
+-- | monad instance
+data Builder a = Builder { runBuilder_ :: Int -> (Int, a, SDoc) }
+
+runBuilder :: Builder a -> (Int, a, SDoc)
+runBuilder b = runBuilder_ b 0
+
+instance Monad Builder where
+    return a = Builder $ \i -> (i, a, empty)
+    builda >>= a2buildb = Builder $ \i0 -> let (i1, a, doc1) = runBuilder_ builda i0
+                                               (i2, b, doc2) = runBuilder_ (a2buildb a) i1 
+                                           in (i2, b, doc1 $+$ doc2)
+
+
+
+-- | name of the expression
+type SSAName = SDoc
+
+appendLine :: SDoc -> Builder ()
+appendLine s = Builder $ \i -> (i, (), s)
+
+
+instance Applicative Builder where pure = return; (<*>) = ap;
+instance Functor Builder where fmap f mx = mx >>= (return . f)
+
+
+flattenExpr :: CoreExpr -> Builder SSAName
+flattenExpr expr =
+  case expr of
+    Var x -> return (cvtVar x)--return ((text"%") >< ppr x)
+    Lam param body -> 
+     Builder $ \i0 ->
+      let (i1, name_body, preamble_body) = runBuilder_ (flattenExpr body) i0
+          name_lambda = text ("%lambda_" ++ show i1)
+          fulldoc =  (name_lambda) <+> (text "=") $$
+                         (nest 2 $ ((text "hask.lambdaSSA(") >< ((text "%") >< (ppr param)) >< (text ")") <+> (text "{")) $$ 
+                            (nest 2 (preamble_body $+$ ((text "hask.return(") >< name_body >< (text ")")))) $$
+                            text "}")
+          in (i1+1, name_lambda, fulldoc)
+    Case scrutinee wild _ as -> Builder $ \i0 -> 
+                                  let (i1, name_scrutinee, preamble_scrutinee) = runBuilder_ (flattenExpr scrutinee) i0
+                                      name_case = text ("%case_" ++ show i1) 
+                                      fulldoc = preamble_scrutinee $+$ 
+                                              hang ((name_case <+>  (text "=") $+$ (nest 2 $ (text "hask.caseSSA") <+> name_scrutinee)))
+                                                    2
+                                                   (vcat [cvtAlt wild a | a <-as ])
+                                  in (i1+1, name_case, fulldoc)
+
+    App f x -> Builder $ \i0 ->
+                let (i1, name_f, preamble_f) = runBuilder_ (flattenExpr f) i0
+                    (i2, name_x, preamble_x) = runBuilder_ (flattenExpr x) i1
+                    name_app = text ("%app_" ++ show i2)
+                    fulldoc = preamble_f $+$ preamble_x $+$ (name_app <+> (text " = ") <+> (text "hask.apSSA(") >< name_f >< comma <+> name_x >< (text ")"))
+                in (i2+1, name_app, fulldoc)
+    _ -> Builder $ \i0 -> let name_unimpl = text ("%unimpl_" ++ show i0)
+                              fulldoc = name_unimpl <+> (text " = ") <+> (text "none") 
+                        in (i0+1, name_unimpl, fulldoc)
 
 -- instantiates an expression, giving it a name and an SDoc that needs to be pasted above it.
 -- TODO: we need a monad here to allow us to build an AST while returning a variable name.
+
 cvtExpr :: CoreExpr -> SDoc
 cvtExpr expr =
   case expr of
-    Var x -> (, text "%" >< ppr x)
-    Lam x e -> braces_scoped (text "hask.lambda" <+> (parenthesize (ssavar (ppr x)))) (cvtExpr e)
+    Var x -> text "%" >< ppr x
+    Lam x e -> braces_scoped (text "hask.lambda" <+> (parenthesize (cvtVar x))) (cvtExpr e)
     Case e wild _ as -> text "hask.caseSSA" <+> (cvtExpr e)  $+$ (nest 2 $ vcat [cvtAlt wild a | a <-as ])
     _ -> text  "hask.dummy_finish"
 
@@ -125,7 +206,7 @@ cvtExpr expr =
   --   Lit l             -> ELit (cvtLit l)
   --   App x y           -> EApp (cvtExpr x) (cvtExpr y)
   --   Lam x e
-  --     | Var.isTyVar x -> ETyLam (cvtBinder x) (cvtExpr e)
+  --     | Var.isTyVar x -> ETyLam (cvtVar x) (cvtExpr e)
   --     | otherwise     -> ELam (cvtBinder x) (cvtExpr e)
   --   Let (NonRec b e) body -> ELet [(cvtBinder b, cvtExpr e)] (cvtExpr body)
   --   Let (Rec bs) body -> ELet (map (bimap cvtBinder cvtExpr) bs) (cvtExpr body)
@@ -408,4 +489,4 @@ cvtType (Type.CoercionTy _)    = Ast.CoercionTy
 
 cvtTyCon :: TyCon.TyCon -> Ast.TyCon
 cvtTyCon tc = TyCon (occNameToText $ getOccName tc) (cvtUnique $ tyConUnique tc)
--}
+-}  
