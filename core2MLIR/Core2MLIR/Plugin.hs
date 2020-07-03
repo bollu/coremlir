@@ -11,12 +11,15 @@ import CoreMonad (pprPassDetails)
 #endif
 import ErrUtils (showPass)
 import GHC
+import Pretty
 import CorePrep
 import Text.Printf
 import System.FilePath
 import System.Directory
+import System.IO (withFile, IOMode(..))
 
 import Core2MLIR.Convert
+import Core2MLIR.ConvertToMLIR
 
 plugin :: Plugin
 plugin = defaultPlugin { installCoreToDos = install }
@@ -27,14 +30,15 @@ install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 install _opts todo = do
     dflags <- getDynFlags
     hscenv <- getHscEnv
-    return [CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 0 "Core2MLIR: BeforeCorePrep"),
+    return [CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 0 "Core2MLIR: Dump BeforeCorePrep"),
             CoreDoPluginPass "RunCorePrep" (liftIO . runCorePrep dflags hscenv),
-            CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 1 "Core2MLIR: AfterCorePrep")]
+            CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 1 "Core2MLIR: Dump AfterCorePrep"),
+            CoreDoPluginPass "dumpIntersperse" (liftIO . genMLIR dflags 1 "Core2MLIR: GenMLIR AfterCorePrep")]
 
 
 runCorePrep :: DynFlags -> HscEnv -> ModGuts -> IO ModGuts
 runCorePrep dflags hscenv guts = do
-    putStrLn $ "running Core2MLIR..."
+    putStrLn $ "running CorePrep..."
     -- let hscenv =  _ :: HscEnv
     -- hscenv <- liftIO $ getHscEnv
     -- core_prep_env <- mkInitialCorePrepEnv hscenv
@@ -48,7 +52,7 @@ runCorePrep dflags hscenv guts = do
     let tcs = mg_tcs guts
     (coreprogram', _) <- corePrepPgm hscenv module_ modloc coreprogram tcs
     let guts' = guts { mg_binds = coreprogram' }
-    putStrLn $ "ran Core2MLIR..."
+    putStrLn $ "ran CorePrep..."
     return guts'
 
 
@@ -68,4 +72,18 @@ dumpIntersperse dflags n phase guts = do
     let in_dump_dir = maybe id (</>) (dumpDir dflags)
     createDirectoryIfMissing True $ takeDirectory $ in_dump_dir fname
     BSL.writeFile (in_dump_dir fname) $ Ser.serialise (cvtModule phase guts)
+    return guts
+
+
+genMLIR :: DynFlags -> Int -> String -> ModGuts -> IO ModGuts
+genMLIR dflags n phase guts = do
+    let prefix = fromMaybe "dump" $ dumpPrefix dflags
+    let fname = printf "tomlir-%spass-%04u.mlir" prefix n
+
+    putStrLn $ "running Core2MLIR"
+    showPass dflags $ "GhcDump: Dumping MLIR to "++ fname
+    let in_dump_dir = maybe id (</>) (dumpDir dflags)
+    createDirectoryIfMissing True $ takeDirectory $ in_dump_dir fname
+    withFile (in_dump_dir fname) WriteMode (\h -> printSDoc PageMode dflags h (defaultDumpStyle dflags) (cvtModuleToMLIR phase guts))
+    putStrLn $ "ran core2MLIR"
     return guts

@@ -16,7 +16,8 @@ build-type:          Simple
 
 library
   exposed-modules:     Core2MLIR.MLIR, Core2MLIR.Plugin, 
-                       Core2MLIR.Ast, Core2MLIR.Convert
+                       Core2MLIR.Ast, Core2MLIR.Convert,
+                       Core2MLIR.ConvertToMLIR
   ghc-options:         -Wall
   other-extensions:    GeneralizedNewtypeDeriving
  -- base >=4.8 && <4.15,
@@ -28,6 +29,7 @@ library
                        ghc,
                        directory,
                        serialise
+                       -- , ansi-wl-pprint
   default-language:    Haskell2010
 
 -- executable mlir-tool
