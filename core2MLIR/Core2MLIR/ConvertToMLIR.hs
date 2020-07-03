@@ -178,6 +178,11 @@ flattenExpr expr =
                     name_app = text ("%app_" ++ show i2)
                     fulldoc = preamble_f $+$ preamble_x $+$ (name_app <+> (text " = ") <+> (text "hask.apSSA(") >< name_f >< comma <+> name_x >< (text ")"))
                 in (i2+1, name_app, fulldoc)
+    Lit l -> return (text ("LITERAL"))
+    Type t -> return (text ("TYPE"))
+    Tick _ e -> return (text ("TICK"))
+    Cast _ e -> return (text ("CAST"))
+    
     _ -> Builder $ \i0 -> let name_unimpl = text ("%unimpl_" ++ show i0)
                               fulldoc = name_unimpl <+> (text " = ") <+> (text "none") 
                         in (i0+1, name_unimpl, fulldoc)
