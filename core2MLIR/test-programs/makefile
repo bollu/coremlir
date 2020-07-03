@@ -7,7 +7,7 @@
 install:
 	(cd ../ && cabal build Core2MLIR)
 	# HUGE FUCKING HACK.
-	rm ~/.ghc/x86_64-linux-8.6.5/environments/default 
+	-rm ~/.ghc/x86_64-linux-8.6.5/environments/default 
 	(cd ../ && cabal install Core2MLIR --lib  --overwrite-policy=always --global)
 
 fib: clean install

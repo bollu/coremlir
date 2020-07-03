@@ -3,28 +3,52 @@ module Core2MLIR.ConvertToMLIR where
 import Var (Var)
 import qualified Var
 import Id (isFCallId)
-import Module (ModuleName, moduleNameFS, moduleName)
+import Module (ModuleName, moduleNameFS, moduleName, pprModuleName)
 import Unique (Unique, getUnique, unpkUnique)
 import Name (getOccName, occNameFS, OccName, getName, nameModule_maybe)
 import qualified BasicTypes as OccInfo (OccInfo(..), isStrongLoopBreaker)
 import qualified CoreSyn
-import CoreSyn (Expr(..), CoreExpr, Bind(..), CoreAlt, CoreBind, AltCon(..))
+import CoreSyn (Expr(..), CoreExpr, Bind(..), CoreAlt, CoreBind, AltCon(..),)
 import TyCoRep as Type (Type(..))
-import Outputable (ppr, showSDoc, SDoc)
+import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>), ($+$), hang, (<>), ($$), blankLine)
 import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
 -- import Text.PrettyPrint.ANSI.Leijen
+-- https://hackage.haskell.org/package/ghc-8.10.1/docs/Outputable.html#v:SDoc
+-- https://hackage.haskell.org/package/ghc-8.10.1/docs/src/Pretty.html#Doc
+
+(><) :: SDoc -> SDoc -> SDoc
+(><) = (Outputable.<>)
 
 
+braces_scoped :: SDoc -- ^ header
+  -> SDoc -- ^ body 
+  -> SDoc
+braces_scoped header sdoc = (header <+> (text "{"))  $+$ (nest 2 sdoc) $+$ (text "}")
+
+comment :: SDoc -> SDoc; comment s = hsep [text "//", s]
 -- A 'FastString' is an array of bytes, hashed to support fast O(1)
 -- comparison.  It is also associated with a character encoding, so that
 -- Module.moduleName is a 'FastStrring'. How does one build a 'String'
 -- from it?
 cvtModuleToMLIR :: String -> ModGuts -> SDoc
-cvtModuleToMLIR phase guts = name
-    -- Ast.Module name (T.pack phase) (map cvtTopBind $ mg_binds guts)
-  where name = ppr $ Module.moduleName $ mg_module guts
+cvtModuleToMLIR phase guts =
+  let doc_name = pprModuleName $ Module.moduleName $ mg_module guts 
+  in vcat [comment doc_name,
+           comment (text phase),
+             (braces_scoped (text "%hask.module") $ (vcat [cvtTopBind b | b <- mg_binds guts]))]
 
+recBindsScope :: SDoc
+recBindsScope = text "%hask.recursive_ref"
+
+cvtTopBind :: CoreBind -> SDoc
+cvtTopBind (NonRec b e) = hsep [cvtBinder b, text "=", text "..."]
+cvtTopBind (Rec bs) = 
+    braces_scoped (recBindsScope) (vcat $ [hsep [cvtBinder b, text "=", text "..."] | (b, e) <- bs])
+
+
+cvtBinder :: Var -> SDoc
+cvtBinder v = text "%" >< (ppr v)
 
 {-
 import Data.Bifunctor
