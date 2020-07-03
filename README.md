@@ -187,3 +187,25 @@ to be maintained. [This is from CorePrep.hs:1450](https://haskell-code-explorer.
 - [`cabal install --lib` is not idempotent](https://github.com/haskell/cabal/issues/6394).
   Only haskellers would have issue citing a problem about **library installs**,
   while describing the issue as one of **idempotence**.
+
+# 3 July 2020 (Friday)
+
+Got the basic examples converted to SSA. Trying to do this in a GHC plugin.
+Most of the translation code works. I'm stuck at a point, though. I need
+to rename a variable `GHC.Num.-#` into something that can be named. Otherwise,
+I try to create the MLIR:
+
+```
+%app_100  =  hask.apSSA(%-#, %i_s1wH)
+```
+
+where the `-#` refers to the variable name `GHC.Num.-#`. This is pretty
+ludicrous. However, attempting to get a name from GHC seems quite complicated.
+There are things like:
+
+- `Id`
+- `Var`
+- `class NamedThing`
+- `data OccName`
+
+it's quite confusing as to what does what.
