@@ -160,7 +160,7 @@ hask.module {
      //     case i of ds {
     // %fib :: Int -> Int
     %fib = hask.toplevel_binding  {  
-      hask.lambda (%i) {
+      %lam = hask.lambdaSSA (%i) {
         %resulttop = hask.caseSSA %i 
             ["default" -> { //default
                     // DEFAULT →
@@ -217,6 +217,7 @@ hask.module {
                   }]
       hask.return(%resulttop)
       } //end lambda
+      hask.return(%lam)
   } // end fib
   
 

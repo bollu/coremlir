@@ -193,6 +193,20 @@ public:
 
 };
 
+class LambdaSSAOp : public Op<LambdaSSAOp, OpTrait::OneResult> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.lambdaSSA"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  void print(OpAsmPrinter &p);
+  Region &getBody() { assert(this->getOperation()->getNumRegions() == 1);  return this->getOperation()->getRegion(0);  }
+  Block::BlockArgListType inputRange() { this->getBody().begin()->getArguments();   }
+  int getNumInputs() { this->getBody().begin()->getNumArguments(); }
+  mlir::BlockArgument getInput(int i) { assert(i < getNumInputs()); return this->getBody().begin()->getArgument(i); }
+
+};
+
+
 class RecursiveRefOp : public Op<RecursiveRefOp, OpTrait::OneRegion, OpTrait::ZeroOperands, RegionKindInterface::Trait, OpTrait::OneResult> {
 public:
   using Op::Op;

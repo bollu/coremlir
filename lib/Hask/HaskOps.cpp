@@ -396,6 +396,41 @@ void CaseSSAOp::print(OpAsmPrinter &p) {
     }
 };
 
+// === LAMBDASSA OP ===
+// === LAMBDASSA OP ===
+// === LAMBDASSA OP ===
+// === LAMBDASSA OP ===
+// === LAMBDASSA OP ===
+
+ParseResult LambdaSSAOp::parse(OpAsmParser &parser, OperationState &result) {
+    SmallVector<mlir::OpAsmParser::OperandType, 4> regionArgs;
+    if (parser.parseRegionArgumentList(regionArgs, mlir::OpAsmParser::Delimiter::Paren)) return failure();
+
+
+    for(int i = 0; i < regionArgs.size(); ++ i) {
+    	llvm::errs() << "-" << __FUNCTION__ << ":" << __LINE__ << ":" << regionArgs[i].name <<"\n";
+    }
+
+    Region *r = result.addRegion();
+    if(parser.parseRegion(*r, regionArgs, {parser.getBuilder().getNoneType()})) return failure();
+    result.addTypes(parser.getBuilder().getNoneType());
+    return success();
+}
+
+void LambdaSSAOp::print(OpAsmPrinter &p) {
+    p << "hask.lambdaSSA";
+    p << "(";
+        for(int i = 0; i < this->getNumInputs(); ++i) {
+            p << this->getInput(i);
+            if (i < this->getNumInputs() - 1) { p << ","; }
+        } 
+    p << ")";
+    p.printRegion(this->getBody(), /*printEntryBlockArgs=*/false);
+    // p.printRegion(this->getBody(), /*printEntryBlockArgs=*/true);
+}
+
+
+
 // === RECURSIVEREF OP ===
 // === RECURSIVEREF OP ===
 // === RECURSIVEREF OP ===
