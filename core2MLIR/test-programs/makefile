@@ -1,5 +1,10 @@
 .PHONY: build core2mlir fib fibstrict clean install
 
+fibstrict: clean install
+	ghc -O0 -dverbose-core2core -ddump-prep -ddump-ds -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fibstrict.hs -o fibstrict.out
+	ghc-dump show  dump/fibstrict.pass-0000.cbor | tee dump/fibstrict.pass-0000.core
+	ghc-dump show  dump/fibstrict.pass-0001.cbor | tee dump/fibstrict.pass-0001.core
+
 # on getting multiple package error, remove the repeated package line from
 # vim ~/.ghc/x86_64-linux-8.6.5/environments/default
 # the GHC version above is an example.
@@ -18,10 +23,6 @@ fib: clean install
 	# cabal exec ghc-dump-mlir show dump/fib.pass-0000.cbor  | tee dump/fib.pass-0000.mlir
 	# cabal exec ghc-dump-mlir show dump/fib.pass-0001.cbor  | tee dump/fib.pass-0001.mlir
 
-fibstrict: clean install
-	ghc -O0 -dverbose-core2core -ddump-prep -ddump-ds -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fibstrict.hs -o fibstrict.out
-	ghc-dump show  dump/fibstrict.pass-0000.cbor | tee dump/fibstrict.pass-0000.core
-	ghc-dump show  dump/fibstrict.pass-0001.cbor | tee dump/fibstrict.pass-0001.core
 
 clean:
 	-rm -rf dump/

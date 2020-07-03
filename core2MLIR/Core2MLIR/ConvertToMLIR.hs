@@ -10,12 +10,16 @@ import qualified BasicTypes as OccInfo (OccInfo(..), isStrongLoopBreaker)
 import qualified CoreSyn
 import CoreSyn (Expr(..), CoreExpr, Bind(..), CoreAlt, CoreBind, AltCon(..),)
 import TyCoRep as Type (Type(..))
-import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>), ($+$), hang, (<>), ($$), blankLine)
+import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
+                   ($+$), hang, (<>), ($$), blankLine, lparen, rparen,
+                   lbrack, rbrack)
 import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
 -- import Text.PrettyPrint.ANSI.Leijen
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/Outputable.html#v:SDoc
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/src/Pretty.html#Doc
+
+
 
 (><) :: SDoc -> SDoc -> SDoc
 (><) = (Outputable.<>)
@@ -36,19 +40,101 @@ cvtModuleToMLIR phase guts =
   let doc_name = pprModuleName $ Module.moduleName $ mg_module guts 
   in vcat [comment doc_name,
            comment (text phase),
-             (braces_scoped (text "%hask.module") $ (vcat [cvtTopBind b | b <- mg_binds guts]))]
+             (braces_scoped (text "hask.module") $ 
+                (vcat $ [cvtTopBind b | b <- mg_binds guts] ++ [text "hask.dummy_finish"]))]
 
 recBindsScope :: SDoc
-recBindsScope = text "%hask.recursive_ref"
+recBindsScope = text "hask.recursive_ref"
 
 cvtTopBind :: CoreBind -> SDoc
-cvtTopBind (NonRec b e) = hsep [cvtBinder b, text "=", text "..."]
+cvtTopBind (NonRec b e) = hsep [cvtBinder b, text "=", braces_scoped (text "hask.toplevel_binding") (cvtExpr e)]
 cvtTopBind (Rec bs) = 
-    braces_scoped (recBindsScope) (vcat $ [hsep [cvtBinder b, text "=", text "..."] | (b, e) <- bs])
+    braces_scoped (recBindsScope)
+      (vcat $ [hsep [cvtBinder b, text "=",
+               braces_scoped (text "hask.toplevel_binding") (cvtExpr e)] | (b, e) <- bs])
 
+
+ssavar :: SDoc -> SDoc
+ssavar v = text "%" >< v
 
 cvtBinder :: Var -> SDoc
-cvtBinder v = text "%" >< (ppr v)
+cvtBinder v = ssavar (ppr v)
+
+parenthesize :: SDoc -> SDoc
+parenthesize sdoc = lparen >< sdoc >< rparen
+
+
+-- cvtLit :: Literal -> SDoc
+-- cvtLit l =
+--     case l of
+--  #if MIN_VERSION_ghc(8,8,0)
+--        Literal.LitChar x -> Ast.MachChar x
+--        Literal.LitString x -> Ast.MachStr x
+--        Literal.LitNullAddr -> Ast.MachNullAddr
+--        Literal.LitFloat x -> Ast.MachFloat x
+--        Literal.LitDouble x -> Ast.MachDouble x
+--        Literal.LitLabel x _ _ -> Ast.MachLabel $ fastStringToText  x
+--        Literal.LitRubbish -> Ast.LitRubbish
+--  #else
+--       Literal.MachChar x -> Ast.MachChar x
+--       Literal.MachStr x -> Ast.MachStr x
+--       Literal.MachNullAddr -> Ast.MachNullAddr
+--       Literal.MachFloat x -> Ast.MachFloat x
+--       Literal.MachDouble x -> Ast.MachDouble x
+--       Literal.MachLabel x _ _ -> Ast.MachLabel $ fastStringToText  x
+
+
+cvtAltCon :: CoreSyn.AltCon -> SDoc
+cvtAltCon (DataAlt altcon) = text "DATACONSTRUCTOR" -- Ast.AltDataCon $ occNameToText $ getOccName altcon
+cvtAltCon (LitAlt l)       = ppr l
+cvtAltCon DEFAULT          = text "\"default\""
+
+
+arrow :: SDoc; arrow = text "->"
+
+cvtAltRHS :: Var -> [Var] -> CoreExpr  -> SDoc
+cvtAltRHS wild bnds expr = 
+ let inner = (text "^entry(" >< params >< text "):") $$ (nest 2 (cvtExpr expr))
+     params = ppr bnds
+ in (text "{") $$ (nest 2 inner) $$ (text "}")
+
+cvtAlt :: Var -> CoreAlt -> SDoc
+cvtAlt (con, bs, e) wild = lbrack >< cvtAltCon con <+> arrow <+>  cvtAltRHS wild bs e  >< rbrack
+
+
+-- instantiates an expression, giving it a name and an SDoc that needs to be pasted above it.
+-- TODO: we need a monad here to allow us to build an AST while returning a variable name.
+cvtExpr :: CoreExpr -> SDoc
+cvtExpr expr =
+  case expr of
+    Var x -> (, text "%" >< ppr x)
+    Lam x e -> braces_scoped (text "hask.lambda" <+> (parenthesize (ssavar (ppr x)))) (cvtExpr e)
+    Case e wild _ as -> text "hask.caseSSA" <+> (cvtExpr e)  $+$ (nest 2 $ vcat [cvtAlt wild a | a <-as ])
+    _ -> text  "hask.dummy_finish"
+
+  -- case expr of
+  --   Var x
+  --       -- foreign calls are local but have no binding site.
+  --       -- TODO: use hasNoBinding here.
+  --     | isFCallId x   -> EVarGlobal ForeignCall
+  --     | Just m <- nameModule_maybe $ getName x
+  --                     -> EVarGlobal $ ExternalName (cvtModuleName $ Module.moduleName m)
+  --                                                  (occNameToText $ getOccName x)
+  --                                                  (cvtUnique $ getUnique x)
+  --     | otherwise     -> EVar (cvtVar x)
+  --   Lit l             -> ELit (cvtLit l)
+  --   App x y           -> EApp (cvtExpr x) (cvtExpr y)
+  --   Lam x e
+  --     | Var.isTyVar x -> ETyLam (cvtBinder x) (cvtExpr e)
+  --     | otherwise     -> ELam (cvtBinder x) (cvtExpr e)
+  --   Let (NonRec b e) body -> ELet [(cvtBinder b, cvtExpr e)] (cvtExpr body)
+  --   Let (Rec bs) body -> ELet (map (bimap cvtBinder cvtExpr) bs) (cvtExpr body)
+  --   Case e x _ as     -> ECase (cvtExpr e) (cvtBinder x) (map cvtAlt as)
+  --   Cast x _          -> cvtExpr x
+  --   Tick _ e          -> cvtExpr e
+  --   Type t            -> EType $ cvtType t
+  --   Coercion _        -> ECoercion
+
 
 {-
 import Data.Bifunctor

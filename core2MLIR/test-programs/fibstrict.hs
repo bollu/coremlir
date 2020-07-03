@@ -4,8 +4,6 @@
 --  https://hackage.haskell.org/package/ghc-prim-0.6.1/docs/GHC-Prim.html
 import GHC.Prim
 
-data Int = IntConstructor Int#
-
 -- | wired in 
 -- addInt :: Int# -> Int# -> Int
 -- addInt (IntConstructor i) (IntConstructor j) = IntConstructor (i +# j)
