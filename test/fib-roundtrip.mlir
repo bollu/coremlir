@@ -7,7 +7,7 @@ module {
     %3 = hask.make_data_constructor<"GHC.Num.-">
     %4 = hask.make_data_constructor<"GHC.Num.$fNumInt">
     %5 = hask.toplevel_binding {
-      hask.lambda[%arg0] {
+      hask.lambda(%arg0) {
         hask.case {
           hask.return(%arg0)
         } {alt0 = "default", alt1 = 0 : i64, alt2 = 1 : i64} {

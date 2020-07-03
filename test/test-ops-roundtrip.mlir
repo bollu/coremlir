@@ -7,7 +7,7 @@ module {
     %3 = hask.make_data_constructor<"GHC.Num.-">
     %4 = hask.make_data_constructor<"GHC.Num.$fNumInt">
     %5 = hask.toplevel_binding {
-      hask.lambda[%arg0] {
+      hask.lambda(%arg0) {
         %7 = hask.caseSSA %arg0 ["default" ->  {
         ^bb0(%arg1: none):  // no predecessors
           hask.return(%arg0)

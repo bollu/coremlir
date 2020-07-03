@@ -74,7 +74,7 @@ hask.module {
     // The syntax that I encoded into the parser
     // %fib :: Int -> Int
     %fib = hask.toplevel_binding {  
-      hask.lambda [%i] {
+      hask.lambda (%i) {
         hask.case  {hask.return(%i)} { alt0 = "default", alt1=0, alt2=1 }
         { //default
   

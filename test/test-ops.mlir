@@ -11,7 +11,7 @@ hask.module {
 // The syntax that I encoded into the parser
 // %fib :: Int -> Int
 %fib = hask.toplevel_binding {  
-  hask.lambda [%i] {
+  hask.lambda (%i) {
     	%x = hask.caseSSA  %i
     		[ "default" -> { ^entry(%wild: none): hask.return (%i) }]
     	hask.return(%x)

@@ -34,7 +34,7 @@ namespace standalone {
 // === LAMBDA OP ===
 ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
     SmallVector<mlir::OpAsmParser::OperandType, 4> regionArgs;
-    if (parser.parseRegionArgumentList(regionArgs, mlir::OpAsmParser::Delimiter::OptionalSquare)) return failure();
+    if (parser.parseRegionArgumentList(regionArgs, mlir::OpAsmParser::Delimiter::Paren)) return failure();
 
 
     for(int i = 0; i < regionArgs.size(); ++ i) {
@@ -47,12 +47,12 @@ ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
 
 void LambdaOp::print(OpAsmPrinter &p) {
     p << "hask.lambda";
-    p << "[";
+    p << "(";
         for(int i = 0; i < this->getNumInputs(); ++i) {
             p << this->getInput(i);
             if (i < this->getNumInputs() - 1) { p << ","; }
         } 
-    p << "]";
+    p << ")";
     p.printRegion(this->getBody(), /*printEntryBlockArgs=*/false);
     // p.printRegion(this->getBody(), /*printEntryBlockArgs=*/true);
 }
