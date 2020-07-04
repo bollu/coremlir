@@ -17,6 +17,7 @@ import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
 import Control.Monad (ap)
 import FastString
+import Literal
 -- import Text.PrettyPrint.ANSI.Leijen
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/Outputable.html#v:SDoc
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/src/Pretty.html#Doc
@@ -85,25 +86,44 @@ parenthesize :: SDoc -> SDoc
 parenthesize sdoc = lparen >< sdoc >< rparen
 
 
--- cvtLit :: Literal -> SDoc
--- cvtLit l =
---     case l of
---  #if MIN_VERSION_ghc(8,8,0)
---        Literal.LitChar x -> Ast.MachChar x
---        Literal.LitString x -> Ast.MachStr x
---        Literal.LitNullAddr -> Ast.MachNullAddr
---        Literal.LitFloat x -> Ast.MachFloat x
---        Literal.LitDouble x -> Ast.MachDouble x
---        Literal.LitLabel x _ _ -> Ast.MachLabel $ fastStringToText  x
---        Literal.LitRubbish -> Ast.LitRubbish
---  #else
---       Literal.MachChar x -> Ast.MachChar x
---       Literal.MachStr x -> Ast.MachStr x
---       Literal.MachNullAddr -> Ast.MachNullAddr
---       Literal.MachFloat x -> Ast.MachFloat x
---       Literal.MachDouble x -> Ast.MachDouble x
---       Literal.MachLabel x _ _ -> Ast.MachLabel $ fastStringToText  x
+cvtLit :: Literal -> SDoc
+cvtLit l =
+    case l of
+#if MIN_VERSION_ghc(8,8,0)
+      Literal.LitChar x ->  ppr x
+      Literal.LitString x -> ppr x
+      Literal.LitNullAddr -> error $ "unknown: how to handle null addr cvtLit(Literal.LitNullAddr)?"
+      Literal.LitFloat x -> ppr x
+      Literal.LitDouble x -> ppr x
+      Literal.LitLabel x _ _ -> ppr $ unpackFS  x
+      Literal.LitRubbish ->  error $ "unknown: how to handle null addr cvtLit(Literal.LitRubbish)?"
+#else
+      Literal.MachChar x -> ppr x
+      Literal.MachStr x -> text "UNHANDLED_MACH_STR" -- error $ "unknown: how to handle null addr cvtLit(Literal.MachStr)?" -- ppr x
+      Literal.MachNullAddr -> error $ "unknown: how to handle null addr cvtLit(Literal.LitNullAddr)?"
+      Literal.MachFloat x -> error $ "unknown: how to handle null addr cvtLit(Literal.MachFloat)?"
+      Literal.MachDouble x -> error $ "unknown: how to handle null addr cvtLit(Literal.MachDouble)?"
+      Literal.MachLabel x _ _ -> ppr $ unpackFS  x
+#endif
+#if MIN_VERSION_ghc(8,6,0)
+      Literal.LitNumber numty n _ ->
+        case numty of
+          Literal.LitNumInt -> ppr n
+          Literal.LitNumInt64 -> ppr n
+          Literal.LitNumWord -> ppr n
+          Literal.LitNumWord64 -> ppr n
+          Literal.LitNumInteger -> ppr n
+          Literal.LitNumNatural -> ppr n
+#else
+      Literal.MachInt x -> ppr x
+      Literal.MachInt64 x -> ppr x
+      Literal.MachWord x -> ppr x
+      Literal.MachWord64 x -> ppr x
+      Literal.LitInteger x _ -> ppr x
+#endif
 
+-- NOTE: I can't use this due to the stupid "add a suffix #" rule
+-- cvtLit :: Literal -> SDoc; cvtLit l = pprLiteral id l 
 
 cvtAltCon :: CoreSyn.AltCon -> SDoc
 cvtAltCon (DataAlt altcon) = text "DATACONSTRUCTOR" -- Ast.AltDataCon $ occNameToText $ getOccName altcon
@@ -178,11 +198,15 @@ flattenExpr expr =
                     name_app = text ("%app_" ++ show i2)
                     fulldoc = preamble_f $+$ preamble_x $+$ (name_app <+> (text " = ") <+> (text "hask.apSSA(") >< name_f >< comma <+> name_x >< (text ")"))
                 in (i2+1, name_app, fulldoc)
-    Lit l -> return (text ("LITERAL"))
+    Lit l -> Builder $ \i0 ->
+               let  name_lit = text $ "%lit_" ++ show i0
+                    fulldoc =  name_lit <+> (text " = ") <+> (text "constant") <+> cvtLit l
+               in (i0+1, name_lit, fulldoc)
+          -- return (text ("LITERAL"))
     Type t -> return (text ("TYPE"))
     Tick _ e -> return (text ("TICK"))
     Cast _ e -> return (text ("CAST"))
-    
+
     _ -> Builder $ \i0 -> let name_unimpl = text ("%unimpl_" ++ show i0)
                               fulldoc = name_unimpl <+> (text " = ") <+> (text "none") 
                         in (i0+1, name_unimpl, fulldoc)
