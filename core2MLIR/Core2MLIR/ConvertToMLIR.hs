@@ -108,7 +108,7 @@ cvtLit l =
 #if MIN_VERSION_ghc(8,6,0)
       Literal.LitNumber numty n _ ->
         case numty of
-          Literal.LitNumInt -> ppr n
+          Literal.LitNumInt -> text "hask.make_i32(" >< ppr n >< text ")"
           Literal.LitNumInt64 -> ppr n
           Literal.LitNumWord -> ppr n
           Literal.LitNumWord64 -> ppr n
@@ -200,7 +200,7 @@ flattenExpr expr =
                 in (i2+1, name_app, fulldoc)
     Lit l -> Builder $ \i0 ->
                let  name_lit = text $ "%lit_" ++ show i0
-                    fulldoc =  name_lit <+> (text " = ") <+> (text "constant") <+> cvtLit l
+                    fulldoc =  name_lit <+> (text " = ") <+>  cvtLit l
                in (i0+1, name_lit, fulldoc)
           -- return (text ("LITERAL"))
     Type t -> return (text ("TYPE"))

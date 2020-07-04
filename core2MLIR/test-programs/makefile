@@ -4,6 +4,8 @@ fibstrict: clean install
 	ghc -O0 -dverbose-core2core -ddump-prep -ddump-ds -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fibstrict.hs -o fibstrict.out
 	ghc-dump show  dump/fibstrict.pass-0000.cbor | tee dump/fibstrict.pass-0000.core
 	ghc-dump show  dump/fibstrict.pass-0001.cbor | tee dump/fibstrict.pass-0001.core
+	cat dump/tomlir-fibstrict.pass-0001.mlir
+	../../build/bin/hask-opt dump/tomlir-fibstrict.pass-0001.mlir
 
 # on getting multiple package error, remove the repeated package line from
 # vim ~/.ghc/x86_64-linux-8.6.5/environments/default
