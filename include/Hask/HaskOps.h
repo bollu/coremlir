@@ -85,14 +85,13 @@ public:
 };
 
 
-class MakeI32Op : public Op<MakeI32Op, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
+class MakeI32Op : public Op<MakeI32Op, OpTrait::OneResult, OpTrait::ZeroSuccessor> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.make_i32"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
 
-  Value getValue() { return this->getOperation()->getOperand(0); }
-  Value getInput() { return this->getValue(); }
+  Attribute getValue() { return this->getOperation()->getAttr("value"); }
   void print(OpAsmPrinter &p);
 };
 

@@ -157,17 +157,21 @@ void ReturnOp::print(OpAsmPrinter &p) {
 
 
 ParseResult MakeI32Op::parse(OpAsmParser &parser, OperationState &result) {
-    mlir::OpAsmParser::OperandType i;
-    if (parser.parseLParen() || parser.parseOperand(i) || parser.parseRParen())
+    // mlir::OpAsmParser::OperandType i;
+    Attribute attr;
+    
+    if (parser.parseLParen() || parser.parseAttribute(attr, "value", result.attributes) || parser.parseRParen())
         return failure();
-    SmallVector<Value, 1> vi;
-    parser.resolveOperand(i, parser.getBuilder().getIntegerType(32), vi);
-    result.addOperands(vi);
+    // result.addAttribute("value", attr);
+    //SmallVector<Value, 1> vi;
+    //parser.resolveOperand(i, parser.getBuilder().getIntegerType(32), vi);
+    
+    result.addTypes(parser.getBuilder().getNoneType());
     return success();
 };
 
 void MakeI32Op::print(OpAsmPrinter &p) {
-    p << "hask.make_i32(" << getInput() << ")";
+    p << "hask.make_i32(" << getValue() << ")";
 };
 
 // === MakeDataConstructor OP ===

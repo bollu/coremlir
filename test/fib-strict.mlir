@@ -175,8 +175,7 @@ hask.module {
                     //         })
                     //         wild)
                     ^entry(%ds: none):
-                      %one = constant 1 : i32
-                      %core_one = hask.constant(%one, i32)
+                      %core_one =  hask.make_i32(1)
                       %i_minus_one = hask.apSSA(%constructor_minus, %i, %core_one)
                       // TODO: It is annoying that I need to define it like this; Is there
                       // _really_ no nicer way? If so, that just seems sad. 
@@ -222,7 +221,9 @@ hask.module {
   
 
     %main = hask.toplevel_binding { 
-      hask.ap ({ hask.return (%fib) }, {%c10 = constant 10 : i32 hask.make_i32(%c10)}) 
+      %ten = hask.make_i32(10)
+      %out = hask.apSSA(%fib, %ten)
+      hask.return(%out) 
     }
 
     // need to add dummy terminator, FFS.
