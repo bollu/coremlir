@@ -24,6 +24,30 @@ import Literal
 
 
 
+-- | name of the expression
+type SSAName = SDoc
+
+
+-- | monad instance
+data Builder a = Builder { runBuilder_ :: Int -> (Int, a, SDoc) }
+
+runBuilder :: Builder a -> (Int, a, SDoc)
+runBuilder b = runBuilder_ b 0
+
+instance Monad Builder where
+    return a = Builder $ \i -> (i, a, empty)
+    builda >>= a2buildb = Builder $ \i0 -> let (i1, a, doc1) = runBuilder_ builda i0
+                                               (i2, b, doc2) = runBuilder_ (a2buildb a) i1 
+                                           in (i2, b, doc1 $+$ doc2)
+
+appendLine :: SDoc -> Builder ()
+appendLine s = Builder $ \i -> (i, (), s)
+
+
+instance Applicative Builder where pure = return; (<*>) = ap;
+instance Functor Builder where fmap f mx = mx >>= (return . f)
+
+
 (><) :: SDoc -> SDoc -> SDoc
 (><) = (Outputable.<>)
 
@@ -50,13 +74,11 @@ recBindsScope :: SDoc
 recBindsScope = text "hask.recursive_ref"
 
 
-
 cvtBindRhs :: CoreExpr -> SDoc
 cvtBindRhs rhs = 
   let (_, rhs_name, rhs_preamble) = runBuilder_ (flattenExpr rhs) 0
       body = rhs_preamble $+$ ((text "hask.return(") >< rhs_name >< (text ")"))  
   in body
-
 
 
 cvtVar :: Var -> SDoc
@@ -133,41 +155,19 @@ cvtAltCon DEFAULT          = text "\"default\""
 
 arrow :: SDoc; arrow = text "->"
 
-cvtAltRHS :: Var -> [Var] -> CoreExpr -> SDoc
-cvtAltRHS wild bnds rhs =
+cvtAltRHS :: Var -> [Var] -> CoreExpr -> Builder ()
+cvtAltRHS wild bnds rhs = Builder $ \i0 -> 
  -- | HACK: we need to start from something other than 100...
- let (i1, name_rhs, preamble_rhs) = runBuilder_ (flattenExpr rhs) 100
+ let (i1, name_rhs, preamble_rhs) = runBuilder_ (flattenExpr rhs) i0
      params = pprWithCommas (\v -> cvtVar v ><  text ": none") (wild:bnds)
      inner = (text "^entry(" >< params >< text "):") $$ (nest 2 $ preamble_rhs $$ ((text "hask.return(") >< name_rhs >< (text ")")))
- in (text "{") $$ (nest 2 inner) $$ (text "}")
+ in (i1, (), (text "{") $$ (nest 2 inner) $$ (text "}"))
 
-cvtAlt :: Var -> CoreAlt -> SDoc
-cvtAlt wild (con, bs, e) = (lbrack >< cvtAltCon con <+> arrow) $$ (nest 2 $ cvtAltRHS wild bs e  >< rbrack)
+cvtAlt :: Var -> CoreAlt -> Builder SDoc
+cvtAlt wild (con, bs, e) = Builder $ \i0 -> 
+                    let (i1, (), rhs) = runBuilder_ (cvtAltRHS wild bs e)i0
+                    in (i1, (), (lbrack >< cvtAltCon con <+> arrow) $$ (nest 2 $ rhs  >< rbrack))
 
-
--- | monad instance
-data Builder a = Builder { runBuilder_ :: Int -> (Int, a, SDoc) }
-
-runBuilder :: Builder a -> (Int, a, SDoc)
-runBuilder b = runBuilder_ b 0
-
-instance Monad Builder where
-    return a = Builder $ \i -> (i, a, empty)
-    builda >>= a2buildb = Builder $ \i0 -> let (i1, a, doc1) = runBuilder_ builda i0
-                                               (i2, b, doc2) = runBuilder_ (a2buildb a) i1 
-                                           in (i2, b, doc1 $+$ doc2)
-
-
-
--- | name of the expression
-type SSAName = SDoc
-
-appendLine :: SDoc -> Builder ()
-appendLine s = Builder $ \i -> (i, (), s)
-
-
-instance Applicative Builder where pure = return; (<*>) = ap;
-instance Functor Builder where fmap f mx = mx >>= (return . f)
 
 
 flattenExpr :: CoreExpr -> Builder SSAName
