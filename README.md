@@ -209,3 +209,7 @@ There are things like:
 - `data OccName`
 
 it's quite confusing as to what does what.
+
+# 7 July 2020 (Tuesday)
+
+- `mkUniqueGrimily`: great name for a function that creates data.

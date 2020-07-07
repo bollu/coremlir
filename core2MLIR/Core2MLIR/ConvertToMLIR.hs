@@ -15,7 +15,7 @@ import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
                    lbrack, rbrack, pprWithCommas, empty, comma)
 import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
-import Control.Monad (ap)
+import Control.Monad (ap, forM_)
 import FastString
 import Literal
 -- import Text.PrettyPrint.ANSI.Leijen
@@ -84,7 +84,8 @@ cvtBindRhs rhs =
 cvtVar :: Var -> SDoc
 cvtVar v = 
   let  var2string :: Var -> String
-       var2string v = unpackFS $ occNameFS $ getOccName v
+       -- var2string v = unpackFS $ occNameFS $ getOccName v
+       var2string v = (unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
 
        -- | this is completely broken. 
        escapeString :: String -> String
@@ -163,7 +164,7 @@ cvtAltRHS wild bnds rhs = Builder $ \i0 ->
      inner = (text "^entry(" >< params >< text "):") $$ (nest 2 $ preamble_rhs $$ ((text "hask.return(") >< name_rhs >< (text ")")))
  in (i1, (), (text "{") $$ (nest 2 inner) $$ (text "}"))
 
-cvtAlt :: Var -> CoreAlt -> Builder SDoc
+cvtAlt :: Var -> CoreAlt -> Builder ()
 cvtAlt wild (con, bs, e) = Builder $ \i0 -> 
                     let (i1, (), rhs) = runBuilder_ (cvtAltRHS wild bs e)i0
                     in (i1, (), (lbrack >< cvtAltCon con <+> arrow) $$ (nest 2 $ rhs  >< rbrack))
@@ -186,11 +187,12 @@ flattenExpr expr =
     Case scrutinee wild _ as -> Builder $ \i0 -> 
                                   let (i1, name_scrutinee, preamble_scrutinee) = runBuilder_ (flattenExpr scrutinee) i0
                                       name_case = text ("%case_" ++ show i1) 
+                                      (i2, _, alts_doc) = runBuilder_ (forM_ as (cvtAlt wild)) i1
                                       fulldoc = preamble_scrutinee $+$ 
                                               hang ((name_case <+>  (text "=") $+$ (nest 2 $ (text "hask.caseSSA") <+> name_scrutinee)))
                                                     2
-                                                   (vcat [cvtAlt wild a | a <-as ])
-                                  in (i1+1, name_case, fulldoc)
+                                                    alts_doc
+                                  in (i2+1, name_case, fulldoc)
 
     App f x -> Builder $ \i0 ->
                 let (i1, name_f, preamble_f) = runBuilder_ (flattenExpr f) i0
@@ -214,13 +216,13 @@ flattenExpr expr =
 -- instantiates an expression, giving it a name and an SDoc that needs to be pasted above it.
 -- TODO: we need a monad here to allow us to build an AST while returning a variable name.
 
-cvtExpr :: CoreExpr -> SDoc
-cvtExpr expr =
-  case expr of
-    Var x -> text "%" >< ppr x
-    Lam x e -> braces_scoped (text "hask.lambda" <+> (parenthesize (cvtVar x))) (cvtExpr e)
-    Case e wild _ as -> text "hask.caseSSA" <+> (cvtExpr e)  $+$ (nest 2 $ vcat [cvtAlt wild a | a <-as ])
-    _ -> text  "hask.dummy_finish"
+-- cvtExpr :: CoreExpr -> SDoc
+-- cvtExpr expr =
+--   case expr of
+--     Var x -> text "%" >< ppr x
+--     Lam x e -> braces_scoped (text "hask.lambda" <+> (parenthesize (cvtVar x))) (cvtExpr e)
+--     Case e wild _ as -> text "hask.caseSSA" <+> (cvtExpr e)  $+$ (nest 2 $ vcat [cvtAlt wild a | a <-as ])
+--     _ -> text  "hask.dummy_finish"
 
   -- case expr of
   --   Var x
