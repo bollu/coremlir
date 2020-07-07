@@ -12,14 +12,16 @@ import CoreSyn (Expr(..), CoreExpr, Bind(..), CoreAlt, CoreBind, AltCon(..),)
 import TyCoRep as Type (Type(..))
 import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
                    ($+$), hang, (<>), ($$), blankLine, lparen, rparen,
-                   lbrack, rbrack, pprWithCommas, empty, comma)
+                   lbrack, rbrack, pprWithCommas, empty, comma, renderWithStyle,defaultDumpStyle)
+import PprCore (pprCoreBindingsWithSize)
 import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
 import Control.Monad (ap, forM_)
 import FastString
 import Literal
 import qualified Data.ByteString.Char8 as BS
- 
+import GHC(DynFlags)
+
 -- import Text.PrettyPrint.ANSI.Leijen
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/Outputable.html#v:SDoc
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/src/Pretty.html#Doc
@@ -60,17 +62,32 @@ braces_scoped :: SDoc -- ^ header
 braces_scoped header sdoc = (header <+> (text "{"))  $+$ (nest 2 sdoc) $+$ (text "}")
 
 comment :: SDoc -> SDoc; comment s = hsep [text "//", s]
+
+
+intercalateCommentsInString :: String -> String
+intercalateCommentsInString [] = []
+intercalateCommentsInString ('\n':xs) = "\n//" ++  intercalateCommentsInString xs
+intercalateCommentsInString (x:xs) = x:intercalateCommentsInString xs
+
+dumpProgramAsCore :: DynFlags -> ModGuts -> String
+dumpProgramAsCore dflags guts = 
+  let sdoc = pprCoreBindingsWithSize $ mg_binds guts
+      string = renderWithStyle dflags sdoc (defaultDumpStyle dflags)
+  in "//" ++ intercalateCommentsInString string
+
 -- A 'FastString' is an array of bytes, hashed to support fast O(1)
 -- comparison.  It is also associated with a character encoding, so that
 -- Module.moduleName is a 'FastStrring'. How does one build a 'String'
 -- from it?
-cvtModuleToMLIR :: String -> ModGuts -> SDoc
-cvtModuleToMLIR phase guts =
+cvtModuleToMLIR :: DynFlags -> String -> ModGuts -> SDoc
+cvtModuleToMLIR dfags phase guts =
   let doc_name = pprModuleName $ Module.moduleName $ mg_module guts 
   in vcat [comment doc_name,
            comment (text phase),
              (braces_scoped (text "hask.module") $ 
-                (vcat $ [cvtTopBind b | b <- mg_binds guts] ++ [text "hask.dummy_finish"]))]
+                (vcat $ [cvtTopBind b | b <- mg_binds guts] ++ [text "hask.dummy_finish"])),
+           text $ "// ============ Haskell Core ========================",
+           text $ dumpProgramAsCore dfags guts]
 
 recBindsScope :: SDoc
 recBindsScope = text "hask.recursive_ref"

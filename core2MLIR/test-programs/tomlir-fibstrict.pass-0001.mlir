@@ -103,3 +103,64 @@ hask.module {
     }
   hask.dummy_finish
 }
+// ============ Haskell Core ========================
+//Rec {
+//-- RHS size: {terms: 31, types: 10, coercions: 0, joins: 0/1}
+//sat_s1wO :: Int# -> Int#
+//[LclId]
+//sat_s1wO
+//  = \ (i_s1wH :: Int#) ->
+//      case i_s1wH of {
+//        __DEFAULT ->
+//          case -# i_s1wH 1# of sat_s1wJ [Occ=Once] { __DEFAULT ->
+//          case fib sat_s1wJ of wild_s1wK [Occ=Once] { __DEFAULT ->
+//          case case fib i_s1wH of wild_s1wL [Occ=OnceL] { __DEFAULT ->
+//               let {
+//                 sat_s1wM [Occ=OnceT[0]] :: Int# -> Int#
+//                 [LclId]
+//                 sat_s1wM
+//                   = \ (eta_B1 [Occ=Once] :: Int#) -> +# wild_s1wL eta_B1 } in
+//               sat_s1wM
+//               }
+//          of sat_s1wN [Occ=Once!]
+//          { __DEFAULT ->
+//          sat_s1wN wild_s1wK
+//          }
+//          }
+//          };
+//        0# -> i_s1wH;
+//        1# -> i_s1wH
+//      }
+//
+//-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+//fib [Occ=LoopBreaker] :: Int# -> Int#
+//[LclId]
+//fib = sat_s1wO
+//end Rec }
+//
+//-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+//sat_s1wR :: TrName
+//[LclId]
+//sat_s1wR = TrNameS "Main"#
+//
+//-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+//sat_s1wQ :: TrName
+//[LclId]
+//sat_s1wQ = TrNameS "main"#
+//
+//-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+//$trModule :: Module
+//[LclIdX]
+//$trModule = Module sat_s1wQ sat_s1wR
+//
+//-- RHS size: {terms: 7, types: 3, coercions: 0, joins: 0/0}
+//main :: IO ()
+//[LclIdX]
+//main
+//  = case fib 10# of { __DEFAULT -> return @ IO $fMonadIO @ () () }
+//
+//-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+//main :: IO ()
+//[LclIdX]
+//main = runMainIO @ () main
+//

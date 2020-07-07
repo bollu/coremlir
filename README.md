@@ -252,3 +252,9 @@ Note that all of these names are GHC internals. We need to:
 There is also going to be the annoying "recursive call does not dominate use"
 problem badgering us. We'll have to analyze Core to decide which use site is
 recursive. This entire enterprise is messy, messy business.
+
+The GHC sources are confusing. Consider `Util/Bag.hs`. We have `filterBagM` which
+seems like an odd operation to have becuse a `Bag` is supposed to be unordered.
+Nor does the function have any users at any rate. Spoke to Ben about it,
+he said it's fine to delete the function, so I'll send a PR to do that once
+I get this up and running...
