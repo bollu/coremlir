@@ -5,6 +5,7 @@ fibstrict: clean install
 	ghc-dump show  dump/fibstrict.pass-0000.cbor | tee dump/fibstrict.pass-0000.core
 	ghc-dump show  dump/fibstrict.pass-0001.cbor | tee dump/fibstrict.pass-0001.core
 	cat dump/tomlir-fibstrict.pass-0001.mlir
+	make -C ../../build/
 	../../build/bin/hask-opt dump/tomlir-fibstrict.pass-0001.mlir
 
 # on getting multiple package error, remove the repeated package line from
