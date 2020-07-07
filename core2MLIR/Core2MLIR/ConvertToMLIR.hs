@@ -148,10 +148,49 @@ cvtLit l =
 -- NOTE: I can't use this due to the stupid "add a suffix #" rule
 -- cvtLit :: Literal -> SDoc; cvtLit l = pprLiteral id l 
 
-cvtAltCon :: CoreSyn.AltCon -> SDoc
-cvtAltCon (DataAlt altcon) = text "DATACONSTRUCTOR" -- Ast.AltDataCon $ occNameToText $ getOccName altcon
-cvtAltCon (LitAlt l)       = ppr l
-cvtAltCon DEFAULT          = text "\"default\""
+-- | when converting an alt LHS, we want to print out the raw number, not
+-- something like hask.make_i32(number).
+-- * We want [0 -> ...], not [hask.make_i32(0) -> ]
+-- * So we write another custom printer. Indeed, this is sick.
+cvtAltLHSLit :: Literal -> SDoc
+cvtAltLHSLit l =
+    case l of
+#if MIN_VERSION_ghc(8,8,0)
+      Literal.LitChar x ->  ppr x
+      Literal.LitString x -> ppr x
+      Literal.LitNullAddr -> error $ "unknown: how to handle null addr cvtLit(Literal.LitNullAddr)?"
+      Literal.LitFloat x -> ppr x
+      Literal.LitDouble x -> ppr x
+      Literal.LitLabel x _ _ -> ppr $ unpackFS  x
+      Literal.LitRubbish ->  error $ "unknown: how to handle null addr cvtLit(Literal.LitRubbish)?"
+#else
+      Literal.MachChar x -> ppr x
+      Literal.MachStr x -> text "UNHANDLED_MACH_STR" -- error $ "unknown: how to handle null addr cvtLit(Literal.MachStr)?" -- ppr x
+      Literal.MachNullAddr -> error $ "unknown: how to handle null addr cvtLit(Literal.LitNullAddr)?"
+      Literal.MachFloat x -> error $ "unknown: how to handle null addr cvtLit(Literal.MachFloat)?"
+      Literal.MachDouble x -> error $ "unknown: how to handle null addr cvtLit(Literal.MachDouble)?"
+      Literal.MachLabel x _ _ -> ppr $ unpackFS  x
+#endif
+#if MIN_VERSION_ghc(8,6,0)
+      Literal.LitNumber numty n _ ->
+        case numty of
+          Literal.LitNumInt -> ppr n
+          Literal.LitNumInt64 -> ppr n
+          Literal.LitNumWord -> ppr n
+          Literal.LitNumWord64 -> ppr n
+          Literal.LitNumInteger -> ppr n
+          Literal.LitNumNatural -> ppr n
+#else
+      Literal.MachInt x -> ppr x
+      Literal.MachInt64 x -> ppr x
+      Literal.MachWord x -> ppr x
+      Literal.MachWord64 x -> ppr x
+      Literal.LitInteger x _ -> ppr x
+#endif
+cvtAltLhs :: CoreSyn.AltCon -> SDoc
+cvtAltLhs (DataAlt altcon) = text "DATACONSTRUCTOR" -- Ast.AltDataCon $ occNameToText $ getOccName altcon
+cvtAltLhs (LitAlt l)       = cvtAltLHSLit l
+cvtAltLhs DEFAULT          = text "\"default\""
 
 
 arrow :: SDoc; arrow = text "->"
@@ -165,9 +204,9 @@ cvtAltRHS wild bnds rhs = Builder $ \i0 ->
  in (i1, (), (text "{") $$ (nest 2 inner) $$ (text "}"))
 
 cvtAlt :: Var -> CoreAlt -> Builder ()
-cvtAlt wild (con, bs, e) = Builder $ \i0 -> 
+cvtAlt wild (lhs, bs, e) = Builder $ \i0 -> 
                     let (i1, (), rhs) = runBuilder_ (cvtAltRHS wild bs e)i0
-                    in (i1, (), (lbrack >< cvtAltCon con <+> arrow) $$ (nest 2 $ rhs  >< rbrack))
+                    in (i1, (), (lbrack >< cvtAltLhs lhs <+> arrow) $$ (nest 2 $ rhs  >< rbrack))
 
 
 
@@ -210,7 +249,7 @@ flattenExpr expr =
     Cast _ e -> return (text ("CAST"))
 
     _ -> Builder $ \i0 -> let name_unimpl = text ("%unimpl_" ++ show i0)
-                              fulldoc = name_unimpl <+> (text " = ") <+> (text "none") 
+                              fulldoc = name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)") 
                         in (i0+1, name_unimpl, fulldoc)
 
 -- instantiates an expression, giving it a name and an SDoc that needs to be pasted above it.
