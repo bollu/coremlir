@@ -31,6 +31,7 @@ install _opts todo = do
     dflags <- getDynFlags
     hscenv <- getHscEnv
     return [CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 0 "Core2MLIR: Dump BeforeCorePrep"),
+            CoreDoPluginPass "dumpIntersperse" (liftIO . genMLIR dflags 0 "Core2MLIR: GenMLIR BeforeCorePrep"),
             CoreDoPluginPass "RunCorePrep" (liftIO . runCorePrep dflags hscenv),
             CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 1 "Core2MLIR: Dump AfterCorePrep"),
             CoreDoPluginPass "dumpIntersperse" (liftIO . genMLIR dflags 1 "Core2MLIR: GenMLIR AfterCorePrep")]

@@ -2,8 +2,6 @@
 
 fibstrict: clean install
 	ghc -O0 -dverbose-core2core -ddump-prep -ddump-ds -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fibstrict.hs -o fibstrict.out
-	ghc-dump show  dump/fibstrict.pass-0000.cbor | tee fibstrict.pass-0000.core
-	ghc-dump show  dump/fibstrict.pass-0001.cbor | tee fibstrict.pass-0001.core
 	cp dump/tomlir-fibstrict.pass-0001.mlir .
 	cp dump/tomlir-fibstrict.pass-0000.mlir .
 	make -C ../../build/

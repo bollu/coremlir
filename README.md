@@ -217,32 +217,38 @@ it's quite confusing as to what does what.
   MLIR gets verified. Now we have undeclared SSA variable problems:
 
 ```
-dump/tomlir-fibstrict.pass-0001.mlir:12:57: error: use of undeclared SSA value name
-                                  %app_0  =  hask.apSSA(%var_minus_hash_99, %var_i_s1wH)
-                                                        ^
-dump/tomlir-fibstrict.pass-0001.mlir:12:77: error: use of undeclared SSA value name
-                                  %app_0  =  hask.apSSA(%var_minus_hash_99, %var_i_s1wH)
-                                                                            ^
-dump/tomlir-fibstrict.pass-0001.mlir:64:29: error: use of undeclared SSA value name
+tomlir-fibstrict.pass-0000.mlir:12:56: error: use of undeclared SSA value name
+                                 %app_0  =  hask.apSSA(%var_minus_hash_99, %var_i_a12E)
+                                                       ^
+tomlir-fibstrict.pass-0000.mlir:12:76: error: use of undeclared SSA value name
+                                 %app_0  =  hask.apSSA(%var_minus_hash_99, %var_i_a12E)
+                                                                           ^
+tomlir-fibstrict.pass-0000.mlir:25:72: error: use of undeclared SSA value name
+                                                 %app_5  =  hask.apSSA(%var_plus_hash_98, %var_wild_X5)
+                                                                       ^
+tomlir-fibstrict.pass-0000.mlir:49:29: error: use of undeclared SSA value name
       %app_1  =  hask.apSSA(%var_TrNameS_ra, %lit_0)
                             ^
-dump/tomlir-fibstrict.pass-0001.mlir:75:29: error: use of undeclared SSA value name
-      %app_0  =  hask.apSSA(%var_Module_r7, %var_sat_s1wQ)
+tomlir-fibstrict.pass-0000.mlir:50:29: error: use of undeclared SSA value name
+      %app_2  =  hask.apSSA(%var_Module_r7, %app_1)
                             ^
-dump/tomlir-fibstrict.pass-0001.mlir:82:29: error: use of undeclared SSA value name
-      %app_1  =  hask.apSSA(%var_fib_s1wG, %lit_0)
+tomlir-fibstrict.pass-0000.mlir:59:29: error: use of undeclared SSA value name
+      %app_1  =  hask.apSSA(%var_fib_rwj, %lit_0)
                             ^
-dump/tomlir-fibstrict.pass-0001.mlir:88:37: error: use of undeclared SSA value name
+tomlir-fibstrict.pass-0000.mlir:65:37: error: use of undeclared SSA value name
               %app_3  =  hask.apSSA(%var_return_02O, %type_2)
                                     ^
-dump/tomlir-fibstrict.pass-0001.mlir:89:45: error: use of undeclared SSA value name
+tomlir-fibstrict.pass-0000.mlir:66:45: error: use of undeclared SSA value name
               %app_4  =  hask.apSSA(%app_3, %var_$fMonadIO_rob)
                                             ^
-dump/tomlir-fibstrict.pass-0001.mlir:92:45: error: use of undeclared SSA value name
+tomlir-fibstrict.pass-0000.mlir:69:45: error: use of undeclared SSA value name
               %app_7  =  hask.apSSA(%app_6, %var_unit_tuple_71)
                                             ^
-dump/tomlir-fibstrict.pass-0001.mlir:100:29: error: use of undeclared SSA value name
+tomlir-fibstrict.pass-0000.mlir:77:29: error: use of undeclared SSA value name
       %app_1  =  hask.apSSA(%var_runMainIO_01E, %type_0)
+                            ^
+makefile:4: recipe for target 'fibstrict' failed
+make: *** [fibstrict] Error 1
 ```
 
 Note that all of these names are GHC internals. We need to:
@@ -258,3 +264,4 @@ seems like an odd operation to have becuse a `Bag` is supposed to be unordered.
 Nor does the function have any users at any rate. Spoke to Ben about it,
 he said it's fine to delete the function, so I'll send a PR to do that once
 I get this up and running...
+
