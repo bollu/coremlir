@@ -2,8 +2,6 @@ dist
 dist-newstyle
 cabal.project.local
 .ghc.environment.*
-*.core
-*.mlir
 dump/
 
 dist
