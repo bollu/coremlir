@@ -83,16 +83,16 @@ cvtBindRhs rhs =
 
 cvtVar :: Var -> SDoc
 cvtVar v = 
-  let  var2string :: Var -> String
-       -- var2string v = unpackFS $ occNameFS $ getOccName v
-       var2string v = (unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
+  let  varToUniqueName :: Var -> String
+       -- varToUniqueName v = unpackFS $ occNameFS $ getOccName v
+       varToUniqueName v = (escapeName  $ unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
 
        -- | this is completely broken. 
-       escapeString :: String -> String
-       escapeString "-#" = "minushash"
-       escapeString "+#" = "plushash"
-       escapeString s = s -- error $ "unknown string (" ++ s ++ ")"
-  in (text "%var__X_") >< (text $ escapeString . var2string $ v) >< (text "_X_")
+       escapeName :: String -> String
+       escapeName "-#" = "minushash"
+       escapeName "+#" = "plushash"
+       escapeName s = s -- error $ "unknown string (" ++ s ++ ")"
+  in (text "%var__X_") >< (text $ varToUniqueName $ v) >< (text "_X_")
 
 
 cvtTopBind :: CoreBind -> SDoc
