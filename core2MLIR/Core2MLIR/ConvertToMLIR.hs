@@ -95,7 +95,7 @@ cvtVar v =
        escapeName "+#" = "plus_hash"
        escapeName "()" = "unit_tuple"
        escapeName s = s -- error $ "unknown string (" ++ s ++ ")"
-  in (text "%var__X_") >< (text $ varToUniqueName $ v) >< (text "_X_")
+  in (text "%var_") >< (text $ varToUniqueName $ v)
 
 
 cvtTopBind :: CoreBind -> SDoc

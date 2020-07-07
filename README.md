@@ -213,3 +213,42 @@ it's quite confusing as to what does what.
 # 7 July 2020 (Tuesday)
 
 - `mkUniqueGrimily`: great name for a function that creates data.
+- OK, good, we now have MLIR that round-trips, in the sense that our
+  MLIR gets verified. Now we have undeclared SSA variable problems:
+
+```
+dump/tomlir-fibstrict.pass-0001.mlir:12:57: error: use of undeclared SSA value name
+                                  %app_0  =  hask.apSSA(%var_minus_hash_99, %var_i_s1wH)
+                                                        ^
+dump/tomlir-fibstrict.pass-0001.mlir:12:77: error: use of undeclared SSA value name
+                                  %app_0  =  hask.apSSA(%var_minus_hash_99, %var_i_s1wH)
+                                                                            ^
+dump/tomlir-fibstrict.pass-0001.mlir:64:29: error: use of undeclared SSA value name
+      %app_1  =  hask.apSSA(%var_TrNameS_ra, %lit_0)
+                            ^
+dump/tomlir-fibstrict.pass-0001.mlir:75:29: error: use of undeclared SSA value name
+      %app_0  =  hask.apSSA(%var_Module_r7, %var_sat_s1wQ)
+                            ^
+dump/tomlir-fibstrict.pass-0001.mlir:82:29: error: use of undeclared SSA value name
+      %app_1  =  hask.apSSA(%var_fib_s1wG, %lit_0)
+                            ^
+dump/tomlir-fibstrict.pass-0001.mlir:88:37: error: use of undeclared SSA value name
+              %app_3  =  hask.apSSA(%var_return_02O, %type_2)
+                                    ^
+dump/tomlir-fibstrict.pass-0001.mlir:89:45: error: use of undeclared SSA value name
+              %app_4  =  hask.apSSA(%app_3, %var_$fMonadIO_rob)
+                                            ^
+dump/tomlir-fibstrict.pass-0001.mlir:92:45: error: use of undeclared SSA value name
+              %app_7  =  hask.apSSA(%app_6, %var_unit_tuple_71)
+                                            ^
+dump/tomlir-fibstrict.pass-0001.mlir:100:29: error: use of undeclared SSA value name
+      %app_1  =  hask.apSSA(%var_runMainIO_01E, %type_0)
+```
+
+Note that all of these names are GHC internals. We need to:
+- Process all names, figure out what are our 'external' references.
+- Code-generate 'extern' stubs for all of these.
+
+There is also going to be the annoying "recursive call does not dominate use"
+problem badgering us. We'll have to analyze Core to decide which use site is
+recursive. This entire enterprise is messy, messy business.
