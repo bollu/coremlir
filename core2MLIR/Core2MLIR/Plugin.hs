@@ -30,11 +30,11 @@ install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 install _opts todo = do
     dflags <- getDynFlags
     hscenv <- getHscEnv
-    return [CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 0 "Core2MLIR: Dump BeforeCorePrep"),
-            CoreDoPluginPass "dumpIntersperse" (liftIO . genMLIR dflags 0 "Core2MLIR: GenMLIR BeforeCorePrep"),
+    return [CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 0 "dumpIntersperse: Dump BeforeCorePrep"),
+            CoreDoPluginPass "genMLIR" (liftIO . genMLIR dflags 0 "Core2MLIR: GenMLIR BeforeCorePrep"),
             CoreDoPluginPass "RunCorePrep" (liftIO . runCorePrep dflags hscenv),
-            CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 1 "Core2MLIR: Dump AfterCorePrep"),
-            CoreDoPluginPass "dumpIntersperse" (liftIO . genMLIR dflags 1 "Core2MLIR: GenMLIR AfterCorePrep")]
+            CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 1 "dumpIntersperse: Dump AfterCorePrep"),
+            CoreDoPluginPass "genMLIR" (liftIO . genMLIR dflags 1 "Core2MLIR: GenMLIR AfterCorePrep")]
 
 
 runCorePrep :: DynFlags -> HscEnv -> ModGuts -> IO ModGuts
