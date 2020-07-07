@@ -18,6 +18,8 @@ import Module (ModuleName, moduleNameFS, moduleName)
 import Control.Monad (ap, forM_)
 import FastString
 import Literal
+import qualified Data.ByteString.Char8 as BS
+ 
 -- import Text.PrettyPrint.ANSI.Leijen
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/Outputable.html#v:SDoc
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/src/Pretty.html#Doc
@@ -89,8 +91,9 @@ cvtVar v =
 
        -- | this is completely broken. 
        escapeName :: String -> String
-       escapeName "-#" = "minushash"
-       escapeName "+#" = "plushash"
+       escapeName "-#" = "minus_hash"
+       escapeName "+#" = "plus_hash"
+       escapeName "()" = "unit_tuple"
        escapeName s = s -- error $ "unknown string (" ++ s ++ ")"
   in (text "%var__X_") >< (text $ varToUniqueName $ v) >< (text "_X_")
 
@@ -122,7 +125,8 @@ cvtLit l =
       Literal.LitRubbish ->  error $ "unknown: how to handle null addr cvtLit(Literal.LitRubbish)?"
 #else
       Literal.MachChar x -> ppr x
-      Literal.MachStr x -> text "UNHANDLED_MACH_STR" -- error $ "unknown: how to handle null addr cvtLit(Literal.MachStr)?" -- ppr x
+      -- "UNHANDLED_MACH_STR" -- error $ "unknown: how to handle null addr cvtLit(Literal.MachStr)?" -- ppr x
+      Literal.MachStr x -> text "hask.make_string(" ><  text "\"" >< text (BS.unpack x) >< text "\"" >< text ")"  
       Literal.MachNullAddr -> error $ "unknown: how to handle null addr cvtLit(Literal.LitNullAddr)?"
       Literal.MachFloat x -> error $ "unknown: how to handle null addr cvtLit(Literal.MachFloat)?"
       Literal.MachDouble x -> error $ "unknown: how to handle null addr cvtLit(Literal.MachDouble)?"
@@ -244,7 +248,11 @@ flattenExpr expr =
                     fulldoc =  name_lit <+> (text " = ") <+>  cvtLit l
                in (i0+1, name_lit, fulldoc)
           -- return (text ("LITERAL"))
-    Type t -> return (text ("TYPE"))
+    Type t -> Builder $ \i0 ->
+              let type_lit = text $ "%type_" ++ show i0 -- text $ "hask.make_string(\"TYPEINFO_ERASED\")" 
+                  fulldoc = type_lit <+> (text " = ") <+> (text "hask.make_string(\"TYPEINFO_ERASED\")")
+              in (i0+1, type_lit, fulldoc)
+              -- return $ text  "hask.make_string(\"TYPEINFO_ERASED\")" -- (text ("TYPE"))
     Tick _ e -> return (text ("TICK"))
     Cast _ e -> return (text ("CAST"))
 

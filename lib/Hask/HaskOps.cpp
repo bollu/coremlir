@@ -166,6 +166,9 @@ ParseResult MakeI32Op::parse(OpAsmParser &parser, OperationState &result) {
     //SmallVector<Value, 1> vi;
     //parser.resolveOperand(i, parser.getBuilder().getIntegerType(32), vi);
     
+    // TODO: convert this to emitParserError, etc.
+    // assert (attr.getType().isSignedInteger() && "expected parameter to make_i32 to be integer");
+
     result.addTypes(parser.getBuilder().getNoneType());
     return success();
 };
@@ -459,6 +462,32 @@ void RecursiveRefOp::print(OpAsmPrinter &p) {
 };
 
 
+// === MakeString OP ===
+// === MakeString OP ===
+// === MakeString OP ===
+// === MakeString OP ===
+// === MakeString OP ===
+
+
+ParseResult MakeStringOp::parse(OpAsmParser &parser, OperationState &result) {
+    // mlir::OpAsmParser::OperandType i;
+    Attribute attr;
+    
+    if (parser.parseLParen() || parser.parseAttribute(attr, "value", result.attributes) || parser.parseRParen())
+        return failure();
+    // result.addAttribute("value", attr);
+    //SmallVector<Value, 1> vi;
+    //parser.resolveOperand(i, parser.getBuilder().getIntegerType(32), vi);
+    
+    // TODO: check if attr is string.
+
+    result.addTypes(parser.getBuilder().getNoneType());
+    return success();
+};
+
+void MakeStringOp::print(OpAsmPrinter &p) {
+    p << "hask.make_string(" << getValue() << ")";
+};
 
 
 } // namespace standalone

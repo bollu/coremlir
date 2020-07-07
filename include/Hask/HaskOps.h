@@ -95,6 +95,17 @@ public:
   void print(OpAsmPrinter &p);
 };
 
+class MakeStringOp : public Op<MakeStringOp, OpTrait::OneResult, OpTrait::ZeroSuccessor> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.make_string"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+
+  Attribute getValue() { return this->getOperation()->getAttr("value"); }
+  void print(OpAsmPrinter &p);
+};
+
+
 
 class MakeDataConstructorOp : public Op<MakeDataConstructorOp, OpTrait::OneResult> {
 public:
@@ -217,10 +228,7 @@ public:
   // build a single region.
 
   static void build(OpBuilder &odsBuilder, OperationState &odsState, Type resultTy);
-
 };
-
-
 
 
 
