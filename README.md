@@ -330,3 +330,47 @@ cvtVar v =
   	   else if name == "()" then (text "%unit_tuple")
   	   else text "%" >< ppr v 
 ```
+
+
+##### Re-checking the dumps from `fibstrict.hs`
+
+OK, so I decided to view the dump from the horse's mouth:
+
+```hs
+-- | fibstrict.hs
+{-# LANGUAGE MagicHash #-}
+import GHC.Prim
+fib :: Int# -> Int#
+fib i = case i of
+        0# ->  i; 1# ->  i
+        _ ->  (fib i) +# (fib (i -# 1#))
+main :: IO (); main = let x = fib 10# in return ()
+```
+
+```Core
+-- | generated from fibstrict.hs
+==================== Desugar (after optimization) ====================
+2020-07-08 16:31:29.998915479 UTC
+...
+
+-- RHS size: {terms: 7, types: 3, coercions: 0, joins: 0/0}
+main :: IO ()
+[LclIdX]
+main
+  = case fib 10# of { __DEFAULT ->
+    return @ IO GHC.Base.$fMonadIO @ () GHC.Tuple.()
+    }
+
+-- | what is this :Main.main?
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+:Main.main :: IO ()
+[LclIdX]
+:Main.main = GHC.TopHandler.runMainIO @ () main
+
+```
+
+Note that there is `main`, and then there is `:Main.main` [So there is an extra `:Main.`].
+This appears to inform the difference. One of them is some kind of top handler
+that is added automagically. I might have to strip this from my printing.
+I need to see how to deal with this. Will first identify what adds this symbol
+and if there's a clean way to disable this.
