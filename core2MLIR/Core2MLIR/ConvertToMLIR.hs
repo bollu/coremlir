@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP #-}
-module Core2MLIR.ConvertToMLIR where
+module Core2MLIR.ConvertToMLIR(cvtModuleToMLIR) where
 import Var (Var, varName)
 import qualified Var
 import Id (isFCallId)
@@ -12,7 +12,9 @@ import CoreSyn (Expr(..), CoreExpr, Bind(..), CoreAlt, CoreBind, AltCon(..),)
 import TyCoRep as Type (Type(..))
 import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
                    ($+$), hang, (<>), ($$), blankLine, lparen, rparen,
-                   lbrack, rbrack, pprWithCommas, empty, comma, renderWithStyle,defaultDumpStyle, punctuate, hsep)
+                   lbrack, rbrack, pprWithCommas, empty, comma, renderWithStyle,
+                   defaultDumpStyle, punctuate, hsep, reallyAlwaysQualify,
+                   showSDocDump, showSDocDebug)
 import PprCore (pprCoreBindingsWithSize)
 import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
@@ -72,8 +74,19 @@ intercalateCommentsInString (x:xs) = x:intercalateCommentsInString xs
 dumpProgramAsCore :: DynFlags -> ModGuts -> String
 dumpProgramAsCore dflags guts = 
   let sdoc = pprCoreBindingsWithSize $ mg_binds guts
-      string = renderWithStyle dflags sdoc (defaultDumpStyle dflags)
+      string = showSDocDebug dflags sdoc -- renderWithStyle dflags sdoc (PprDump dflags reallyAlwaysQualify)
   in "//" ++ intercalateCommentsInString string
+
+
+
+-- | Returns true if the core bind is defining 
+-- -- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+-- :Main.main :: IO ()
+-- [LclIdX]
+-- :Main.main = GHC.TopHandler.runMainIO @ () main
+
+isRunMainHandler :: CoreBind -> Bool
+isRunMainHandler _ = False
 
 -- A 'FastString' is an array of bytes, hashed to support fast O(1)
 -- comparison.  It is also associated with a character encoding, so that
@@ -85,7 +98,7 @@ cvtModuleToMLIR dfags phase guts =
   in vcat [comment doc_name,
            comment (text phase),
              (braces_scoped (text "hask.module") $ 
-                (vcat $ [cvtTopBind b | b <- mg_binds guts] ++ [text "hask.dummy_finish"])),
+                (vcat $ [cvtTopBind b | b <- mg_binds guts, not (isRunMainHandler b)] ++ [text "hask.dummy_finish"])),
            text $ "// ============ Haskell Core ========================",
            text $ dumpProgramAsCore dfags guts]
 

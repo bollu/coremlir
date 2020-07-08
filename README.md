@@ -374,3 +374,30 @@ This appears to inform the difference. One of them is some kind of top handler
 that is added automagically. I might have to strip this from my printing.
 I need to see how to deal with this. Will first identify what adds this symbol
 and if there's a clean way to disable this.
+
+- TODO: figure out how to get the core dump that I print in my MLIR file
+  to contain as much information as the GHC dump. for example,
+  the GHC dump says:
+
+```
+-- ***GHC file fibstrict.dump-ds***
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+:Main.main :: IO ()
+[LclIdX]
+:Main.main = GHC.TopHandler.runMainIO @ () main
+
+```
+
+```
+-- ***my MLIR file with the Core appended to the end as a comment***
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+main :: IO ()
+[LclIdX]
+main = runMainIO @ () main
+
+```
+
+- In particular, note that `fibstrict.dump-ds` says `:Main.main = GHC.TopHandler.runMainIO` while my
+  MLIR file only says `main = runMainIO ...`. I want that full qualification
+  in my dump as well. I will spend some time on this, because the upshot
+  is **huge**: accurate debugging and names!
