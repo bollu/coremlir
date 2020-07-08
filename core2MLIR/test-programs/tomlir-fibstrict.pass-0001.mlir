@@ -76,31 +76,6 @@ hask.module {
       %app_1  =  hask.apSSA(%app_0, %sat_s1wR)
       hask.return(%app_1)
     }
-  %main =
-    hask.toplevel_binding {
-      %lit_0  =  hask.make_i32(10)
-      %app_1  =  hask.apSSA(%fib, %lit_0)
-      %case_2 =
-        hask.caseSSA %app_1
-        ["default" ->
-          { ^entry(%x_s1wT: none):
-              %type_2  =  hask.make_string("TYPEINFO_ERASED")
-              %app_3  =  hask.apSSA(%return, %type_2)
-              %app_4  =  hask.apSSA(%app_3, %$fMonadIO)
-              %type_5  =  hask.make_string("TYPEINFO_ERASED")
-              %app_6  =  hask.apSSA(%app_4, %type_5)
-              %app_7  =  hask.apSSA(%app_6, %unit_tuple)
-              hask.return(%app_7)
-          }]
-      hask.return(%case_2)
-    }
-  %main =
-    hask.toplevel_binding {
-      %type_0  =  hask.make_string("TYPEINFO_ERASED")
-      %app_1  =  hask.apSSA(%runMainIO, %type_0)
-      %app_2  =  hask.apSSA(%app_1, %main)
-      hask.return(%app_2)
-    }
   hask.dummy_finish
 }
 // ============ Haskell Core ========================

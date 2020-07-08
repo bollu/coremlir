@@ -2,7 +2,7 @@
 module Core2MLIR.ConvertToMLIR(cvtModuleToMLIR) where
 import Var (Var, varName)
 import qualified Var
-import Id (isFCallId)
+import Id (isFCallId, isGlobalId, isExportedId)
 import Module (ModuleName, moduleNameFS, moduleName, pprModuleName)
 import Unique (Unique, getUnique, unpkUnique)
 import Name (getOccName, occNameFS, OccName, getName, nameModule_maybe, Name)
@@ -86,6 +86,9 @@ dumpProgramAsCore dflags guts =
 -- :Main.main = GHC.TopHandler.runMainIO @ () main
 
 isRunMainHandler :: CoreBind -> Bool
+isRunMainHandler (NonRec var _) = 
+    let binderName =  unpackFS . occNameFS $ getOccName $ var
+    in (binderName == "main") && (isExportedId var)
 isRunMainHandler _ = False
 
 -- A 'FastString' is an array of bytes, hashed to support fast O(1)
@@ -332,8 +335,6 @@ cvtAlt :: Wild -> CoreAlt -> Builder ()
 cvtAlt wild (lhs, bs, e) = Builder $ \i0 -> 
                     let (i1, (), rhs) = runBuilder_ (cvtAltRHS wild bs e)i0
                     in (i1, (), (lbrack >< cvtAltLhs lhs <+> arrow) $$ (nest 2 $ rhs  >< rbrack))
-
-
 
 flattenExpr :: CoreExpr -> Builder SSAName
 flattenExpr expr =
