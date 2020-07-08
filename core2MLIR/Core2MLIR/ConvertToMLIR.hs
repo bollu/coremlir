@@ -12,7 +12,7 @@ import CoreSyn (Expr(..), CoreExpr, Bind(..), CoreAlt, CoreBind, AltCon(..),)
 import TyCoRep as Type (Type(..))
 import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
                    ($+$), hang, (<>), ($$), blankLine, lparen, rparen,
-                   lbrack, rbrack, pprWithCommas, empty, comma, renderWithStyle,defaultDumpStyle)
+                   lbrack, rbrack, pprWithCommas, empty, comma, renderWithStyle,defaultDumpStyle, punctuate, hsep)
 import PprCore (pprCoreBindingsWithSize)
 import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
@@ -102,9 +102,8 @@ cvtBindRhs rhs =
 
 cvtVar :: Var -> SDoc
 cvtVar v = 
-  let  varToUniqueName :: Var -> String
-       -- varToUniqueName v = unpackFS $ occNameFS $ getOccName v
-       varToUniqueName v = (escapeName  $ unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
+  let  varToName :: Var -> String
+       varToName v = (escapeName  $ unpackFS $ occNameFS $ getOccName v) -- ++ "_" ++ (show $ getUnique v)
 
        -- | this is completely broken. 
        escapeName :: String -> String
@@ -112,7 +111,7 @@ cvtVar v =
        escapeName "+#" = "plus_hash"
        escapeName "()" = "unit_tuple"
        escapeName s = s -- error $ "unknown string (" ++ s ++ ")"
-  in (text "%var_") >< (text $ varToUniqueName $ v)
+  in (text "%var_") >< (text $ varToName $ v)
 
 
 cvtTopBind :: CoreBind -> SDoc
@@ -216,15 +215,28 @@ cvtAltLhs DEFAULT          = text "\"default\""
 
 arrow :: SDoc; arrow = text "->"
 
-cvtAltRHS :: Var -> [Var] -> CoreExpr -> Builder ()
+-- | wildcard is newtyped 
+newtype Wild = Wild Var
+
+-- | when we print a wild, we make sure it's unique.
+cvtWild :: Wild -> SDoc
+cvtWild (Wild v) = 
+  let  varToUniqueName :: Var -> String
+       varToUniqueName v = (unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
+  in text ("%" ++ varToUniqueName v)
+
+
+
+cvtAltRHS :: Wild -> [Var] -> CoreExpr -> Builder ()
 cvtAltRHS wild bnds rhs = Builder $ \i0 -> 
  -- | HACK: we need to start from something other than 100...
  let (i1, name_rhs, preamble_rhs) = runBuilder_ (flattenExpr rhs) i0
-     params = pprWithCommas (\v -> cvtVar v ><  text ": none") (wild:bnds)
+     params = hsep $ punctuate comma $ (cvtWild wild >< text ": none"):[cvtVar b >< text ": none" | b <- bnds]
      inner = (text "^entry(" >< params >< text "):") $$ (nest 2 $ preamble_rhs $$ ((text "hask.return(") >< name_rhs >< (text ")")))
  in (i1, (), (text "{") $$ (nest 2 inner) $$ (text "}"))
 
-cvtAlt :: Var -> CoreAlt -> Builder ()
+
+cvtAlt :: Wild -> CoreAlt -> Builder ()
 cvtAlt wild (lhs, bs, e) = Builder $ \i0 -> 
                     let (i1, (), rhs) = runBuilder_ (cvtAltRHS wild bs e)i0
                     in (i1, (), (lbrack >< cvtAltLhs lhs <+> arrow) $$ (nest 2 $ rhs  >< rbrack))
@@ -247,7 +259,7 @@ flattenExpr expr =
     Case scrutinee wild _ as -> Builder $ \i0 -> 
                                   let (i1, name_scrutinee, preamble_scrutinee) = runBuilder_ (flattenExpr scrutinee) i0
                                       name_case = text ("%case_" ++ show i1) 
-                                      (i2, _, alts_doc) = runBuilder_ (forM_ as (cvtAlt wild)) i1
+                                      (i2, _, alts_doc) = runBuilder_ (forM_ as (cvtAlt (Wild wild))) i1
                                       fulldoc = preamble_scrutinee $+$ 
                                               hang ((name_case <+>  (text "=") $+$ (nest 2 $ (text "hask.caseSSA") <+> name_scrutinee)))
                                                     2
