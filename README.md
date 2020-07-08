@@ -265,3 +265,68 @@ Nor does the function have any users at any rate. Spoke to Ben about it,
 he said it's fine to delete the function, so I'll send a PR to do that once
 I get this up and running...
 
+# Wednesday, 8th july
+
+- change my codegen so that regular variables are not uniqued, only wilds. This
+  gives us stable names for things like `fib`, `runMain`, rather than names like `fib_X1` 
+  or whatever. That will allow me to hardcode the preamble I need to build a
+  vertical proptotype. This is also what Core seems to do:
+
+```hs
+Rec {
+-- RHS size: {terms: 21, types: 4, coercions: 0, joins: 0/0}
+fib [Occ=LoopBreaker] :: Int# -> Int#
+[LclId]
+fib -- the name fib is not uniqued
+  = \ (i_a12E :: Int#) ->  -- this lambda variable is uniqued
+      case i_a12E of {
+        __DEFAULT ->
+          case fib (-# i_a12E 1#) of wild_00 { __DEFAULT ->
+          (case fib i_a12E of wild_X5 { __DEFAULT -> +# wild_X5 }) wild_00
+          };
+        0# -> i_a12E;
+        1# -> i_a12E
+      }
+end Rec }
+
+-- RHS size: {terms: 5, types: 0, coercions: 0, joins: 0/0}
+$trModule :: Module
+[LclIdX]
+$trModule = Module (TrNameS "main"#) (TrNameS "Main"#)
+
+-- RHS size: {terms: 7, types: 3, coercions: 0, joins: 0/0}
+main :: IO ()
+[LclIdX]
+main
+  = case fib 10# of { __DEFAULT -> return @ IO $fMonadIO @ () () }
+
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+main :: IO ()
+[LclIdX]
+main = runMainIO @ () main
+
+```
+
+Note that only parameters to lambdas and wilds are `unique`d. Toplevel names
+are not. I need some sane way in the code to figure out what I should unique
+and what I should not by reading the Core pretty printing properly.
+
+- There is a bigger problem. Note that the Core appears to have ** two `main` ** 
+  declarations. I have no idea WTF is the semantics of this.
+
+- OK, names are now fixed. I call the underlying `Outputable` instance of `Var` that knows the 
+  right thing to do in all contexts. I didn't do this earlier because it prints
+  functions as `-#`, `+#`, `()`, etc. So I intercept these. The implementation
+  is 4 lines, but figuring it out took half an hour :/. This entire enterprise
+  is like this.
+
+```hs
+-- use the ppr of Var because it knows whether to print or not.
+cvtVar :: Var -> SDoc
+cvtVar v = 
+	let name = unpackFS $ occNameFS $ getOccName v
+	in if name == "-#" then  (text "%minus_hash")
+  	   else if name == "+#" then (text "%plus_hash")
+  	   else if name == "()" then (text "%unit_tuple")
+  	   else text "%" >< ppr v 
+```

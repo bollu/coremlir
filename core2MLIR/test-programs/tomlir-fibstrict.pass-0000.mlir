@@ -2,80 +2,80 @@
 // Core2MLIR: GenMLIR BeforeCorePrep
 hask.module {
   hask.recursive_ref {
-    %var_fib = hask.toplevel_binding {
-                 %lambda_10 =
-                   hask.lambdaSSA(%i_a12E) {
-                     %case_0 =
-                       hask.caseSSA %var_i
-                       ["default" ->
-                         { ^entry(%ds_d1jZ: none):
-                             %app_0  =  hask.apSSA(%var_minus_hash, %var_i)
-                             %lit_1  =  hask.make_i32(1)
-                             %app_2  =  hask.apSSA(%app_0, %lit_1)
-                             %app_3  =  hask.apSSA(%var_fib, %app_2)
-                             %case_4 =
-                               hask.caseSSA %app_3
-                               ["default" ->
-                                 { ^entry(%wild_00: none):
-                                     %app_4  =  hask.apSSA(%var_fib, %var_i)
-                                     %case_5 =
-                                       hask.caseSSA %app_4
-                                       ["default" ->
-                                         { ^entry(%wild_X5: none):
-                                             %app_5  =  hask.apSSA(%var_plus_hash, %var_wild)
-                                             hask.return(%app_5)
-                                         }]
-                                     %app_7  =  hask.apSSA(%case_5, %var_wild)
-                                     hask.return(%app_7)
-                                 }]
-                             hask.return(%case_4)
-                         }]
-                       [0 ->
-                         { ^entry(%ds_d1jZ: none):
-                             hask.return(%var_i)
-                         }]
-                       [1 ->
-                         { ^entry(%ds_d1jZ: none):
-                             hask.return(%var_i)
-                         }]
-                     hask.return(%case_0)
-                   }
-                 hask.return(%lambda_10)
+    %fib = hask.toplevel_binding {
+             %lambda_10 =
+               hask.lambdaSSA(%i_a12E) {
+                 %case_0 =
+                   hask.caseSSA %i_a12E
+                   ["default" ->
+                     { ^entry(%ds_d1jZ: none):
+                         %app_0  =  hask.apSSA(%minus_hash, %i_a12E)
+                         %lit_1  =  hask.make_i32(1)
+                         %app_2  =  hask.apSSA(%app_0, %lit_1)
+                         %app_3  =  hask.apSSA(%fib, %app_2)
+                         %case_4 =
+                           hask.caseSSA %app_3
+                           ["default" ->
+                             { ^entry(%wild_00: none):
+                                 %app_4  =  hask.apSSA(%fib, %i_a12E)
+                                 %case_5 =
+                                   hask.caseSSA %app_4
+                                   ["default" ->
+                                     { ^entry(%wild_X5: none):
+                                         %app_5  =  hask.apSSA(%plus_hash, %wild_X5)
+                                         hask.return(%app_5)
+                                     }]
+                                 %app_7  =  hask.apSSA(%case_5, %wild_00)
+                                 hask.return(%app_7)
+                             }]
+                         hask.return(%case_4)
+                     }]
+                   [0 ->
+                     { ^entry(%ds_d1jZ: none):
+                         hask.return(%i_a12E)
+                     }]
+                   [1 ->
+                     { ^entry(%ds_d1jZ: none):
+                         hask.return(%i_a12E)
+                     }]
+                 hask.return(%case_0)
                }
+             hask.return(%lambda_10)
+           }
   }
-  %var_$trModule =
+  %$trModule =
     hask.toplevel_binding {
       %lit_0  =  hask.make_string("main")
-      %app_1  =  hask.apSSA(%var_TrNameS, %lit_0)
-      %app_2  =  hask.apSSA(%var_Module, %app_1)
+      %app_1  =  hask.apSSA(%TrNameS, %lit_0)
+      %app_2  =  hask.apSSA(%Module, %app_1)
       %lit_3  =  hask.make_string("Main")
-      %app_4  =  hask.apSSA(%var_TrNameS, %lit_3)
+      %app_4  =  hask.apSSA(%TrNameS, %lit_3)
       %app_5  =  hask.apSSA(%app_2, %app_4)
       hask.return(%app_5)
     }
-  %var_main =
+  %main =
     hask.toplevel_binding {
       %lit_0  =  hask.make_i32(10)
-      %app_1  =  hask.apSSA(%var_fib, %lit_0)
+      %app_1  =  hask.apSSA(%fib, %lit_0)
       %case_2 =
         hask.caseSSA %app_1
         ["default" ->
           { ^entry(%x_a1hu: none):
               %type_2  =  hask.make_string("TYPEINFO_ERASED")
-              %app_3  =  hask.apSSA(%var_return, %type_2)
-              %app_4  =  hask.apSSA(%app_3, %var_$fMonadIO)
+              %app_3  =  hask.apSSA(%return, %type_2)
+              %app_4  =  hask.apSSA(%app_3, %$fMonadIO)
               %type_5  =  hask.make_string("TYPEINFO_ERASED")
               %app_6  =  hask.apSSA(%app_4, %type_5)
-              %app_7  =  hask.apSSA(%app_6, %var_unit_tuple)
+              %app_7  =  hask.apSSA(%app_6, %unit_tuple)
               hask.return(%app_7)
           }]
       hask.return(%case_2)
     }
-  %var_main =
+  %main =
     hask.toplevel_binding {
       %type_0  =  hask.make_string("TYPEINFO_ERASED")
-      %app_1  =  hask.apSSA(%var_runMainIO, %type_0)
-      %app_2  =  hask.apSSA(%app_1, %var_main)
+      %app_1  =  hask.apSSA(%runMainIO, %type_0)
+      %app_2  =  hask.apSSA(%app_1, %main)
       hask.return(%app_2)
     }
   hask.dummy_finish

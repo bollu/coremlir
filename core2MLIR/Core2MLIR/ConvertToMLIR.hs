@@ -1,11 +1,11 @@
 {-# LANGUAGE CPP #-}
 module Core2MLIR.ConvertToMLIR where
-import Var (Var)
+import Var (Var, varName)
 import qualified Var
 import Id (isFCallId)
 import Module (ModuleName, moduleNameFS, moduleName, pprModuleName)
 import Unique (Unique, getUnique, unpkUnique)
-import Name (getOccName, occNameFS, OccName, getName, nameModule_maybe)
+import Name (getOccName, occNameFS, OccName, getName, nameModule_maybe, Name)
 import qualified BasicTypes as OccInfo (OccInfo(..), isStrongLoopBreaker)
 import qualified CoreSyn
 import CoreSyn (Expr(..), CoreExpr, Bind(..), CoreAlt, CoreBind, AltCon(..),)
@@ -100,10 +100,87 @@ cvtBindRhs rhs =
   in body
 
 
+-- instance Outputable Var where
+--   ppr var = sdocWithDynFlags $ \dflags ->
+--             getPprStyle $ \ppr_style ->
+--             if |  debugStyle ppr_style && (not (gopt Opt_SuppressVarKinds dflags))
+--                  -> parens (ppr (varName var) <+> ppr_debug var ppr_style <+>
+--                           dcolon <+> pprKind (tyVarKind var))
+--                |  otherwise
+--                  -> ppr (varName var) <> ppr_debug var ppr_style
+--                  
+-- 
+--  ppr_debug :: Var -> PprStyle -> SDoc
+-- ppr_debug (TyVar {}) sty
+--   | debugStyle sty = brackets (text "tv")
+-- ppr_debug (TcTyVar {tc_tv_details = d}) sty
+--   | dumpStyle sty || debugStyle sty = brackets (pprTcTyVarDetails d)
+-- ppr_debug (Id { idScope = s, id_details = d }) sty
+--   | debugStyle sty = brackets (ppr_id_scope s <> pprIdDetails d)
+-- ppr_debug _ _ = empty
+
+
+-- | It turns out that varName knows when it should append the unique and when
+-- | it should not.
+
+-- pprName :: Name -> SDoc
+-- pprName  (Name {n_sort = sort, n_uniq = uniq, n_occ = occ})
+--   = getPprStyle $ \ sty ->
+--     case sort of
+--       WiredIn mod _ builtin   -> pprExternal sty uniq mod occ True  builtin
+--       External mod            -> pprExternal sty uniq mod occ False UserSyntax
+--       System                  -> pprSystem sty uniq occ
+--       Internal                -> pprInternal sty uniq occ
+-- -- | Print the string of Name unqualifiedly directly.
+-- pprNameUnqualified :: Name -> SDoc
+-- pprNameUnqualified Name { n_occ = occ } = ppr_occ_name occ
+-- pprExternal :: PprStyle -> Unique -> Module -> OccName -> Bool -> BuiltInSyntax -> SDoc
+-- pprExternal sty uniq mod occ is_wired is_builtin
+--   | codeStyle sty = ppr mod <> char '_' <> ppr_z_occ_name occ
+--         -- In code style, always qualify
+--         -- ToDo: maybe we could print all wired-in things unqualified
+--         --       in code style, to reduce symbol table bloat?
+--   | debugStyle sty = pp_mod <> ppr_occ_name occ
+--                      <> braces (hsep [if is_wired then text "(w)" else empty,
+--                                       pprNameSpaceBrief (occNameSpace occ),
+--                                       pprUnique uniq])
+--   | BuiltInSyntax <- is_builtin = ppr_occ_name occ  -- Never qualify builtin syntax
+--   | otherwise                   =
+--         if isHoleModule mod
+--             then case qualName sty mod occ of
+--                     NameUnqual -> ppr_occ_name occ
+--                     _ -> braces (ppr (moduleName mod) <> dot <> ppr_occ_name occ)
+--             else pprModulePrefix sty mod occ <> ppr_occ_name occ
+--   where
+--     pp_mod = sdocWithDynFlags $ \dflags ->
+--              if gopt Opt_SuppressModulePrefixes dflags
+--              then empty
+--              else ppr mod <> dot
+-- pprInternal :: PprStyle -> Unique -> OccName -> SDoc
+-- pprInternal sty uniq occ
+--   | codeStyle sty  = pprUniqueAlways uniq
+--   | debugStyle sty = ppr_occ_name occ <> braces (hsep [pprNameSpaceBrief (occNameSpace occ),
+--                                                        pprUnique uniq])
+--   | dumpStyle sty  = ppr_occ_name occ <> ppr_underscore_unique uniq
+--                         -- For debug dumps, we're not necessarily dumping
+--                         -- tidied code, so we need to print the uniques.
+--   | otherwise      = ppr_occ_name occ   -- User style
+
+
+-- use the ppr of Var because it knows whether to print or not.
 cvtVar :: Var -> SDoc
 cvtVar v = 
-  let  varToName :: Var -> String
-       varToName v = (escapeName  $ unpackFS $ occNameFS $ getOccName v) -- ++ "_" ++ (show $ getUnique v)
+	let name = unpackFS $ occNameFS $ getOccName v
+	in if name == "-#" then  (text "%minus_hash")
+  	   else if name == "+#" then (text "%plus_hash")
+  	   else if name == "()" then (text "%unit_tuple")
+  	   else text "%" >< ppr v 
+
+cvtVarORIGINAL_VERSION :: Var -> SDoc
+cvtVarORIGINAL_VERSION v = 
+  let  varToUniqueName :: Var -> String
+       -- varToUniqueName v = unpackFS $ occNameFS $ getOccName v
+       varToUniqueName v = (escapeName  $ unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
 
        -- | this is completely broken. 
        escapeName :: String -> String
@@ -111,7 +188,9 @@ cvtVar v =
        escapeName "+#" = "plus_hash"
        escapeName "()" = "unit_tuple"
        escapeName s = s -- error $ "unknown string (" ++ s ++ ")"
-  in (text "%var_") >< (text $ varToName $ v)
+  in (text "%var__X_") >< (text $ varToUniqueName $ v) >< (text "_X_")
+
+
 
 
 cvtTopBind :: CoreBind -> SDoc
@@ -220,10 +299,10 @@ newtype Wild = Wild Var
 
 -- | when we print a wild, we make sure it's unique.
 cvtWild :: Wild -> SDoc
-cvtWild (Wild v) = 
-  let  varToUniqueName :: Var -> String
-       varToUniqueName v = (unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
-  in text ("%" ++ varToUniqueName v)
+cvtWild (Wild v) = cvtVar v
+  -- let  varToUniqueName :: Var -> String
+  --     varToUniqueName v = (unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
+  -- in text ("%" ++ varToUniqueName v)
 
 
 
@@ -252,7 +331,7 @@ flattenExpr expr =
       let (i1, name_body, preamble_body) = runBuilder_ (flattenExpr body) i0
           name_lambda = text ("%lambda_" ++ show i1)
           fulldoc =  (name_lambda) <+> (text "=") $$
-                         (nest 2 $ ((text "hask.lambdaSSA(") >< ((text "%") >< (ppr param)) >< (text ")") <+> (text "{")) $$ 
+                         (nest 2 $ ((text "hask.lambdaSSA(") >< (cvtVar param) >< (text ")") <+> (text "{")) $$ 
                             (nest 2 (preamble_body $+$ ((text "hask.return(") >< name_body >< (text ")")))) $$
                             text "}")
           in (i1+1, name_lambda, fulldoc)
