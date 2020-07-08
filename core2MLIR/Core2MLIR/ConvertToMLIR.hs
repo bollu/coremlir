@@ -14,7 +14,7 @@ import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
                    ($+$), hang, (<>), ($$), blankLine, lparen, rparen,
                    lbrack, rbrack, pprWithCommas, empty, comma, renderWithStyle,
                    defaultDumpStyle, punctuate, hsep, reallyAlwaysQualify,
-                   showSDocDump, showSDocDebug)
+                   showSDocDump, showSDocDebug, initSDocContext, mkDumpStyle)
 import PprCore (pprCoreBindingsWithSize)
 import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
@@ -74,7 +74,7 @@ intercalateCommentsInString (x:xs) = x:intercalateCommentsInString xs
 dumpProgramAsCore :: DynFlags -> ModGuts -> String
 dumpProgramAsCore dflags guts = 
   let sdoc = pprCoreBindingsWithSize $ mg_binds guts
-      string = showSDocDebug dflags sdoc -- renderWithStyle dflags sdoc (PprDump dflags reallyAlwaysQualify)
+      string = renderWithStyle dflags sdoc ((mkDumpStyle dflags reallyAlwaysQualify)) 
   in "//" ++ intercalateCommentsInString string
 
 
@@ -85,8 +85,10 @@ dumpProgramAsCore dflags guts =
 -- [LclIdX]
 -- :Main.main = GHC.TopHandler.runMainIO @ () main
 
+-- Fuck this, I have no idea how to do this right.
+-- I'm just going to
 isRunMainHandler :: CoreBind -> Bool
-isRunMainHandler (NonRec var _) = 
+isRunMainHandler (NonRec var e) = 
     let binderName =  unpackFS . occNameFS $ getOccName $ var
     in (binderName == "main") && (isExportedId var)
 isRunMainHandler _ = False

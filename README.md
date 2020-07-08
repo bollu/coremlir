@@ -396,8 +396,58 @@ main :: IO ()
 main = runMainIO @ () main
 
 ```
-
 - In particular, note that `fibstrict.dump-ds` says `:Main.main = GHC.TopHandler.runMainIO` while my
   MLIR file only says `main = runMainIO ...`. I want that full qualification
   in my dump as well. I will spend some time on this, because the upshot
   is **huge**: accurate debugging and names!
+
+- The GHC codebase is written with misery as a resource, it seems:
+
+```hs
+-- compiler/GHC/Rename/Env.hs
+        -- We can get built-in syntax showing up here too, sadly.  If you type
+        --      data T = (,,,)
+        -- the constructor is parsed as a type, and then GHC.Parser.PostProcess.tyConToDataCon
+        -- uses setRdrNameSpace to make it into a data constructors.  At that point
+        -- the nice Exact name for the TyCon gets swizzled to an Orig name.
+        -- Hence the badOrigBinding error message.
+        --
+        -- Except for the ":Main.main = ..." definition inserted into
+        -- the Main module; ugh!
+```
+
+Ugh indeed. I have no idea how to check if the binder is `:Main.main`
+
+- What I do know is that this is built here:
+
+```
+compiler/GHC/Tc/Module.hs
+-- See Note [Root-main Id]
+-- Construct the binding
+--      :Main.main :: IO res_ty = runMainIO res_ty main
+; run_main_id <- tcLookupId runMainIOName
+; let { root_main_name =  mkExternalName rootMainKey rOOT_MAIN
+                   (mkVarOccFS (fsLit "main"))
+                   (getSrcSpan main_name)
+; root_main_id = Id.mkExportedVanillaId root_main_name
+                                      (mkTyConApp ioTyCon [res_ty])
+```
+
+After which I have no _fucking_ clue how to check that the binding
+comes from this module.
+
+The note reads:
+
+```
+Note [Root-main Id]
+~~~~~~~~~~~~~~~~~~~
+The function that the RTS invokes is always :Main.main, which we call
+root_main_id.  (Because GHC allows the user to have a module not
+called Main as the main module, we can't rely on the main function
+being called "Main.main".  That's why root_main_id has a fixed module
+":Main".)
+
+This is unusual: it's a LocalId whose Name has a Module from another
+module. Tiresomely, we must filter it out again in GHC.Iface.Make, less we
+get two defns for 'main' in the interface file!
+```
