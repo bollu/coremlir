@@ -43,16 +43,6 @@ hask.module {
              hask.return(%lambda_10)
            }
   }
-  %$trModule =
-    hask.toplevel_binding {
-      %lit_0  =  hask.make_string("main")
-      %app_1  =  hask.apSSA(%TrNameS, %lit_0)
-      %app_2  =  hask.apSSA(%Module, %app_1)
-      %lit_3  =  hask.make_string("Main")
-      %app_4  =  hask.apSSA(%TrNameS, %lit_3)
-      %app_5  =  hask.apSSA(%app_2, %app_4)
-      hask.return(%app_5)
-    }
   hask.dummy_finish
 }
 // ============ Haskell Core ========================

@@ -58,24 +58,6 @@ hask.module {
              hask.return(%sat_s1wO)
            }
   }
-  %sat_s1wR =
-    hask.toplevel_binding {
-      %lit_0  =  hask.make_string("Main")
-      %app_1  =  hask.apSSA(%TrNameS, %lit_0)
-      hask.return(%app_1)
-    }
-  %sat_s1wQ =
-    hask.toplevel_binding {
-      %lit_0  =  hask.make_string("main")
-      %app_1  =  hask.apSSA(%TrNameS, %lit_0)
-      hask.return(%app_1)
-    }
-  %$trModule =
-    hask.toplevel_binding {
-      %app_0  =  hask.apSSA(%Module, %sat_s1wQ)
-      %app_1  =  hask.apSSA(%app_0, %sat_s1wR)
-      hask.return(%app_1)
-    }
   hask.dummy_finish
 }
 // ============ Haskell Core ========================
