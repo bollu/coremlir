@@ -10,47 +10,54 @@ hask.module {
                     %case_0 =
                       hask.caseSSA %i_s1wH
                       ["default" ->
-                        { ^entry(%ds_s1wI: !hask.untyped):
-                            %app_0  =  hask.apSSA(%minus_hash, %i_s1wH)
-                            %lit_1  =  hask.make_i32(1)
-                            %app_2  =  hask.apSSA(%app_0, %lit_1)
-                            %case_3 =
-                              hask.caseSSA %app_2
+                        {
+                        ^entry(%ds_s1wI: !hask.untyped):
+                        %app_0  =  hask.apSSA(%minus_hash, %i_s1wH)
+                        %lit_1  =  hask.make_i32(1)
+                        %app_2  =  hask.apSSA(%app_0, %lit_1)
+                        %case_3 =
+                          hask.caseSSA %app_2
+                          ["default" ->
+                            {
+                            ^entry(%sat_s1wJ: !hask.untyped):
+                            %app_3  =  hask.apSSA(%fib, %sat_s1wJ)
+                            %case_4 =
+                              hask.caseSSA %app_3
                               ["default" ->
-                                { ^entry(%sat_s1wJ: !hask.untyped):
-                                    %app_3  =  hask.apSSA(%fib, %sat_s1wJ)
-                                    %case_4 =
-                                      hask.caseSSA %app_3
-                                      ["default" ->
-                                        { ^entry(%wild_s1wK: !hask.untyped):
-                                            %app_4  =  hask.apSSA(%fib, %i_s1wH)
-                                            %case_5 =
-                                              hask.caseSSA %app_4
-                                              ["default" ->
-                                                { ^entry(%wild_s1wL: !hask.untyped):
-                                                    %unimpl_5  =  hask.make_i32(42)
-                                                    hask.return(%unimpl_5)
-                                                }]
-                                            %case_7 =
-                                              hask.caseSSA %case_5
-                                              ["default" ->
-                                                { ^entry(%sat_s1wN: !hask.untyped):
-                                                    %app_7  =  hask.apSSA(%sat_s1wN, %wild_s1wK)
-                                                    hask.return(%app_7)
-                                                }]
-                                            hask.return(%case_7)
-                                        }]
-                                    hask.return(%case_4)
+                                {
+                                ^entry(%wild_s1wK: !hask.untyped):
+                                %app_4  =  hask.apSSA(%fib, %i_s1wH)
+                                %case_5 =
+                                  hask.caseSSA %app_4
+                                  ["default" ->
+                                    {
+                                    ^entry(%wild_s1wL: !hask.untyped):
+                                    %unimpl_5  =  hask.make_i32(42)
+                                    hask.return(%unimpl_5)
+                                    }]
+                                %case_7 =
+                                  hask.caseSSA %case_5
+                                  ["default" ->
+                                    {
+                                    ^entry(%sat_s1wN: !hask.untyped):
+                                    %app_7  =  hask.apSSA(%sat_s1wN, %wild_s1wK)
+                                    hask.return(%app_7)
+                                    }]
+                                hask.return(%case_7)
                                 }]
-                            hask.return(%case_3)
+                            hask.return(%case_4)
+                            }]
+                        hask.return(%case_3)
                         }]
                       [0 ->
-                        { ^entry(%ds_s1wI: !hask.untyped):
-                            hask.return(%i_s1wH)
+                        {
+                        ^entry(%ds_s1wI: !hask.untyped):
+                        hask.return(%i_s1wH)
                         }]
                       [1 ->
-                        { ^entry(%ds_s1wI: !hask.untyped):
-                            hask.return(%i_s1wH)
+                        {
+                        ^entry(%ds_s1wI: !hask.untyped):
+                        hask.return(%i_s1wH)
                         }]
                     hask.return(%case_0)
                   }

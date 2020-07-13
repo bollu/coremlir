@@ -21,6 +21,7 @@ import Module (ModuleName, moduleNameFS, moduleName)
 import Control.Monad (ap, forM_)
 import FastString
 import Literal
+import qualified Data.Set as S
 import qualified Data.ByteString.Char8 as BS
 import GHC(DynFlags)
 
@@ -35,7 +36,7 @@ type SSAName = SDoc
 
 
 -- | monad instance
-data Builder a = Builder { runBuilder_ :: Int -> (Int, a, SDoc) }
+data Builder a = Builder { runBuilder_ :: Int -> (Int, a, SDoc) } --, recnames :: S.Set String }
 
 runBuilder :: Builder a -> (Int, a, SDoc)
 runBuilder b = runBuilder_ b 0
@@ -46,8 +47,8 @@ instance Monad Builder where
                                                (i2, b, doc2) = runBuilder_ (a2buildb a) i1 
                                            in (i2, b, doc1 $+$ doc2)
 
-appendLine :: SDoc -> Builder ()
-appendLine s = Builder $ \i -> (i, (), s)
+builderAppend :: SDoc -> Builder ()
+builderAppend s = Builder $ \i -> (i, (), s)
 
 
 instance Applicative Builder where pure = return; (<*>) = ap;
@@ -113,8 +114,12 @@ cvtModuleToMLIR dfags phase guts =
            text $ dumpProgramAsCore dfags guts]
 
 
-cvtBindRhs :: CoreExpr -> SDoc
-cvtBindRhs rhs = 
+-- | keep around stuff that can be recursive, so we can emit them 
+-- differently.
+type PossibleRecursiveVar = Var
+
+cvtBindRhs :: PossibleRecursiveVar -> CoreExpr -> SDoc
+cvtBindRhs name rhs = 
   let (_, rhs_name, rhs_preamble) = runBuilder_ (flattenExpr rhs) 0
       body = rhs_preamble $+$ ((text "hask.return(") >< rhs_name >< (text ")"))  
   in body
@@ -216,10 +221,10 @@ cvtVarORIGINAL_VERSION v =
 cvtTopBind :: CoreBind -> SDoc
 cvtTopBind (NonRec b e) = 
     ((cvtVar b) <+> (text "=")) $$ 
-    (nest 2 $ (text "hask.toplevel_binding") <+> (text "{") $$ (nest 2 $  (cvtBindRhs e)) $$ (text "}"))
+    (nest 2 $ (text "hask.toplevel_binding") <+> (text "{") $$ (nest 2 $  (cvtBindRhs b e)) $$ (text "}"))
 cvtTopBind (Rec bs) = 
       (vcat $ [hsep [cvtVar b, text "=",
-               braces_scoped (text "hask.toplevel_binding") (cvtBindRhs e)] | (b, e) <- bs])
+               braces_scoped (text "hask.toplevel_binding") (cvtBindRhs b e)] | (b, e) <- bs])
 
 
 parenthesize :: SDoc -> SDoc
@@ -326,12 +331,25 @@ cvtWild (Wild v) = cvtVar v
 
 
 cvtAltRHS :: Wild -> [Var] -> CoreExpr -> Builder ()
-cvtAltRHS wild bnds rhs = Builder $ \i0 -> 
- -- | HACK: we need to start from something other than 100...
- let (i1, name_rhs, preamble_rhs) = runBuilder_ (flattenExpr rhs) i0
-     params = hsep $ punctuate comma $ (cvtWild wild >< text ": !hask.untyped"):[cvtVar b >< text ": !hask.untyped" | b <- bnds]
-     inner = (text "^entry(" >< params >< text "):") $$ (nest 2 $ preamble_rhs $$ ((text "hask.return(") >< name_rhs >< (text ")")))
- in (i1, (), (text "{") $$ (nest 2 inner) $$ (text "}"))
+cvtAltRHS wild bnds rhs = do
+    let params = hsep $ punctuate comma $ (cvtWild wild >< text ": !hask.untyped"):[cvtVar b >< text ": !hask.untyped" | b <- bnds] 
+    builderAppend $ text  "{"
+    builderAppend $ text "^entry(" >< params >< text "):"
+    -- | TODO: we need a way to nest stuff
+    name_rhs <- flattenExpr rhs
+    builderAppend $ (text "hask.return(") >< name_rhs >< (text ")")
+    builderAppend $ text "}"
+    return ()
+
+    -- let inner = (text "^entry(" >< params >< text "):") $$ (nest 2 $ preamble_rhs $$ ((text "hask.return(") >< name_rhs >< (text ")"))) 
+    -- builderAppend (text "{" $$ (nest 2 inner) $$ text "}")
+
+    
+ -- -- | HACK: we need to start from something other than 100...
+ -- let (i1, name_rhs, preamble_rhs) = runBuilder_ (flattenExpr rhs) i0
+ --     params = hsep $ punctuate comma $ (cvtWild wild >< text ": !hask.untyped"):[cvtVar b >< text ": !hask.untyped" | b <- bnds]
+ --     inner = (text "^entry(" >< params >< text "):") $$ (nest 2 $ preamble_rhs $$ ((text "hask.return(") >< name_rhs >< (text ")")))
+ -- in (i1, (), (text "{") $$ (nest 2 inner) $$ (text "}"))
 
 
 cvtAlt :: Wild -> CoreAlt -> Builder ()

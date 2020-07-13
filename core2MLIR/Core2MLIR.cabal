@@ -28,7 +28,8 @@ library
                        filepath,
                        ghc,
                        directory,
-                       serialise
+                       serialise,
+                       containers
                        -- , ansi-wl-pprint
   default-language:    Haskell2010
 
