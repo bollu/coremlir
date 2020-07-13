@@ -591,6 +591,42 @@ def CallOp : Std_Op<"call", [CallOpInterface]> {
 }
 ```
 
+- What is a `FlatSymbolRefAttr` you ask? excellent question.
+- https://github.com/llvm/llvm-project/blob/9db53a182705ac1f652c6ee375735bea5539272c/mlir/include/mlir/IR/Attributes.h#L551
+- OK, so it's not a string! It's a `symbolName`, as parsed by `parseSymbolName`.
+
+
+```cpp
+ /// A symbol reference attribute represents a symbolic reference to another
+ /// operation.
+ class SymbolRefAttr
+    : public Attribute::AttrBase<SymbolRefAttr, Attribute,
+                                 detail::SymbolRefAttributeStorage> {
+```
+
+- symbols are explained in MLIR as follows, at the 'Symbols and symbol tables' doc: https://github.com/llvm/llvm-project/blob/9db53a182705ac1f652c6ee375735bea5539272c/mlir/docs/SymbolsAndSymbolTables.md
+
+> A Symbol is a named operation that resides immediately within a region that
+> defines a SymbolTable. The name of a symbol must be unique within the parent
+> SymbolTable. This name is semantically similarly to an SSA result value, and
+> may be referred to by other operations to provide a symbolic link, or use, to
+> the symbol. An example of a Symbol operation is func. func defines a symbol
+> name, which is referred to by operations like `std.call`.
+
+- It continues, talking explicitly about SSA:
+
+> Using an attribute, as opposed to an SSA value, has several benefits:
+>
+> If we were to use SSA values, we would need to create some mechanism in which
+> to opt-out of certain properties of it such as dominance. Attributes allow
+> for referencing the operations irregardless of the order in which they were
+> defined.
+>
+> Attributes simplify referencing operations within nested symbol tables, which
+> are traditionally not visible outside of the parent region.
+
+- OK, nice, this is not fugly! Great `:D` I am so releived.
+
 ##### How `ret` works:
 
 - https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/StandardOps/IR/Ops.td#L2063
