@@ -451,3 +451,276 @@ This is unusual: it's a LocalId whose Name has a Module from another
 module. Tiresomely, we must filter it out again in GHC.Iface.Make, less we
 get two defns for 'main' in the interface file!
 ```
+
+# Monday, 13th july
+
+- Added a new type `hask.untyped` to represent all things in my hask dialect.
+  This was mostly to future proof and ensure that stuff is not
+  accidentally wrecked by my use of `none`.
+
+## how is `FuncOp` implemented?
+
+How the funcOp gets parsed:
+
+- Toplevel: It calls `parseFunctionLikeOp`. They use `PIMPL` style here for whatever
+  reason.
+
+```cpp
+// https://github.com/llvm/llvm-project/blob/74145d584126da2ce7a836d9b2240d56442f3ea1/mlir/lib/IR/Function.cpp
+ParseResult FuncOp::parse(OpAsmParser &parser, OperationState &result) {
+  auto buildFuncType = [](Builder &builder, ArrayRef<Type> argTypes,
+                          ArrayRef<Type> results, impl::VariadicFlag,
+                          std::string &) {
+    return builder.getFunctionType(argTypes, results);
+  };
+
+  return impl::parseFunctionLikeOp(parser, result, /*allowVariadic=*/false,
+                                   buildFuncType);
+}
+```
+
+- the call to `parseFunctioLikeOp` does bog-standard stuff. The interesting
+  bit is that it parses the function name as a _symbol_ (attribute). so the
+  syntax `func foo` has `func` as a keyword, with `foo` being a symbol.
+
+- Now I'm confused as to how this prevents "double declarations" of the same
+  function. is this verified by the module after as a separate check, and
+  not encoded as SSA? If so, that's fugly.
+
+- https://github.com/llvm/llvm-project/blob/5eae715a3115be2640d0fd37d0bd4771abf2ab9b/mlir/lib/IR/FunctionImplementation.cpp#L160
+```cpp
+ParseResult
+mlir::impl::parseFunctionLikeOp(OpAsmParser &parser, OperationState &result,
+                                bool allowVariadic,
+                                mlir::impl::FuncTypeBuilder funcTypeBuilder) {
+  SmallVector<OpAsmParser::OperandType, 4> entryArgs;
+  SmallVector<NamedAttrList, 4> argAttrs;
+  SmallVector<NamedAttrList, 4> resultAttrs;
+  SmallVector<Type, 4> argTypes;
+  SmallVector<Type, 4> resultTypes;
+  auto &builder = parser.getBuilder();
+
+  // Parse the name as a symbol.
+  StringAttr nameAttr;
+  if (parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
+                             result.attributes))
+    return failure();
+
+  // Parse the function signature.
+  auto signatureLocation = parser.getCurrentLocation();
+  bool isVariadic = false;
+  if (parseFunctionSignature(parser, allowVariadic, entryArgs, argTypes,
+                             argAttrs, isVariadic, resultTypes, resultAttrs))
+    return failure();
+
+  std::string errorMessage;
+  if (auto type = funcTypeBuilder(builder, argTypes, resultTypes,
+                                  impl::VariadicFlag(isVariadic), errorMessage))
+    result.addAttribute(getTypeAttrName(), TypeAttr::get(type));    
+  else
+    return parser.emitError(signatureLocation)
+           << "failed to construct function type"
+           << (errorMessage.empty() ? "" : ": ") << errorMessage;
+
+  // If function attributes are present, parse them.
+  if (parser.parseOptionalAttrDictWithKeyword(result.attributes))
+    return failure();
+
+  // Add the attributes to the function arguments.
+  assert(argAttrs.size() == argTypes.size());
+  assert(resultAttrs.size() == resultTypes.size());
+  addArgAndResultAttrs(builder, result, argAttrs, resultAttrs);
+
+  // Parse the optional function body.
+  auto *body = result.addRegion();
+  return parser.parseOptionalRegion(
+      *body, entryArgs, entryArgs.empty() ? ArrayRef<Type>() : argTypes);
+}
+```
+
+##### How `call` works:
+
+- FML, tobias was right. I was hoping he was not. It is indeed true that the
+  function name argument is a string :/ So then, how does one walk the
+  use chain when one hits a function?
+- https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/StandardOps/IR/Ops.td#L632
+
+```cpp
+def CallOp : Std_Op<"call", [CallOpInterface]> {
+  ...
+  let arguments = (ins FlatSymbolRefAttr:$callee, Variadic<AnyType>:$operands);
+  let results = (outs Variadic<AnyType>);
+
+  let builders = [OpBuilder<
+    "OpBuilder &builder, OperationState &result, FuncOp callee,"
+    "ValueRange operands = {}", [{
+      result.addOperands(operands);
+      result.addAttribute("callee", builder.getSymbolRefAttr(callee));
+      result.addTypes(callee.getType().getResults());
+  }]>, OpBuilder<
+    "OpBuilder &builder, OperationState &result, SymbolRefAttr callee,"
+    "ArrayRef<Type> results, ValueRange operands = {}", [{
+      result.addOperands(operands);
+      result.addAttribute("callee", callee);
+      result.addTypes(results);
+  }]>, OpBuilder<
+    "OpBuilder &builder, OperationState &result, StringRef callee,"
+    "ArrayRef<Type> results, ValueRange operands = {}", [{
+      build(builder, result, builder.getSymbolRefAttr(callee), results,
+            operands);
+  }]>];
+
+  let extraClassDeclaration = [{
+    StringRef getCallee() { return callee(); }
+    FunctionType getCalleeType();
+
+    /// Get the argument operands to the called function.
+    operand_range getArgOperands() {
+      return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    /// Return the callee of this operation.
+    CallInterfaceCallable getCallableForCallee() {
+      return getAttrOfType<SymbolRefAttr>("callee");
+    }
+  }];
+
+  let assemblyFormat = [{
+    $callee `(` $operands `)` attr-dict `:` functional-type($operands, results)
+  }];
+}
+```
+
+##### How `ret` works:
+
+- https://github.com/llvm/llvm-project/blob/master/mlir/include/mlir/Dialect/StandardOps/IR/Ops.td#L2063
+
+```cpp
+ def ReturnOp : Std_Op<"return", [NoSideEffect, HasParent<"FuncOp">, ReturnLike,
+                                 Terminator]> {
+  ...
+
+  let arguments = (ins Variadic<AnyType>:$operands);
+  let builders = [OpBuilder<
+    "OpBuilder &b, OperationState &result", [{ build(b, result, llvm::None); }]
+  >];
+  let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
+}
+```
+
+### Can we use the `recursive_ref` construct to encode `fib` more simply?
+
+Yes we can. We can write, for example:
+
+```mlir
+hask.module { 
+    %fib = hask.recursive_ref  {  
+        %core_one =  hask.make_i32(1)
+        %fib_call = hask.apSSA(%fib, %core_one) <- use does not dominate def
+        hask.return(%fib_call)
+    }
+    hask.return(%fib)
+}
+```
+
+and this "just works".
+
+**EDIT**: Nope, NVM. I implemented this and found out that this _does not work_:
+
+```mlir
+hask.module { 
+    %core_one =  hask.make_i32(1)
+
+    // passes
+    %flat = hask.recursive_ref  {  
+        %fib_call = hask.apSSA(%flat, %core_one)
+        hask.return(%fib_call)
+    }
+
+    // fails!
+    %nested = hask.recursive_ref  {  
+        %case = hask.caseSSA %core_one 
+                ["default" -> { //default
+                    // fails because the use is nested inside a region.
+                    %fib_call = hask.apSSA(%nested, %core_one)
+                    hask.return(%fib_call)
+                }]
+        hask.return(%case)
+    }
+    hask.dummy_finish
+}
+```
+
+- In particular, note that the `%nested` use fails. This is because the use
+  is wrapped inside a normal region of the `default` block. This normal
+  region again establishes SSA rules.
+
+
+### Email to GHC-devs about how to use names
+
+
+I'm trying to understand how to query information about `Var`s from a
+Core plugin. Consider the snippet of haskell:
+
+```
+{-# LANGUAGE MagicHash #-}
+import GHC.Prim
+fib :: Int# -> Int#
+fib i = case i of 0# ->  i; 1# ->  i; _ ->  (fib i) +# (fib (i -# 1#))
+
+main :: IO (); main = let x = fib 10# in return ()
+```
+
+That compiles to the following (elided) GHC Core, dumped right after desugar:
+
+```
+Rec {
+fib [Occ=LoopBreaker] :: Int# -> Int#
+[LclId]
+fib
+  = \ (i_a12E :: Int#) ->
+      case i_a12E of {
+        __DEFAULT ->
+          case fib (-# i_a12E 1#) of wild_00 { __DEFAULT ->
+          (case fib i_a12E of wild_X5 { __DEFAULT -> +# wild_X5 }) wild_00
+          };
+        0# -> i_a12E;
+        1# -> i_a12E
+      }
+end Rec }
+
+Main.$trModule :: GHC.Types.Module
+[LclIdX]
+Main.$trModule
+  = GHC.Types.Module
+      (GHC.Types.TrNameS "main"#) (GHC.Types.TrNameS "Main"#)
+
+-- RHS size: {terms: 7, types: 3, coercions: 0, joins: 0/0}
+main :: IO ()
+[LclIdX]
+main
+  = case fib 10# of { __DEFAULT ->
+    return @ IO GHC.Base.$fMonadIO @ () GHC.Tuple.()
+    }
+
+-- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
+:Main.main :: IO ()
+[LclIdX]
+:Main.main = GHC.TopHandler.runMainIO @ () main
+```
+
+I've been  using `occNameString . getOccName :: Id -> String` to detect names from a `Var`
+. I'm rapidly finding this insufficient, and want more information
+about a variable. In particular, How to I figure out:
+
+1. When I see the Var with occurence name `fib`, that it belongs to module `Main`?
+2. When I see the Var with name `main`, whether it is `Main.main` or `:Main.main`?
+3. When I see the Var with name `+#`, that this is an inbuilt name? Similarly
+   for `-#` and `()`.
+4. In general, given a Var, how do I decide where it comes from, and whether it is
+   user-defined or something GHC defined ('wired-in' I believe is the term I am
+   looking for)?
+5. When I see a `Var`, how do I learn its type?
+6. In general, is there a page that tells me how to 'query' Core/`ModGuts` from within a core plugin?
+
+

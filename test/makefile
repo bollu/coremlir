@@ -16,7 +16,14 @@ fib:
 	# ../build/bin/hask-opt ../ghc-dump/fib.pass-0000.mlir -allow-unregistered-dialect
 	#
 
+try-toplevel-recursive-ref:
+	make -C ~/work/mlir/coremlir/build
+	make -C ~/work/mlir/coremlir/ghc-dump
+	# test round-tripping. Is vital!
+	../build/bin/hask-opt ./try-toplevel-recursive-ref.mlir
+
 test-ops: 
 	make -C ~/work/mlir/coremlir/build
 	../build/bin/hask-opt ./test-ops.mlir | tee test-ops-roundtrip.mlir
 	../build/bin/hask-opt ./test-ops-roundtrip.mlir
+
