@@ -30,10 +30,7 @@ import GHC.Prim
 -- 
 -- printRawInt = undefined
 fib :: Int# -> Int#
-fib i = case i of
-        0# ->  i
-        1# ->  i
-        _ ->  (fib i) +# (fib (i -# 1#))
+fib i = case i of 0# ->  i; 1# ->  i; _ ->  (fib i) +# (fib (i -# 1#))
 
 
 main :: IO ();

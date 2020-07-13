@@ -1,48 +1,49 @@
 // Main
 // Core2MLIR: GenMLIR BeforeCorePrep
 hask.module {
-  hask.recursive_ref {
-    %fib = hask.toplevel_binding {
-             %lambda_10 =
-               hask.lambdaSSA(%i_a12E) {
-                 %case_0 =
-                   hask.caseSSA %i_a12E
-                   ["default" ->
-                     { ^entry(%ds_d1jZ: none):
-                         %app_0  =  hask.apSSA(%minus_hash, %i_a12E)
-                         %lit_1  =  hask.make_i32(1)
-                         %app_2  =  hask.apSSA(%app_0, %lit_1)
-                         %app_3  =  hask.apSSA(%fib, %app_2)
-                         %case_4 =
-                           hask.caseSSA %app_3
-                           ["default" ->
-                             { ^entry(%wild_00: none):
-                                 %app_4  =  hask.apSSA(%fib, %i_a12E)
-                                 %case_5 =
-                                   hask.caseSSA %app_4
-                                   ["default" ->
-                                     { ^entry(%wild_X5: none):
-                                         %app_5  =  hask.apSSA(%plus_hash, %wild_X5)
-                                         hask.return(%app_5)
-                                     }]
-                                 %app_7  =  hask.apSSA(%case_5, %wild_00)
-                                 hask.return(%app_7)
-                             }]
-                         hask.return(%case_4)
-                     }]
-                   [0 ->
-                     { ^entry(%ds_d1jZ: none):
-                         hask.return(%i_a12E)
-                     }]
-                   [1 ->
-                     { ^entry(%ds_d1jZ: none):
-                         hask.return(%i_a12E)
-                     }]
-                 hask.return(%case_0)
-               }
-             hask.return(%lambda_10)
-           }
-  }
+  %plus_hash = hask.make_data_constructor<"+#">
+  %minus_hash = hask.make_data_constructor<"-#">
+  %unit_tuple = hask.make_data_constructor<"()">
+  %fib = hask.toplevel_binding {
+           %lambda_10 =
+             hask.lambdaSSA(%i_a12E) {
+               %case_0 =
+                 hask.caseSSA %i_a12E
+                 ["default" ->
+                   { ^entry(%ds_d1jZ: !hask.untyped):
+                       %app_0  =  hask.apSSA(%minus_hash, %i_a12E)
+                       %lit_1  =  hask.make_i32(1)
+                       %app_2  =  hask.apSSA(%app_0, %lit_1)
+                       %app_3  =  hask.apSSA(%fib, %app_2)
+                       %case_4 =
+                         hask.caseSSA %app_3
+                         ["default" ->
+                           { ^entry(%wild_00: !hask.untyped):
+                               %app_4  =  hask.apSSA(%fib, %i_a12E)
+                               %case_5 =
+                                 hask.caseSSA %app_4
+                                 ["default" ->
+                                   { ^entry(%wild_X5: !hask.untyped):
+                                       %app_5  =  hask.apSSA(%plus_hash, %wild_X5)
+                                       hask.return(%app_5)
+                                   }]
+                               %app_7  =  hask.apSSA(%case_5, %wild_00)
+                               hask.return(%app_7)
+                           }]
+                       hask.return(%case_4)
+                   }]
+                 [0 ->
+                   { ^entry(%ds_d1jZ: !hask.untyped):
+                       hask.return(%i_a12E)
+                   }]
+                 [1 ->
+                   { ^entry(%ds_d1jZ: !hask.untyped):
+                       hask.return(%i_a12E)
+                   }]
+               hask.return(%case_0)
+             }
+           hask.return(%lambda_10)
+         }
   hask.dummy_finish
 }
 // ============ Haskell Core ========================

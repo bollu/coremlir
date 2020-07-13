@@ -1,63 +1,64 @@
 // Main
 // Core2MLIR: GenMLIR AfterCorePrep
 hask.module {
-  hask.recursive_ref {
-    %sat_s1wO = hask.toplevel_binding {
-                  %lambda_12 =
-                    hask.lambdaSSA(%i_s1wH) {
-                      %case_0 =
-                        hask.caseSSA %i_s1wH
-                        ["default" ->
-                          { ^entry(%ds_s1wI: none):
-                              %app_0  =  hask.apSSA(%minus_hash, %i_s1wH)
-                              %lit_1  =  hask.make_i32(1)
-                              %app_2  =  hask.apSSA(%app_0, %lit_1)
-                              %case_3 =
-                                hask.caseSSA %app_2
-                                ["default" ->
-                                  { ^entry(%sat_s1wJ: none):
-                                      %app_3  =  hask.apSSA(%fib, %sat_s1wJ)
-                                      %case_4 =
-                                        hask.caseSSA %app_3
-                                        ["default" ->
-                                          { ^entry(%wild_s1wK: none):
-                                              %app_4  =  hask.apSSA(%fib, %i_s1wH)
-                                              %case_5 =
-                                                hask.caseSSA %app_4
-                                                ["default" ->
-                                                  { ^entry(%wild_s1wL: none):
-                                                      %unimpl_5  =  hask.make_i32(42)
-                                                      hask.return(%unimpl_5)
-                                                  }]
-                                              %case_7 =
-                                                hask.caseSSA %case_5
-                                                ["default" ->
-                                                  { ^entry(%sat_s1wN: none):
-                                                      %app_7  =  hask.apSSA(%sat_s1wN, %wild_s1wK)
-                                                      hask.return(%app_7)
-                                                  }]
-                                              hask.return(%case_7)
-                                          }]
-                                      hask.return(%case_4)
-                                  }]
-                              hask.return(%case_3)
-                          }]
-                        [0 ->
-                          { ^entry(%ds_s1wI: none):
-                              hask.return(%i_s1wH)
-                          }]
-                        [1 ->
-                          { ^entry(%ds_s1wI: none):
-                              hask.return(%i_s1wH)
-                          }]
-                      hask.return(%case_0)
-                    }
-                  hask.return(%lambda_12)
-                }
-    %fib = hask.toplevel_binding {
-             hask.return(%sat_s1wO)
-           }
-  }
+  %plus_hash = hask.make_data_constructor<"+#">
+  %minus_hash = hask.make_data_constructor<"-#">
+  %unit_tuple = hask.make_data_constructor<"()">
+  %sat_s1wO = hask.toplevel_binding {
+                %lambda_12 =
+                  hask.lambdaSSA(%i_s1wH) {
+                    %case_0 =
+                      hask.caseSSA %i_s1wH
+                      ["default" ->
+                        { ^entry(%ds_s1wI: !hask.untyped):
+                            %app_0  =  hask.apSSA(%minus_hash, %i_s1wH)
+                            %lit_1  =  hask.make_i32(1)
+                            %app_2  =  hask.apSSA(%app_0, %lit_1)
+                            %case_3 =
+                              hask.caseSSA %app_2
+                              ["default" ->
+                                { ^entry(%sat_s1wJ: !hask.untyped):
+                                    %app_3  =  hask.apSSA(%fib, %sat_s1wJ)
+                                    %case_4 =
+                                      hask.caseSSA %app_3
+                                      ["default" ->
+                                        { ^entry(%wild_s1wK: !hask.untyped):
+                                            %app_4  =  hask.apSSA(%fib, %i_s1wH)
+                                            %case_5 =
+                                              hask.caseSSA %app_4
+                                              ["default" ->
+                                                { ^entry(%wild_s1wL: !hask.untyped):
+                                                    %unimpl_5  =  hask.make_i32(42)
+                                                    hask.return(%unimpl_5)
+                                                }]
+                                            %case_7 =
+                                              hask.caseSSA %case_5
+                                              ["default" ->
+                                                { ^entry(%sat_s1wN: !hask.untyped):
+                                                    %app_7  =  hask.apSSA(%sat_s1wN, %wild_s1wK)
+                                                    hask.return(%app_7)
+                                                }]
+                                            hask.return(%case_7)
+                                        }]
+                                    hask.return(%case_4)
+                                }]
+                            hask.return(%case_3)
+                        }]
+                      [0 ->
+                        { ^entry(%ds_s1wI: !hask.untyped):
+                            hask.return(%i_s1wH)
+                        }]
+                      [1 ->
+                        { ^entry(%ds_s1wI: !hask.untyped):
+                            hask.return(%i_s1wH)
+                        }]
+                    hask.return(%case_0)
+                  }
+                hask.return(%lambda_12)
+              }
+  %fib = hask.toplevel_binding {
+           hask.return(%sat_s1wO)
+         }
   hask.dummy_finish
 }
 // ============ Haskell Core ========================

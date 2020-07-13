@@ -87,11 +87,17 @@ dumpProgramAsCore dflags guts =
 
 -- Fuck this, I have no idea how to do this right.
 -- I'm just going to
-isRunMainHandler :: CoreBind -> Bool
-isRunMainHandler (NonRec var e) = 
+shouldKeepBind :: CoreBind -> Bool
+shouldKeepBind (NonRec var e) = 
     let binderName =  unpackFS . occNameFS $ getOccName $ var
-    in (binderName == "main") && (isExportedId var)
-isRunMainHandler _ = False
+    in False -- (binderName == "fib")
+shouldKeepBind (Rec _) = True
+
+mlirPrelude :: SDoc
+mlirPrelude = 
+  (text "%plus_hash = hask.make_data_constructor<\"+#\">") $+$
+  (text "%minus_hash = hask.make_data_constructor<\"-#\">") $+$
+  (text "%unit_tuple = hask.make_data_constructor<\"()\">")
 
 -- A 'FastString' is an array of bytes, hashed to support fast O(1)
 -- comparison.  It is also associated with a character encoding, so that
@@ -102,13 +108,9 @@ cvtModuleToMLIR dfags phase guts =
   let doc_name = pprModuleName $ Module.moduleName $ mg_module guts 
   in vcat [comment doc_name,
            comment (text phase),
-             (braces_scoped (text "hask.module") $ 
-                (vcat $ [cvtTopBind b | b <- mg_binds guts, not (isRunMainHandler b)] ++ [text "hask.dummy_finish"])),
+           (braces_scoped (text "hask.module") $ (mlirPrelude $+$ (vcat  $ [cvtTopBind b | b <- mg_binds guts, shouldKeepBind b] ++ [text "hask.dummy_finish"]))),
            text $ "// ============ Haskell Core ========================",
            text $ dumpProgramAsCore dfags guts]
-
-recBindsScope :: SDoc
-recBindsScope = text "hask.recursive_ref"
 
 
 cvtBindRhs :: CoreExpr -> SDoc
@@ -216,7 +218,6 @@ cvtTopBind (NonRec b e) =
     ((cvtVar b) <+> (text "=")) $$ 
     (nest 2 $ (text "hask.toplevel_binding") <+> (text "{") $$ (nest 2 $  (cvtBindRhs e)) $$ (text "}"))
 cvtTopBind (Rec bs) = 
-    braces_scoped (recBindsScope)
       (vcat $ [hsep [cvtVar b, text "=",
                braces_scoped (text "hask.toplevel_binding") (cvtBindRhs e)] | (b, e) <- bs])
 
@@ -328,7 +329,7 @@ cvtAltRHS :: Wild -> [Var] -> CoreExpr -> Builder ()
 cvtAltRHS wild bnds rhs = Builder $ \i0 -> 
  -- | HACK: we need to start from something other than 100...
  let (i1, name_rhs, preamble_rhs) = runBuilder_ (flattenExpr rhs) i0
-     params = hsep $ punctuate comma $ (cvtWild wild >< text ": none"):[cvtVar b >< text ": none" | b <- bnds]
+     params = hsep $ punctuate comma $ (cvtWild wild >< text ": !hask.untyped"):[cvtVar b >< text ": !hask.untyped" | b <- bnds]
      inner = (text "^entry(" >< params >< text "):") $$ (nest 2 $ preamble_rhs $$ ((text "hask.return(") >< name_rhs >< (text ")")))
  in (i1, (), (text "{") $$ (nest 2 inner) $$ (text "}"))
 
