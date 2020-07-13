@@ -138,7 +138,7 @@ public:
   static StringRef getOperationName() { return "hask.toplevel_binding"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
   Region &getBody() { this->getRegion(); }; 
-  static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
+  static RegionKind getRegionKind(unsigned index) { return RegionKind::SSACFG; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
