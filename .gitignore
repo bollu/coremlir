@@ -83,3 +83,4 @@ tags
 musquared.code-workspace
 build
 
+*.code-workspace
