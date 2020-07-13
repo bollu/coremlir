@@ -5,49 +5,50 @@ hask.module {
   %minus_hash = hask.make_data_constructor<"-#">
   %unit_tuple = hask.make_data_constructor<"()">
   %fib = hask.toplevel_binding {
-           %lambda_10 =
-             hask.lambdaSSA(%i_a12E) {
-               %case_0 =
-                 hask.caseSSA %i_a12E
+           %lambda_0 = hask.lambdaSSA(%i_a12E) {
+             %case_1 = hask.caseSSA  %i_a12E
+             ["default" ->
+             {
+             ^entry(%ds_d1jZ: !hask.untyped):
+               %app_2 = hask.apSSA(%minus_hash, %i_a12E)
+               %lit_3 = hask.make_i32(1)
+               %app_4 = hask.apSSA(%app_2, %lit_3)
+               %app_5 = hask.apSSA(%app_2, %app_4)
+               %case_6 = hask.caseSSA  %app_5
+               ["default" ->
+               {
+               ^entry(%wild_00: !hask.untyped):
+                 %app_7 = hask.apSSA(%app_2, %i_a12E)
+                 %case_8 = hask.caseSSA  %app_7
                  ["default" ->
-                   {
-                   ^entry(%ds_d1jZ: !hask.untyped):
-                   %app_0  =  hask.apSSA(%minus_hash, %i_a12E)
-                   %lit_1  =  hask.make_i32(1)
-                   %app_2  =  hask.apSSA(%app_0, %lit_1)
-                   %app_3  =  hask.apSSA(%app_0, %app_2)
-                   %case_4 =
-                     hask.caseSSA %app_3
-                     ["default" ->
-                       {
-                       ^entry(%wild_00: !hask.untyped):
-                       %app_4  =  hask.apSSA(%app_0, %i_a12E)
-                       %case_5 =
-                         hask.caseSSA %app_4
-                         ["default" ->
-                           {
-                           ^entry(%wild_X5: !hask.untyped):
-                           %app_5  =  hask.apSSA(%plus_hash, %wild_X5)
-                           hask.return(%app_5)
-                           }]
-                       %app_7  =  hask.apSSA(%case_5, %wild_00)
-                       hask.return(%app_7)
-                       }]
-                   hask.return(%case_4)
-                   }]
-                 [0 ->
-                   {
-                   ^entry(%ds_d1jZ: !hask.untyped):
-                   hask.return(%i_a12E)
-                   }]
-                 [1 ->
-                   {
-                   ^entry(%ds_d1jZ: !hask.untyped):
-                   hask.return(%i_a12E)
-                   }]
-               hask.return(%case_0)
+                 {
+                 ^entry(%wild_X5: !hask.untyped):
+                   %app_9 = hask.apSSA(%plus_hash, %wild_X5)
+                 hask.return(%app_9)
+                 }
+                 ]
+                 %app_10 = hask.apSSA(%case_8, %wild_00)
+               hask.return(%app_10)
+               }
+               ]
+             hask.return(%case_6)
              }
-           hask.return(%lambda_10)
+             ]
+             [0 ->
+             {
+             ^entry(%ds_d1jZ: !hask.untyped):
+             hask.return(%i_a12E)
+             }
+             ]
+             [1 ->
+             {
+             ^entry(%ds_d1jZ: !hask.untyped):
+             hask.return(%i_a12E)
+             }
+             ]
+             hask.return(%case_1)
+           }
+           hask.return(%lambda_0)
          }
   hask.dummy_finish
 }
