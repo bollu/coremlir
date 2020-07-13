@@ -23,7 +23,14 @@ def Hask_Dialect : Dialect {
         illustrate the basic setup required to develop MLIR-based tools without
         working inside of the LLVM source tree.
     }];
+    let extraClassDeclaration = [{
+      Type parseType(DialectAsmParser &parser) const override;
+      void printType(Type type, DialectAsmPrinter &os) const override;
+    }];
+
+
     let cppNamespace = "standalone";
+
 }
 
 //===----------------------------------------------------------------------===//

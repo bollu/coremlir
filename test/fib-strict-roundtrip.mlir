@@ -10,7 +10,7 @@ module {
       %5 = hask.toplevel_binding {
         %8 = hask.lambdaSSA(%arg0) {
           %9 = hask.caseSSA %arg0 ["default" ->  {
-          ^bb0(%arg1: none):  // no predecessors
+          ^bb0(%arg1: !hask.untyped):  // no predecessors
             %10 = hask.make_i32(1 : i64)
             %11 = hask.apSSA(%3,%arg0,%10)
             %12 = hask.recursive_ref {
@@ -18,10 +18,10 @@ module {
             }
             %13 = hask.apSSA(%12,%11)
             %14 = hask.caseSSA %13 ["default" ->  {
-            ^bb0(%arg2: none):  // no predecessors
+            ^bb0(%arg2: !hask.untyped):  // no predecessors
               %15 = hask.apSSA(%12,%arg0)
               %16 = hask.caseSSA %15 ["default" ->  {
-              ^bb0(%arg3: none):  // no predecessors
+              ^bb0(%arg3: !hask.untyped):  // no predecessors
                 %18 = hask.apSSA(%2,%arg3)
                 hask.return(%18)
               }]
@@ -33,11 +33,11 @@ module {
             hask.return(%14)
           }]
  [0 : i64 ->  {
-          ^bb0(%arg1: none):  // no predecessors
+          ^bb0(%arg1: !hask.untyped):  // no predecessors
             hask.return(%arg0)
           }]
  [1 : i64 ->  {
-          ^bb0(%arg1: none):  // no predecessors
+          ^bb0(%arg1: !hask.untyped):  // no predecessors
             hask.return(%arg0)
           }]
 

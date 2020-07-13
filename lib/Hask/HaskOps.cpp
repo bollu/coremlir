@@ -42,7 +42,7 @@ ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
     }
 
     Region *r = result.addRegion();
-    return parser.parseRegion(*r, regionArgs, {parser.getBuilder().getNoneType()});
+    return parser.parseRegion(*r, regionArgs, {parser.getBuilder().getType<UntypedType>()});
 }
 
 void LambdaOp::print(OpAsmPrinter &p) {
@@ -138,7 +138,7 @@ ParseResult ReturnOp::parse(OpAsmParser &parser, OperationState &result) {
     if (parser.parseLParen() || parser.parseOperand(i) || parser.parseRParen())
         return failure();
     SmallVector<Value, 1> vi;
-    parser.resolveOperand(i, parser.getBuilder().getNoneType(), vi);
+    parser.resolveOperand(i, parser.getBuilder().getType<UntypedType>(), vi);
     result.addOperands(vi);
     return success();
 };
@@ -169,7 +169,7 @@ ParseResult MakeI32Op::parse(OpAsmParser &parser, OperationState &result) {
     // TODO: convert this to emitParserError, etc.
     // assert (attr.getType().isSignedInteger() && "expected parameter to make_i32 to be integer");
 
-    result.addTypes(parser.getBuilder().getNoneType());
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
 
@@ -192,7 +192,7 @@ ParseResult MakeDataConstructorOp::parse(OpAsmParser &parser, OperationState &re
     llvm::errs() << "- " << __FUNCTION__ << ":" << __LINE__ << "attribute: " << attr << "\n";
     llvm::errs() << "- " << __FUNCTION__ << ":" << __LINE__ << "attribute ty: " << attr.getType() << "\n";
 
-    result.addTypes(parser.getBuilder().getNoneType());
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
 void MakeDataConstructorOp::print(OpAsmPrinter &p) {
@@ -242,7 +242,7 @@ ParseResult TopLevelBindingOp::parse(OpAsmParser &parser, OperationState &result
 
 
     if(parser.parseRegion(*result.addRegion(), {}, {})) return failure();
-    result.addTypes(parser.getBuilder().getNoneType());
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
 
@@ -259,7 +259,7 @@ void TopLevelBindingOp::print(OpAsmPrinter &p) {
 ParseResult ModuleOp::parse(OpAsmParser &parser, OperationState &result) {
     OpAsmParser::OperandType body;
     if(parser.parseRegion(*result.addRegion(), {}, {})) return failure();
-    result.addTypes(parser.getBuilder().getNoneType());
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
 
@@ -274,7 +274,7 @@ void ModuleOp::print(OpAsmPrinter &p) {
 // === DummyFinish OP ===
 
 ParseResult DummyFinishOp::parse(OpAsmParser &parser, OperationState &result) {
-    result.addTypes(parser.getBuilder().getNoneType());
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
 
@@ -301,7 +301,7 @@ ParseResult ConstantOp::parse(OpAsmParser &parser, OperationState &result) {
     SmallVector<mlir::Value, 1> const_value;
     if(parser.resolveOperand(const_operand, const_type, const_value)) { return failure(); }
     result.addOperands(const_value);
-    result.addTypes(parser.getBuilder().getNoneType());
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
 
@@ -322,19 +322,19 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     SmallVector<Value, 4> results;
     // (<fn-arg>
     if (parser.parseLParen() || parser.parseOperand(op_fn)) { return failure(); }
-    if(parser.resolveOperand(op_fn, parser.getBuilder().getNoneType(), results)) return failure();
+    if(parser.resolveOperand(op_fn, parser.getBuilder().getType<UntypedType>(), results)) return failure();
 
     // ["," <arg>]
     while(succeeded(parser.parseOptionalComma())) {
         OpAsmParser::OperandType op;
         if (parser.parseOperand(op)) return failure();
-        if(parser.resolveOperand(op, parser.getBuilder().getNoneType(), results)) return failure();
+        if(parser.resolveOperand(op, parser.getBuilder().getType<UntypedType>(), results)) return failure();
     }   
     
     if (parser.parseRParen()) return failure();
 
     result.addOperands(results);
-    result.addTypes(parser.getBuilder().getNoneType());
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
 
@@ -377,13 +377,13 @@ ParseResult CaseSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
 
     SmallVector<Value, 4> results;
-    if(parser.resolveOperand(scrutinee, parser.getBuilder().getNoneType(), results)) return failure();
+    if(parser.resolveOperand(scrutinee, parser.getBuilder().getType<UntypedType>(), results)) return failure();
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
 
     result.addOperands(results);
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
 
-    result.addTypes(parser.getBuilder().getNoneType());
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
 
     return success();
@@ -419,8 +419,8 @@ ParseResult LambdaSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     }
 
     Region *r = result.addRegion();
-    if(parser.parseRegion(*r, regionArgs, {parser.getBuilder().getNoneType()})) return failure();
-    result.addTypes(parser.getBuilder().getNoneType());
+    if(parser.parseRegion(*r, regionArgs, {parser.getBuilder().getType<UntypedType>()})) return failure();
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 }
 
@@ -451,7 +451,7 @@ ParseResult RecursiveRefOp::parse(OpAsmParser &parser,
   if (parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
     return failure();
 
-  result.addTypes(parser.getBuilder().getNoneType());
+  result.addTypes(parser.getBuilder().getType<UntypedType>());
   return success();
 
   // magic++, wtf++;
@@ -481,7 +481,7 @@ ParseResult MakeStringOp::parse(OpAsmParser &parser, OperationState &result) {
     
     // TODO: check if attr is string.
 
-    result.addTypes(parser.getBuilder().getNoneType());
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
 

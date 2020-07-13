@@ -174,7 +174,7 @@ hask.module {
                     //             APP(GHC.Prim.+# wild)
                     //         })
                     //         wild)
-                    ^entry(%ds: none):
+                    ^entry(%ds: !hask.untyped):
                       %core_one =  hask.make_i32(1)
                       %i_minus_one = hask.apSSA(%constructor_minus, %i, %core_one)
                       // TODO: It is annoying that I need to define it like this; Is there
@@ -191,13 +191,13 @@ hask.module {
                                          //             APP(GHC.Prim.+# wild)
                                          //         })
                                          //         wild)
-                                       ^entry(%wild: none):
+                                       ^entry(%wild: !hask.untyped):
                                          %fib_i = hask.apSSA(%fib_proxy, %i)
                                          %add_wild_fn = hask.caseSSA %fib_i
                                                                ["default" -> { //default
                                                                     // DEFAULT →
                                                                    //             APP(GHC.Prim.+# wild)
-                                                                   ^entry(%wild_inner: none):
+                                                                   ^entry(%wild_inner: !hask.untyped):
                                                                      %plus_wild_inner = hask.apSSA(%constructor_plus, %wild_inner)
                                                                      hask.return(%plus_wild_inner)
                                                                }]
@@ -207,11 +207,11 @@ hask.module {
                     hask.return(%result)
                   }]
                   [0 -> { // 0 ->
-                    ^entry(%ds: none):
+                    ^entry(%ds: !hask.untyped):
                     hask.return (%i)
                   }]
                   [1 -> { // 1 -> 
-                    ^entry(%ds: none):
+                    ^entry(%ds: !hask.untyped):
                     hask.return (%i)
                   }]
       hask.return(%resulttop)
