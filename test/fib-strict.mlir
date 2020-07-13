@@ -148,6 +148,7 @@
 hask.module { 
   hask.dominance_free_scope {
 
+
     %constructor_ihash  = hask.make_data_constructor<"I#"> 
     // This is kind of a lie, we should call it as inbuilt fn or whatever.
     %constructor_plus = hask.make_data_constructor<"GHC.Num.+"> 
@@ -159,7 +160,7 @@ hask.module {
     //   λ i →
      //     case i of ds {
     // %fib :: Int -> Int
-    %fib = hask.toplevel_binding  {  
+    hask.func @foo {
       %lam = hask.lambdaSSA (%i) {
         %resulttop = hask.caseSSA %i 
             ["default" -> { //default
@@ -179,7 +180,8 @@ hask.module {
                       %i_minus_one = hask.apSSA(%constructor_minus, %i, %core_one)
                       // TODO: It is annoying that I need to define it like this; Is there
                       // _really_ no nicer way? If so, that just seems sad. 
-                      %fib_proxy = hask.recursive_ref { hask.return(%fib) }
+                      // %fib_proxy = hask.recursive_ref { hask.return(@foo) }
+                      %fib_proxy = hask.make_string("fib_proxy")
                       %fib_i_minus_one = hask.apSSA(%fib_proxy, %i_minus_one)
                       // hask.return(%fib_i_minus_one)
                       %result = hask.caseSSA %fib_i_minus_one
@@ -222,7 +224,8 @@ hask.module {
 
     %main = hask.toplevel_binding { 
       %ten = hask.make_i32(10)
-      %out = hask.apSSA(%fib, %ten)
+      %out = hask.make_string("%fib(%ten)")
+      // %out = hask.apSSA(%fib, %ten)
       hask.return(%out) 
     }
 

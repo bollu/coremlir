@@ -18,5 +18,12 @@ hask.module {
     }	
 }
 
+// This is hopeless, we can have SSA values and symbol table entries with
+// the same name.
+hask.func @function {
+    %function = hask.make_i32(1)
+    hask.return (%function)
+}
+
 hask.dummy_finish
 }  

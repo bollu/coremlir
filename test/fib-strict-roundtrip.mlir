@@ -7,30 +7,28 @@ module {
       %2 = hask.make_data_constructor<"GHC.Num.+">
       %3 = hask.make_data_constructor<"GHC.Num.-">
       %4 = hask.make_data_constructor<"GHC.Num.$fNumInt">
-      %5 = hask.toplevel_binding {
-        %8 = hask.lambdaSSA(%arg0) {
-          %9 = hask.caseSSA %arg0 ["default" ->  {
+      hask.func @foo {
+        %7 = hask.lambdaSSA(%arg0) {
+          %8 = hask.caseSSA %arg0 ["default" ->  {
           ^bb0(%arg1: !hask.untyped):  // no predecessors
-            %10 = hask.make_i32(1 : i64)
-            %11 = hask.apSSA(%3,%arg0,%10)
-            %12 = hask.recursive_ref {
-              hask.return(%5)
-            }
-            %13 = hask.apSSA(%12,%11)
-            %14 = hask.caseSSA %13 ["default" ->  {
+            %9 = hask.make_i32(1 : i64)
+            %10 = hask.apSSA(%3,%arg0,%9)
+            %11 = hask.make_string("fib_proxy")
+            %12 = hask.apSSA(%11,%10)
+            %13 = hask.caseSSA %12 ["default" ->  {
             ^bb0(%arg2: !hask.untyped):  // no predecessors
-              %15 = hask.apSSA(%12,%arg0)
-              %16 = hask.caseSSA %15 ["default" ->  {
+              %14 = hask.apSSA(%11,%arg0)
+              %15 = hask.caseSSA %14 ["default" ->  {
               ^bb0(%arg3: !hask.untyped):  // no predecessors
-                %18 = hask.apSSA(%2,%arg3)
-                hask.return(%18)
+                %17 = hask.apSSA(%2,%arg3)
+                hask.return(%17)
               }]
 
-              %17 = hask.apSSA(%16,%arg2)
-              hask.return(%17)
+              %16 = hask.apSSA(%15,%arg2)
+              hask.return(%16)
             }]
 
-            hask.return(%14)
+            hask.return(%13)
           }]
  [0 : i64 ->  {
           ^bb0(%arg1: !hask.untyped):  // no predecessors
@@ -41,16 +39,16 @@ module {
             hask.return(%arg0)
           }]
 
-          hask.return(%9)
+          hask.return(%8)
         }
+        hask.return(%7)
+      }
+      %5 = hask.toplevel_binding {
+        %7 = hask.make_i32(10 : i64)
+        %8 = hask.make_string("%fib(%ten)")
         hask.return(%8)
       }
-      %6 = hask.toplevel_binding {
-        %8 = hask.make_i32(10 : i64)
-        %9 = hask.apSSA(%5,%8)
-        hask.return(%9)
-      }
-      %7 = hask.dummy_finish
+      %6 = hask.dummy_finish
     }
   }
 }

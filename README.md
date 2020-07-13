@@ -465,8 +465,9 @@ How the funcOp gets parsed:
 - Toplevel: It calls `parseFunctionLikeOp`. They use `PIMPL` style here for whatever
   reason.
 
+- https://github.com/llvm/llvm-project/blob/74145d584126da2ce7a836d9b2240d56442f3ea1/mlir/lib/IR/Function.cpp
+
 ```cpp
-// https://github.com/llvm/llvm-project/blob/74145d584126da2ce7a836d9b2240d56442f3ea1/mlir/lib/IR/Function.cpp
 ParseResult FuncOp::parse(OpAsmParser &parser, OperationState &result) {
   auto buildFuncType = [](Builder &builder, ArrayRef<Type> argTypes,
                           ArrayRef<Type> results, impl::VariadicFlag,
@@ -709,7 +710,7 @@ main :: IO (); main = let x = fib 10# in return ()
 
 That compiles to the following (elided) GHC Core, dumped right after desugar:
 
-```
+```mlir
 Rec {
 fib [Occ=LoopBreaker] :: Int# -> Int#
 [LclId]
@@ -760,3 +761,55 @@ about a variable. In particular, How to I figure out:
 6. In general, is there a page that tells me how to 'query' Core/`ModGuts` from within a core plugin?
 
 
+### Answers to email [Where to find name info]:
+
+- I received one answer (so far) that told me to look at https://hackage.haskell.org/package/ghc-8.10.1/docs/Name.html#g:3
+- In `haskell-code-explorer`: https://haskell-code-explorer.mfix.io/package/ghc-8.6.1/show/basicTypes/Name.hs#L107
+
+- The link seems to contain answers to some of my questions, but not others. I
+  had tried some of the APIs among them, and didn't understand their semantics.
+  But it's at least comforting to know that I was looking at the right place.
+
+- Another  file that might be useful: https://hackage.haskell.org/package/ghc-8.10.1/docs/Module.html#t:Module
+- In `haskell-code-exporer`: https://haskell-code-explorer.mfix.io/package/ghc-8.6.1/show/basicTypes/Module.hs#L407
+
+### Trying to use `SymbolAttr` for implementing functions
+
+- The problem appears to be that something like `@foo` is not considered an SSA value, but a `SymbolAttr`
+  So what is the "type" of my function `apSSA`? does it take first parameter an SSA value?
+  or does it take first parameter `SymbolAttr`? I need both!
+
+```mlir
+// foo :: Int -> (Int -> Int)
+func @foo() {
+  ... 
+  %ret = hask.ap(@foo, 1) // recursive call
+  hask.ap(%ret, 1) // 
+}
+```
+
+Possible solutions:
+1. Make the call of two types: `callToplevel`, and `callOther`. This is against the ethos of haskell.
+2. Continue using our `reucrsive_ref` hack that lets us treat toplevel bindings uniformly.
+3. Use MLIR hackery to have `call(...)` take first parameter _either_ `FlatSymbolAttr` _or_ an SSA value.
+   It seems that this is sub-optimal, which is why the `std` dialect seems to have both `call`
+   and `indirect_call`.
+
+- `call`: https://mlir.llvm.org/docs/Dialects/Standard/#stdcall-callop. Has attribute `callee`
+  of type `::mlir::FlatSymbolRefAttr`
+
+- `call_indirect`: https://mlir.llvm.org/docs/Dialects/Standard/#stdcall_indirect-callindirectop Has operand `callee` of type `function type`.
+
+This will lead to pain, because we have a `SymbolAttr` and an SSA value with the
+same name, like so:
+
+```mlir
+// This is hopeless, we can have SSA values and symbol table entries with
+// the same name.
+hask.func @function {
+    %function = hask.make_i32(1)
+    hask.return (%function)
+}
+```
+
+This round trips through MLIR `:(`. Big sad.

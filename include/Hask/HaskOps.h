@@ -111,8 +111,8 @@ class MakeDataConstructorOp : public Op<MakeDataConstructorOp, OpTrait::OneResul
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.make_data_constructor"; };
-    //  getDataConstructorName() { this->getOperation()->getAttr("name") ; }; 
-  Attribute getDataConstructorNameAttr() { this->getOperation()->getAttr("name"); }; 
+    //  getDataConstructorName() { this->getOperation()->getAttr("name") ; };
+  Attribute getDataConstructorNameAttr() { this->getOperation()->getAttr("name"); };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
@@ -137,7 +137,7 @@ public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.toplevel_binding"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
-  Region &getBody() { this->getRegion(); }; 
+  Region &getBody() { this->getRegion(); };
   static RegionKind getRegionKind(unsigned index) { return RegionKind::SSACFG; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
@@ -149,7 +149,7 @@ public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.module"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
-  Region &getBody() { this->getRegion(); }; 
+  Region &getBody() { this->getRegion(); };
   static RegionKind getRegionKind(unsigned index) { return RegionKind::SSACFG; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
@@ -230,6 +230,25 @@ public:
   static void build(OpBuilder &odsBuilder, OperationState &odsState, Type resultTy);
 };
 
+class HaskFuncOp : public Op<HaskFuncOp,
+                OpTrait::ZeroOperands,
+                OpTrait::ZeroResult,
+                OpTrait::OneRegion, // OpTrait::IsIsolatedFromAbove,
+                // OpTrait::AffineScope,
+                // CallableOpInterface::Trait,
+                SymbolOpInterface::Trait> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.func"; };
+  Region &getRegion() { return this->getOperation()->getRegion(0); };
+  void print(OpAsmPrinter &p);
+  llvm::StringRef getFuncName(); 
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  // build a single region.
+
+  static void build(OpBuilder &odsBuilder, OperationState &odsState, Type resultTy);
+
+};
 
 
 

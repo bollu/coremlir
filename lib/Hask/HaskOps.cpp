@@ -490,5 +490,40 @@ void MakeStringOp::print(OpAsmPrinter &p) {
 };
 
 
+// === HASKFUNC OP ===
+// === HASKFUNC OP ===
+// === HASKFUNC OP ===
+// === HASKFUNC OP ===
+// === HASKFUNC OP ===
+
+ParseResult HaskFuncOp::parse(OpAsmParser &parser, OperationState &result) {
+    // TODO: how to parse an int32?
+
+    StringAttr nameAttr;
+    if (parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
+                             result.attributes)) {
+        return failure();
+    };
+
+     // Parse the optional function body.
+    auto *body = result.addRegion();
+    return parser.parseOptionalRegion( *body, {}, ArrayRef<Type>() );
+};
+
+void HaskFuncOp::print(OpAsmPrinter &p) {
+    p << "hask.func" << ' ';
+    p.printSymbolName(this->getFuncName());
+    // Print the body if this is not an external function.
+    Region &body = this->getRegion();
+    if (!body.empty()) {
+        p.printRegion(body, /*printEntryBlockArgs=*/false,
+                    /*printBlockTerminators=*/true);
+    }
+}
+
+llvm::StringRef HaskFuncOp::getFuncName() {
+    return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
+}
+
 } // namespace standalone
 } // namespace mlir
