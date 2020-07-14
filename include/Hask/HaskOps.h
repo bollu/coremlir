@@ -242,15 +242,36 @@ public:
   static StringRef getOperationName() { return "hask.func"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
   void print(OpAsmPrinter &p);
-  llvm::StringRef getFuncName(); 
+  llvm::StringRef getFuncName();
+  static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  // build a single region.
-
-  static void build(OpBuilder &odsBuilder, OperationState &odsState, Type resultTy);
-
 };
 
 
+
+// replace case x of name { default -> ... } with name = force(x);
+class ForceOp : public Op<ForceOp, OpTrait::OneResult> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.force"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  Value getScrutinee() { this->getOperation()->getOperand(0); }
+  void print(OpAsmPrinter &p);
+};
+
+
+// replace y = case x of name { default -> ...; return val } with
+//  name = force(x);
+//  ...
+//  y = copy(val)
+class CopyOp : public Op<CopyOp, OpTrait::OneResult> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.copy"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  Value getScrutinee() { this->getOperation()->getOperand(0); }
+  void print(OpAsmPrinter &p);
+};
 
 
 } // namespace standalone

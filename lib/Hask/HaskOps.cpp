@@ -321,8 +321,20 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     OpAsmParser::OperandType op_fn;
     SmallVector<Value, 4> results;
     // (<fn-arg>
-    if (parser.parseLParen() || parser.parseOperand(op_fn)) { return failure(); }
-    if(parser.resolveOperand(op_fn, parser.getBuilder().getType<UntypedType>(), results)) return failure();
+    if (parser.parseLParen()) { return failure(); }
+    
+    StringAttr nameAttr;
+    if (succeeded(parser.parseOptionalSymbolName(nameAttr,
+        ::mlir::SymbolTable::getSymbolAttrName(),
+        result.attributes))) {
+        // success; nothing to do.
+    }
+    else if(succeeded(parser.parseOperand(op_fn))) { 
+        if(parser.resolveOperand(op_fn, parser.getBuilder().getType<UntypedType>(), results)) {
+            return failure();
+        }
+    }
+    else { return failure(); }
 
     // ["," <arg>]
     while(succeeded(parser.parseOptionalComma())) {
@@ -339,8 +351,12 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void ApSSAOp::print(OpAsmPrinter &p) {
-    p << "hask.apSSA("; 
-    p.printOperand(getFn());
+    p << "hask.apSSA(";
+
+    // TODO: propose actually strongly typing this?This is just sick.
+    StringAttr attr_name = this->getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName());
+    if (attr_name) { p.printSymbolName(attr_name.getValue()); }
+    else { p.printOperand(this->getOperation()->getOperand(0)); };
     for(int i = 0; i < getNumFnArguments(); ++i) {
         p << ","; p.printOperand(getFnArgument(i));
     }
@@ -512,7 +528,7 @@ ParseResult HaskFuncOp::parse(OpAsmParser &parser, OperationState &result) {
 
 void HaskFuncOp::print(OpAsmPrinter &p) {
     p << "hask.func" << ' ';
-    p.printSymbolName(this->getFuncName());
+    p.printSymbolName(getFuncName());
     // Print the body if this is not an external function.
     Region &body = this->getRegion();
     if (!body.empty()) {
@@ -524,6 +540,57 @@ void HaskFuncOp::print(OpAsmPrinter &p) {
 llvm::StringRef HaskFuncOp::getFuncName() {
     return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
 }
+
+// === FORCE OP ===
+// === FORCE OP ===
+// === FORCE OP ===
+// === FORCE OP ===
+// === FORCE OP ===
+
+ParseResult ForceOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType scrutinee;
+    
+    if(parser.parseLParen() || parser.parseOperand(scrutinee) || parser.parseRParen()) {
+        return failure();
+    }
+
+    SmallVector<Value, 4> results;
+    if(parser.resolveOperand(scrutinee, parser.getBuilder().getType<UntypedType>(), results)) return failure();
+    result.addOperands(results);
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
+    return success();
+
+};
+
+void ForceOp::print(OpAsmPrinter &p) {
+    p << "hask.force(" << this->getScrutinee() << ")";
+};
+
+// === Copy OP ===
+// === Copy OP ===
+// === Copy OP ===
+// === Copy OP ===
+// === Copy OP ===
+
+ParseResult CopyOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType scrutinee;
+    
+    if(parser.parseLParen() || parser.parseOperand(scrutinee) || parser.parseRParen()) {
+        return failure();
+    }
+
+    SmallVector<Value, 4> results;
+    if(parser.resolveOperand(scrutinee, parser.getBuilder().getType<UntypedType>(), results)) return failure();
+    result.addOperands(results);
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
+    return success();
+
+};
+
+void CopyOp::print(OpAsmPrinter &p) {
+    p << "hask.copy(" << this->getScrutinee() << ")";
+};
+
 
 } // namespace standalone
 } // namespace mlir

@@ -452,7 +452,7 @@ module. Tiresomely, we must filter it out again in GHC.Iface.Make, less we
 get two defns for 'main' in the interface file!
 ```
 
-# Monday, 13th july
+# Monday, 13th July 2020
 
 - Added a new type `hask.untyped` to represent all things in my hask dialect.
   This was mostly to future proof and ensure that stuff is not
@@ -813,3 +813,43 @@ hask.func @function {
 ```
 
 This round trips through MLIR `:(`. Big sad.
+
+### Hacked `apSSA`:
+
+got `apSSA` to accept both `@fib` and `%value`. I don't see this as a good
+solution, primarily because later on, when we are trying to write stuff
+that rewrites the IR, we will need to handle the two cases separately. 
+
+- Plus, it's not possible to stash this `SymbolAttr` which is the name of
+  `@fib`, and the `mlir::Value` which is `%value` in the same `set/vector/container` data
+  structure since they don't share a base class. 
+
+- I guess the argument will be that we should store the _full_ `func @symbol = {... }`,
+  which is an `Op`. But `Op` and `Value` don't share the same base class either?
+
+## Tuesday, 14th July 2020
+
+- added a `hask.force` to allow us to write `case e of ename { default -> ... }`
+  as `ename = hask.force(e); …`
+
+- This brings up another problem. Assume we have `y = case e of ename { default -> …; val = …; return val }`. We would
+  like to make _emitting_ MLIR easy, so I took the decision to emit this as `hask.copy(...)`:
+
+```mlir
+//NEW
+%ename = hask.force(%e)
+...
+%val = ...
+%y = hask.copy(%val)
+```                                                                      
+
+Old (what we used to have):
+
+```mlir
+// old
+%y = case %e of { ^default(%ename): …; %val = … ; return %val; }
+```
+
+- So we have a new instruction called `hask.copy`, which is necessary because one can't write `%y = %x`.
+  It's a stupid hack around MLIR's (overly-restrictive) SSA form. It can be removed by a rewriter that replaces
+  `%y = hask.copy(%x)` by replacing all uses of `%y` with `%x`.

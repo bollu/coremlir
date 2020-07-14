@@ -7,28 +7,20 @@ module {
       %2 = hask.make_data_constructor<"GHC.Num.+">
       %3 = hask.make_data_constructor<"GHC.Num.-">
       %4 = hask.make_data_constructor<"GHC.Num.$fNumInt">
-      hask.func @foo {
+      hask.func @fib {
         %7 = hask.lambdaSSA(%arg0) {
           %8 = hask.caseSSA %arg0 ["default" ->  {
           ^bb0(%arg1: !hask.untyped):  // no predecessors
             %9 = hask.make_i32(1 : i64)
             %10 = hask.apSSA(%3,%arg0,%9)
-            %11 = hask.make_string("fib_proxy")
-            %12 = hask.apSSA(%11,%10)
-            %13 = hask.caseSSA %12 ["default" ->  {
-            ^bb0(%arg2: !hask.untyped):  // no predecessors
-              %14 = hask.apSSA(%11,%arg0)
-              %15 = hask.caseSSA %14 ["default" ->  {
-              ^bb0(%arg3: !hask.untyped):  // no predecessors
-                %17 = hask.apSSA(%2,%arg3)
-                hask.return(%17)
-              }]
-
-              %16 = hask.apSSA(%15,%arg2)
-              hask.return(%16)
-            }]
-
-            hask.return(%13)
+            %11 = hask.apSSA(@fib)
+            %12 = hask.force(%11)
+            %13 = hask.apSSA(@fib)
+            %14 = hask.force(%13)
+            %15 = hask.apSSA(%2,%14)
+            %16 = hask.copy(%15)
+            %17 = hask.apSSA(%16,%12)
+            hask.return(%17)
           }]
  [0 : i64 ->  {
           ^bb0(%arg1: !hask.untyped):  // no predecessors

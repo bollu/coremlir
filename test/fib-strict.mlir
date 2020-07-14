@@ -160,7 +160,7 @@ hask.module {
     //   λ i →
      //     case i of ds {
     // %fib :: Int -> Int
-    hask.func @foo {
+    hask.func @fib {
       %lam = hask.lambdaSSA (%i) {
         %resulttop = hask.caseSSA %i 
             ["default" -> { //default
@@ -178,35 +178,38 @@ hask.module {
                     ^entry(%ds: !hask.untyped):
                       %core_one =  hask.make_i32(1)
                       %i_minus_one = hask.apSSA(%constructor_minus, %i, %core_one)
-                      // TODO: It is annoying that I need to define it like this; Is there
-                      // _really_ no nicer way? If so, that just seems sad. 
-                      // %fib_proxy = hask.recursive_ref { hask.return(@foo) }
-                      %fib_proxy = hask.make_string("fib_proxy")
-                      %fib_i_minus_one = hask.apSSA(%fib_proxy, %i_minus_one)
-                      // hask.return(%fib_i_minus_one)
-                      %result = hask.caseSSA %fib_i_minus_one
-                                ["default" -> { //default
-                                         //     DEFAULT →
-                                         //       APP((case APP(Main.fib i)
-                                         //         of wild {
-                                         //           DEFAULT →
-                                         //             APP(GHC.Prim.+# wild)
-                                         //         })
-                                         //         wild)
-                                       ^entry(%wild: !hask.untyped):
-                                         %fib_i = hask.apSSA(%fib_proxy, %i)
-                                         %add_wild_fn = hask.caseSSA %fib_i
-                                                               ["default" -> { //default
-                                                                    // DEFAULT →
-                                                                   //             APP(GHC.Prim.+# wild)
-                                                                   ^entry(%wild_inner: !hask.untyped):
-                                                                     %plus_wild_inner = hask.apSSA(%constructor_plus, %wild_inner)
-                                                                     hask.return(%plus_wild_inner)
-                                                               }]
-                                         %result = hask.apSSA(%add_wild_fn, %wild)
-                                         hask.return(%result)
-                                     }]
-                    hask.return(%result)
+                      %fib_i_minus_one = hask.apSSA(@fib, %i_minus_one)
+                      %wild = hask.force(%fib_i_minus_one)
+                      %fib_i = hask.apSSA(@fib, %i)
+                      %wild_inner = hask.force(%fib_i)
+                      %plus_wild_inner = hask.apSSA(%constructor_plus, %wild_inner)
+                      // this is a hack!
+                      %add_wild_fn = hask.copy(%plus_wild_inner) // (+# wild_inner ) = (+# (force fib_i) )
+                      %result = hask.apSSA(%add_wild_fn, %wild) // (add_wild_fn wild) = (+# (force fib_i)) (wild) = (+# (force fib_i) (force fib_i_minus_one))
+                      hask.return(%result)
+                      // %result = hask.caseSSA %fib_i_minus_one
+                      //           ["default" -> { //default
+                      //                    //     DEFAULT →
+                      //                    //       APP((case APP(Main.fib i)
+                      //                    //         of wild {
+                      //                    //           DEFAULT →
+                      //                    //             APP(GHC.Prim.+# wild)
+                      //                    //         })
+                      //                    //         wild)
+                      //                  ^entry(%wild: !hask.untyped):
+                      //                    %fib_i = hask.apSSA(@fib, %i)
+                      //                    %add_wild_fn = hask.caseSSA %fib_i
+                      //                                          ["default" -> { //default
+                      //                                               // DEFAULT →
+                      //                                              //             APP(GHC.Prim.+# wild)
+                      //                                              ^entry(%wild_inner: !hask.untyped):
+                      //                                                %plus_wild_inner = hask.apSSA(%constructor_plus, %wild_inner)
+                      //                                                hask.return(%plus_wild_inner)
+                      //                                          }]
+                      //                    %result = hask.apSSA(%add_wild_fn, %wild)
+                      //                    hask.return(%result)
+                      //               }]
+                      // hask.return(%result)
                   }]
                   [0 -> { // 0 ->
                     ^entry(%ds: !hask.untyped):
