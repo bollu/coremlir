@@ -1,0 +1,930 @@
+diff --git a/mlir/docs/Interfaces.md b/mlir/docs/Interfaces.md
+--- a/mlir/docs/Interfaces.md
++++ b/mlir/docs/Interfaces.md
+@@ -202,3 +202,30 @@
+   ];
+ }
+ ```
++
++
++#### Operation Interface List
++
++MLIR includes standard interfaces providing functionality that is
++likely to be common across many different operations. Below is a list
++of some key interfaces that may be used directly by any dialect. The
++format of the header for each interface section goes as follows:
++
++*   `Interface class name`
++    -   (`C++ class` -- `ODS class`(if applicable))
++
++##### CallInterfaces
++
++*   `CallOpInterface` - Used to represent operations like 'call'
++    -   `CallInterfaceCallable getCallableForCallee()`
++*   `CallableOpInterface` - Used to represent the target callee of call.
++    -   `Region * getCallableRegion()`
++    -   `ArrayRef<Type> getCallableResults()`
++
++##### RegionKindInterfaces
++
++*   `RegionKindInterface` - Used to describe the abstract semantics of regions.
++     - `RegionKind getRegionKind(unsigned index)` - Return the kind of the region with the given index inside this operation.
++         - RegionKind::Graph - represents a graph region without control flow semantics
++         - RegionKind::SSACFG - represents an [SSA-style control flow](LangRef.md#modeling-control-flow) region with basic blocks and reachability
++     - `hasDominance(unsigned index)` - Return true if the region with the given index inside this operation requires dominance.
+diff --git a/mlir/docs/LangRef.md b/mlir/docs/LangRef.md
+--- a/mlir/docs/LangRef.md
++++ b/mlir/docs/LangRef.md
+@@ -25,20 +25,41 @@
+ 
+ ## High-Level Structure
+ 
+-MLIR is an
+-[SSA-based](https://en.wikipedia.org/wiki/Static_single_assignment_form) IR,
+-which means that values are defined before use and have scope defined by their
+-dominance relations. Operations may produce zero or more results, and each is a
+-distinct SSA value with its own type defined by the [type system](#type-system).
+-
+-The unit of code in MLIR is an [Operation](#operations). Operations allow for
+-representing many different concepts: allocating buffers, producing views to
+-transform them, target-independent arithmetic, target-specific operations, and
+-even arbitrary user-defined high-level operations including the
+-[Module](#module) and [Function](#functions) operations. Operations may contain
+-[Regions](#regions) that represent a Control Flow Graph (CFG) of
+-[Blocks](#blocks), that contain operations and end with a
+-[terminator operation](#terminator-operations) (like branches).
++MLIR is fundamentally based on a graph-like data structure of nodes,
++called [Operation](#operations), and edges, called *Values*. Each
++Value is the result of exactly one Operation or external Argument, and has a
++*Value Type* defined by the [type system](#type-system). Operations
++are also organized into [Blocks](#blocks) and are totally ordered
++within their containing [Region](#regions). Operations may also
++contain regions, enabling hierarchical structures to be represented.
++
++Operations can represent many different concepts, from higher-level
++concepts like function definitions, function calls, buffer
++allocations, view or slices of buffers, and process creation, to
++lower-level concepts like target-independent arithmetic,
++target-specific instructions, configuration registers, and logic
++gates. These different concepts are represented by different
++operations in MLIR, and the set of operations usable in MLIR can be
++arbitrarily extended. The semantic properties of each operation can be
++left unspecified, relying on each transformation on operations to be
++designed with the semantics in mind.  Preferably, the semantic
++properties are described abstractly using [Traits](Traits.md) and
++[Interfaces](Interfaces.md), enabling transformations to operate on
++operations more generically.  Traits often describe verification
++constraints on valid IR, enabling complex invariants to be captured
++and checked. (see
++[docs/Tutorials/Toy/Ch-2/#op-vs-operation-using-mlir-operations])
++
++One obvious application of MLIR is to represent an
++[SSA-based](https://en.wikipedia.org/wiki/Static_single_assignment_form)
++IR, like the LLVM core IR, with appropriate choice of Operation Types
++to define [Modules](#module), [Functions](#functions), Branches,
++Allocations, and verification constraints to ensure the SSA Dominance
++property. MLIR includes a 'standard' dialect which defines just such
++structures. However, MLIR is intended to be general enough to
++represent other compiler-like data structures, such as Abstract Syntax
++Trees in a language frontend, generated instructions in a
++target-specific backend, or circuits in a High-Level Synthesis tool.
+ 
+ Here's an example of an MLIR module:
+ 
+@@ -162,21 +183,21 @@
+ // Identifiers
+ bare-id ::= (letter|[_]) (letter|digit|[_$.])*
+ bare-id-list ::= bare-id (`,` bare-id)*
+-ssa-id ::= `%` suffix-id
++value-id ::= `%` suffix-id
+ suffix-id ::= (digit+ | ((letter|id-punct) (letter|id-punct|digit)*))
+ 
+ symbol-ref-id ::= `@` (suffix-id | string-literal)
+-ssa-id-list ::= ssa-id (`,` ssa-id)*
++value-id-list ::= value-id (`,` value-id)*
+ 
+ // Uses of an SSA value, e.g. in an operand list to an operation.
+-ssa-use ::= ssa-id
+-ssa-use-list ::= ssa-use (`,` ssa-use)*
++value-use ::= value-id
++value-use-list ::= value-use (`,` value-use)*
+ ```
+ 
+-Identifiers name entities such as SSA values, types and functions, and are
++Identifiers name entities such as values, types and functions, and are
+ chosen by the writer of MLIR code. Identifiers may be descriptive (e.g.
+ `%batch_size`, `@matmul`), or may be non-descriptive when they are
+-auto-generated (e.g. `%23`, `@func42`). Identifier names for SSA values may be
++auto-generated (e.g. `%23`, `@func42`). Identifier names for values may be
+ used in an MLIR text file but are not persisted as part of the IR - the printer
+ will give them anonymous names like `%42`.
+ 
+@@ -186,10 +207,17 @@
+ keywords may be added to future versions of MLIR without danger of collision
+ with existing identifiers.
+ 
+-The scope of SSA values is defined based on the standard definition of
+-[dominance](https://en.wikipedia.org/wiki/Dominator_\(graph_theory\)). Argument
+-identifiers in mapping functions are in scope for the mapping body. Function
+-identifiers and mapping identifiers are visible across the entire module.
++Value identifiers are only in scope for the region in which they are
++defined. Argument identifiers in mapping functions are in scope for
++the mapping body.  Particular operations may further limit the valid
++scope of identifiers. For instance, the scope of values in a region
++with SSA control flow semantics may be constrained according to the
++standard definition of
++[dominance](https://en.wikipedia.org/wiki/Dominator_\(graph_theory\)).
++
++Function identifiers and mapping identifiers are associated with
++[Symbols](SymbolsAndSymbolTables) and have scoping rules dependent on
++symbol attributes.
+ 
+ ## Dialects
+ 
+@@ -241,11 +269,11 @@
+ ```
+ operation         ::= op-result-list? (generic-operation | custom-operation)
+                       trailing-location?
+-generic-operation ::= string-literal `(` ssa-use-list? `)`  successor-list?
++generic-operation ::= string-literal `(` value-use-list? `)`  successor-list?
+                       (`(` region-list `)`)? attribute-dict? `:` function-type
+ custom-operation  ::= bare-id custom-operation-format
+ op-result-list    ::= op-result (`,` op-result)* `=`
+-op-result         ::= ssa-id (`:` integer-literal)
++op-result         ::= value-id (`:` integer-literal)
+ successor-list    ::= successor (`,` successor)*
+ successor         ::= caret-id (`:` bb-arg-list)?
+ region-list       ::= region (`,` region)*
+@@ -309,8 +337,8 @@
+ 
+ An MLIR Module represents a top-level container operation. It contains
+ a single region containing a single block which can contain any
+-operations.  Operations within this region must not implicitly capture
+-values defined outside the module.  Modules have an optional symbol
++operations. Operations within this region must not implicitly capture
++values defined outside the module. Modules have an optional symbol
+ name that can be used to refer to them in operations.
+ 
+ ### Functions
+@@ -329,7 +357,7 @@
+ 
+ argument-list ::= (named-argument (`,` named-argument)*) | /*empty*/
+ argument-list ::= (type attribute-dict? (`,` type attribute-dict?)*) | /*empty*/
+-named-argument ::= ssa-id `:` type attribute-dict?
++named-argument ::= value-id `:` type attribute-dict?
+ 
+ function-result-list ::= function-result-list-parens
+                        | non-function-type
+@@ -382,23 +410,29 @@
+ block-label     ::= block-id block-arg-list? `:`
+ block-id        ::= caret-id
+ caret-id        ::= `^` suffix-id
+-ssa-id-and-type ::= ssa-id `:` type
++value-id-and-type ::= value-id `:` type
+ 
+ // Non-empty list of names and types.
+-ssa-id-and-type-list ::= ssa-id-and-type (`,` ssa-id-and-type)*
++value-id-and-type-list ::= value-id-and-type (`,` value-id-and-type)*
+ 
+-block-arg-list ::= `(` ssa-id-and-type-list? `)`
++block-arg-list ::= `(` value-id-and-type-list? `)`
+ ```
+ 
+-A [block](https://en.wikipedia.org/wiki/Basic_block) is a sequential list of
+-operations without control flow (a call or entering an op's region is not
+-considered control flow for this purpose) that are executed from top to bottom.
+-The last operation in a block is a
+-[terminator operation](#terminator-operations), which ends the block.
++A *Block* is an ordered list of operations, concluding with a single
++[terminator operation](#terminator-operations). Blocks commonly
++represent a compiler [basic block]
++(https://en.wikipedia.org/wiki/Basic_block) where instructions inside
++the block are executed in the given order and terminator operations
++implement control flow branches between basic blocks.
+ 
+-Blocks in MLIR take a list of block arguments, which represent SSA PHI nodes in
+-a functional notation. The arguments are defined by the block, and values are
+-provided for these block arguments by branches that go to the block.
++Blocks in MLIR take a list of block arguments, notated in a
++function-like way. Block arguments are bound to values specified by
++the terminator operations, i.e. Branches, which have the block as a
++successor. In this way, MLIR implicitly represents the passage of
++control-flow dependent values without the complex nuances of PHI nodes
++in traditional SSA representations. Note that values which are not
++control-flow dependent can be referenced directly and do not need to
++be passed through block arguments.
+ 
+ Here is a simple example function showing branches, returns, and block
+ arguments:
+@@ -416,13 +450,15 @@
+   br ^bb3(%b: i64)    // Branch passes %b as the argument
+ 
+ // ^bb3 receives an argument, named %c, from predecessors
+-// and passes it on to bb4 twice.
++// and passes it on to bb4 along with %a. %a is referenced
++// directly from its defining operation and is not passed through
++// an argument of ^bb3.
+ ^bb3(%c: i64):
+-  br ^bb4(%c, %c : i64, i64)
++  br ^bb4(%c, %a : i64, i64)
+ 
+ ^bb4(%d : i64, %e : i64):
+   %0 = addi %d, %e : i64
+-  return %0 : i64
++  return %0 : i64   // Return is also a terminator.
+ }
+ ```
+ 
+@@ -438,12 +474,13 @@
+ 
+ ### Definition
+ 
+-A region is a CFG of MLIR [Blocks](#blocks). Regions serve to group semantically
+-connected blocks, where the semantics is not imposed by the IR. Instead, the
+-containing operation defines the semantics of the regions it contains. Regions
+-do not have a name or an address, only the blocks contained in a region do.
+-Regions are meaningless outside of the containing entity and have no type or
+-attributes.
++A region is an ordered list of MLIR [Blocks](#blocks), commonly
++used to represent a Control-Flow Graph (CFG). Regions serve to group
++semantically connected blocks, where the semantics is not imposed by
++the IR. Instead, the containing operation defines the semantics of the
++regions it contains. Regions do not have a name or an address, only
++the blocks contained in a region do. Regions are meaningless outside
++of their containing operation and have no type or attributes.
+ 
+ The first block in the region cannot be a successor of any other block. The
+ syntax for the region is as follows:
+@@ -452,7 +489,7 @@
+ region ::= `{` block* `}`
+ ```
+ 
+-The function body is an example of a region: it consists of a CFG of blocks and
++A function body is an example of a region: it consists of a CFG of blocks and
+ has additional semantic restrictions that other types of regions may not have
+ (block terminators must either branch to a different block, or return from a
+ function where the types of the `return` arguments must match the result types
+@@ -460,12 +497,15 @@
+ 
+ ### Control and Value Scoping
+ 
+-Regions provide nested control isolation: it is impossible to branch to a block
+-within a region from outside it or to branch from within a region to a block
+-outside it. Similarly, it provides a natural scoping for value visibility: SSA
+-values defined in a region don't escape to the enclosing region, if any. By
+-default, a region can reference values defined outside of the region whenever it
+-would have been legal to use them as operands to the enclosing operation.
++Regions provide nested control isolation: it is impossible to
++reference, i.e. branch to, a block which is not in the same region as
++the source of the reference, i.e. a terminator operation.
++Similarly, regions provides a natural scoping for value visibility:
++values defined in a region don't escape to the enclosing region, if
++any. By default, a region can reference values defined outside of the
++region whenever it would have been legal to use them as operands to
++the enclosing operation, but this can be restricted using
++[OpTrait::IsolatedFromAbove](Traits.md).
+ 
+ Example:
+ 
+@@ -497,31 +537,55 @@
+ enclosing operation, for example, disallowing references to values defined
+ outside the region completely.
+ 
+-### Control Flow
+-
+-Regions are Single-Entry-Multiple-Exit (SEME). This means that control can only
+-flow into the first block of the region, but can flow out of the region at the
+-end of any of the contained blocks (This behavior is similar to that of a
+-function body in most programming languages). A terminator of a block within a
+-region may transfer the control flow to another block in this region, or return
+-it to the immediately enclosing op. The semantics of the enclosing op defines
+-where the control flow is transmitted next. It may, for example, enter a region
+-of the same op, including the same region that returned the control flow.
+-
+-The enclosing operation determines the way in which control is transmitted into
+-the entry block of a Region. The successor to a Region’s exit points may not
+-necessarily exist: for example a call to a function that does not return.
+-Concurrent or asynchronous execution of Regions is unspecified. Operations may
+-define specific rules of execution, e.g. sequential loops or switch cases.
+-
+-A Region may also enter another region within the enclosing operation. If an
+-operation has multiple regions, the semantics of the operation defines into
+-which regions the control flows and in which order, if any. An operation may
+-transmit control into Regions that were specified in other operations, in
+-particular those that defined the values the given operation uses. Thus, such
+-operations can be treated opaquely in the enclosing control flow graph,
+-providing a level of control flow isolation similar to that of the call
+-operation.
++### Modeling Control Flow
++
++MLIR blocks and regions are intended to be syntactically rich,
++enabling the modeling of a wide variety of semantics, including the
++standard notion of sequential control flow through basic
++blocks. However, the semantics of a region is completely determined by
++its containing operation. In MLIR, control flow semantics of a region
++is indicated by [RegionKindInterface::SSACFG](Interfaces.md#regionkindinterface).
++
++In general, when control flow is passed to an operation, MLIR does not
++restrict when control flow enters or exits the regions contained in
++that operation. However, when control flow enters a region, it always
++begins in the first block of the region, called the *entry* block.
++Terminator operations ending each block represent control flow by
++explicitly specifying the successor blocks of the block. Control flow
++can only pass to one of the specified successor blocks as in a
++`branch` operation, or back to the containing operation as in a
++`return` operation. Terminator operations without successors can only pass
++control back ot the containing operation. Within these restrictions,
++the particular semantics of terminator operations is determined by the
++specific dialect operations involved. Note that blocks other than the
++entry block which are not listed as a successor of a terminator
++operation are unreachable and can be removed without affecting the
++semantics of the containing operation.
++
++Although control flow always enters a region through the entry block,
++control flow may exit a region through any block with an appropriate
++terminator. The standard dialect leverages this capability to define
++operations with Single-Entry-Multiple-Exit (SEME) regions, possibly
++flowing through different blocks in the region and exiting through any
++block with a `return` operation. This behavior is similar to that of a
++function body in most programming languages. In addition, control flow
++may also not reach the end of a block or region, for example if a
++function call does not return.
++
++#### Operations with Multiple Regions
++
++An operation containing multiple regions also completely determines
++the semantics of those regions. In particular, when control flow is
++passed to an operation, it may transfer control flow to any contained
++region. When control flow exits a region and is returned to the
++containing operation, the containing operation may pass control flow
++to any region in the same operation. An operation may also pass
++control flow to multiple contained regions concurrently. An operation
++may also pass control flow into regions that were specified in other
++operations, in particular those that defined the values or symbols the
++given operation uses as in a call operation. This passage of control
++is generally independent of passage of control flow through the basic
++blocks of the containing region.
+ 
+ #### Closure
+ 
+@@ -543,7 +607,7 @@
+ 
+ ## Type System
+ 
+-Each SSA value in MLIR has a type defined by the type system below. There are a
++Each value in MLIR has a type defined by the type system below. There are a
+ number of primitive types (like integers) and also aggregate types for tensors
+ and memory buffers. MLIR [standard types](#standard-types) do not include
+ structures, arrays, or dictionaries.
+@@ -1467,7 +1531,7 @@
+ extended attribute kinds.
+ 
+ **Rationale:** Identifying accesses to global data is critical to
+-enabling efficient multi-threaded compilation.  Restricting global
++enabling efficient multi-threaded compilation. Restricting global
+ data access to occur through symbols and limiting the places that can
+ legally hold a symbol reference simplifies reasoning about these data
+ accesses.
+diff --git a/mlir/include/mlir/IR/CMakeLists.txt b/mlir/include/mlir/IR/CMakeLists.txt
+--- a/mlir/include/mlir/IR/CMakeLists.txt
++++ b/mlir/include/mlir/IR/CMakeLists.txt
+@@ -1,2 +1,3 @@
+ add_mlir_interface(OpAsmInterface)
+ add_mlir_interface(SymbolInterfaces)
++add_mlir_interface(RegionKindInterface)
+diff --git a/mlir/include/mlir/IR/RegionKindInterface.h b/mlir/include/mlir/IR/RegionKindInterface.h
+new file mode 100644
+--- /dev/null
++++ b/mlir/include/mlir/IR/RegionKindInterface.h
+@@ -0,0 +1,36 @@
++//===- RegionKindInterface.h - Region Kind Interfaces -----------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains the definitions of the infer op interfaces defined in
++// `RegionKindInterface.td`.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef MLIR_IR_REGIONKINDINTERFACE_H_
++#define MLIR_IR_REGIONKINDINTERFACE_H_
++
++#include "mlir/IR/OpDefinition.h"
++#include "mlir/Support/LLVM.h"
++
++namespace mlir {
++
++// The kinds of regions contained in an operation. SSACFG regions
++// require the SSA-Dominance property to hold. Graph regions do not
++// require SSA-Dominance. If a registered operation does not implement
++// RegionKindInterface, then any regions it contains are assumed to be
++// SSACFG regions.
++enum class RegionKind {
++  SSACFG,
++  Graph,
++};
++
++#include "mlir/IR/RegionKindInterface.h.inc"
++
++} // namespace mlir
++
++#endif // MLIR_IR_REGIONKINDINTERFACE_H_
+diff --git a/mlir/include/mlir/IR/RegionKindInterface.td b/mlir/include/mlir/IR/RegionKindInterface.td
+new file mode 100644
+--- /dev/null
++++ b/mlir/include/mlir/IR/RegionKindInterface.td
+@@ -0,0 +1,51 @@
++//===- RegionKindInterface.td - Region kind interfaces -----*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains a set of interfaces to query the properties of regions
++// in an operation.
++//
++//===----------------------------------------------------------------------===//
++
++#ifndef MLIR_IR_REGIONKINDINTERFACE
++#define MLIR_IR_REGIONKINDINTERFACE
++
++include "mlir/IR/OpBase.td"
++
++// OpInterface to query the properties of regions in an operation
++def RegionKindInterface : OpInterface<"RegionKindInterface"> {
++  let description = [{
++    Interface for operations to describe the properties of their regions.
++  }];
++
++  let methods = [
++    StaticInterfaceMethod<
++      /*desc=*/[{
++      Return the types of regions in an operation. By default,
++		operations of registered dialects contain regions with CFG
++		semantics. This implies that they must satisfy the SSA
++		dominance property.  However, other kinds of regions are often
++		used which may not require SSA dominance.
++      }],
++      /*retTy=*/"RegionKind",
++      /*methodName=*/"getRegionKind",
++      /*args=*/(ins "unsigned":$index)
++    >,
++    StaticInterfaceMethod<
++      /*desc=*/"Return true if the kind of the given region requires the "
++		         "SSA-Dominance property",
++      /*retTy=*/"bool",
++      /*methodName=*/"hasDominance",
++      /*args=*/(ins "unsigned":$index),
++      /*methodBody=*/[{
++        return getRegionKind(index) == RegionKind::SSACFG;
++      }]
++    >,
++  ];
++}
++
++#endif // MLIR_IR_REGIONKINDINTERFACE
+diff --git a/mlir/lib/IR/CMakeLists.txt b/mlir/lib/IR/CMakeLists.txt
+--- a/mlir/lib/IR/CMakeLists.txt
++++ b/mlir/lib/IR/CMakeLists.txt
+@@ -18,6 +18,7 @@
+   OperationSupport.cpp
+   PatternMatch.cpp
+   Region.cpp
++  RegionKindInterface.cpp
+   StandardTypes.cpp
+   SymbolTable.cpp
+   Types.cpp
+@@ -33,6 +34,7 @@
+   MLIRCallInterfacesIncGen
+   MLIROpAsmInterfaceIncGen
+   MLIRSymbolInterfacesIncGen
++  MLIRRegionKindInterfaceIncGen
+ 
+   LINK_LIBS PUBLIC
+   MLIRSupport
+diff --git a/mlir/lib/IR/RegionKindInterface.cpp b/mlir/lib/IR/RegionKindInterface.cpp
+new file mode 100644
+--- /dev/null
++++ b/mlir/lib/IR/RegionKindInterface.cpp
+@@ -0,0 +1,18 @@
++//===- RegionKindInterface.cpp - Region Kind Interfaces ---------*- C++ -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file contains the definitions of the region kind interfaces defined in
++// `RegionKindInterface.td`.
++//
++//===----------------------------------------------------------------------===//
++
++#include "mlir/IR/RegionKindInterface.h"
++
++using namespace mlir;
++
++#include "mlir/IR/RegionKindInterface.cpp.inc"
+diff --git a/mlir/lib/IR/Verifier.cpp b/mlir/lib/IR/Verifier.cpp
+--- a/mlir/lib/IR/Verifier.cpp
++++ b/mlir/lib/IR/Verifier.cpp
+@@ -29,6 +29,7 @@
+ #include "mlir/IR/Dialect.h"
+ #include "mlir/IR/Dominance.h"
+ #include "mlir/IR/Operation.h"
++#include "mlir/IR/RegionKindInterface.h"
+ #include "llvm/ADT/StringMap.h"
+ #include "llvm/Support/FormatVariadic.h"
+ #include "llvm/Support/PrettyStackTrace.h"
+@@ -58,9 +59,15 @@
+   LogicalResult verifyBlock(Block &block);
+   LogicalResult verifyOperation(Operation &op);
+ 
+-  /// Verify the dominance within the given IR unit.
+-  LogicalResult verifyDominance(Region &region);
+-  LogicalResult verifyDominance(Operation &op);
++  /// Verify the dominance property of operations within the given
++  /// Region.  If hasDominance is false, then this simply recurses
++  /// through the contained operations.  if hasDominance is set, then
++  /// the dominance property of contained operations is also checked.
++  LogicalResult verifyDominance(Region &region, bool hasDominance);
++
++  /// Verify the dominance property of regions contained within the
++  /// given Operation
++  LogicalResult verifyDominanceOfContainedRegions(Operation &op);
+ 
+   /// Emit an error for the given block.
+   InFlightDiagnostic emitError(Block &bb, const Twine &message) {
+@@ -96,9 +103,8 @@
+   // verifier to be resilient to malformed code.
+   DominanceInfo theDomInfo(&op);
+   domInfo = &theDomInfo;
+-  for (auto &region : op.getRegions())
+-    if (failed(verifyDominance(region)))
+-      return failure();
++  if (failed(verifyDominanceOfContainedRegions(op)))
++    return failure();
+ 
+   domInfo = nullptr;
+   return success();
+@@ -221,45 +227,53 @@
+   return success();
+ }
+ 
+-LogicalResult OperationVerifier::verifyDominance(Region &region) {
++LogicalResult OperationVerifier::verifyDominance(Region &region,
++                                                 bool hasDominance) {
+   // Verify the dominance of each of the held operations.
+-  for (auto &block : region)
+-    // Dominance is only reachable inside reachable blocks.
+-    if (domInfo->isReachableFromEntry(&block))
+-      for (auto &op : block) {
+-        if (failed(verifyDominance(op)))
+-          return failure();
+-      }
+-    else
+-      // Verify the dominance of each of the nested blocks within this
+-      // operation, even if the operation itself is not reachable.
++  for (auto &block : region) {
++    // Dominance is only meaningful inside reachable blocks.
++    if (hasDominance && domInfo->isReachableFromEntry(&block))
+       for (auto &op : block)
+-        for (auto &region : op.getRegions())
+-          if (failed(verifyDominance(region)))
+-            return failure();
++        // Check that operands properly dominate this use.
++        for (unsigned operandNo = 0, e = op.getNumOperands(); operandNo != e;
++             ++operandNo) {
++          auto operand = op.getOperand(operandNo);
++          if (domInfo->properlyDominates(operand, &op))
++            continue;
++
++          auto diag = op.emitError("operand #")
++                      << operandNo << " does not dominate this use";
++          if (auto *useOp = operand.getDefiningOp())
++            diag.attachNote(useOp->getLoc()) << "operand defined here";
++          return failure();
++        }
++    // Recursively verify dominance within each operation in the
++    // block, even if the block itself is not reachable, or we are in
++    // a region which doesn't respect dominance.
++    for (auto &op : block)
++      if (failed(verifyDominanceOfContainedRegions(op)))
++        return failure();
++  }
+   return success();
+ }
+ 
+-LogicalResult OperationVerifier::verifyDominance(Operation &op) {
+-  // Check that operands properly dominate this use.
+-  for (unsigned operandNo = 0, e = op.getNumOperands(); operandNo != e;
+-       ++operandNo) {
+-    auto operand = op.getOperand(operandNo);
+-    if (domInfo->properlyDominates(operand, &op))
+-      continue;
+-
+-    auto diag = op.emitError("operand #")
+-                << operandNo << " does not dominate this use";
+-    if (auto *useOp = operand.getDefiningOp())
+-      diag.attachNote(useOp->getLoc()) << "operand defined here";
+-    return failure();
+-  }
+-
+-  // Verify the dominance of each of the nested blocks within this operation.
+-  for (auto &region : op.getRegions())
+-    if (failed(verifyDominance(region)))
++/// Verify the dominance of each of the nested blocks within this
++/// operation.  Dominance is checked inside registered operations
++/// which don't have a RegionKindInterface, and those which do have a
++/// RegionKindInterface and report that they require dominance.  After
++/// ODS generates a RegionKindInterface, this should perhaps be
++/// simplified so that registered operation without a
++/// RegionKindInterface are not checked for dominance.
++LogicalResult
++OperationVerifier::verifyDominanceOfContainedRegions(Operation &op) {
++  auto kindInterface = dyn_cast<mlir::RegionKindInterface>(&op);
++  for (unsigned i = 0; i < op.getNumRegions(); i++) {
++    auto &region = op.getRegion(i);
++    bool hasDominance =
++        op.isRegistered() && (!kindInterface || kindInterface.hasDominance(i));
++    if (failed(verifyDominance(region, hasDominance)))
+       return failure();
+-
++  }
+   return success();
+ }
+ 
+diff --git a/mlir/test/IR/invalid.mlir b/mlir/test/IR/invalid.mlir
+--- a/mlir/test/IR/invalid.mlir
++++ b/mlir/test/IR/invalid.mlir
+@@ -918,7 +918,7 @@
+ // -----
+ 
+ func @invalid_nested_dominance() {
+-  "foo.region"() ({
++  "test.has_dominance_scope"() ({
+     // expected-error @+1 {{operand #0 does not dominate this use}}
+     "foo.use" (%1) : (i32) -> ()
+     br ^bb2
+@@ -1106,7 +1106,7 @@
+ // -----
+ 
+ func @invalid_region_dominance() {
+-  "foo.region"() ({
++  "test.has_dominance_scope"() ({
+     // expected-error @+1 {{operand #0 does not dominate this use}}
+     "foo.use" (%def) : (i32) -> ()
+     "foo.yield" () : () -> ()
+@@ -1121,7 +1121,7 @@
+ 
+ func @invalid_region_dominance() {
+   // expected-note @+1 {{operand defined here}}
+-  %def = "foo.region_with_def"() ({
++  %def = "test.has_dominance_scope"() ({
+     // expected-error @+1 {{operand #0 does not dominate this use}}
+     "foo.use" (%def) : (i32) -> ()
+     "foo.yield" () : () -> ()
+@@ -1534,7 +1534,7 @@
+   %c = constant false
+   return %c : i1
+ ^bb0:
+-  "dummy" () ({  // unreachable
++  "test.has_dominance_scope" () ({ // unreachable
+     ^bb1:
+ // expected-error @+1 {{operand #0 does not dominate this use}}
+       %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
+diff --git a/mlir/test/IR/parser.mlir b/mlir/test/IR/parser.mlir
+--- a/mlir/test/IR/parser.mlir
++++ b/mlir/test/IR/parser.mlir
+@@ -1255,3 +1255,9 @@
+   %1 = "foo"() : ()->i64 // CHECK: [[VAL3]] = "foo"() : () -> i64
+   return %2#1 : i1 // CHECK: return [[VAL2]]#1 : i1
+ }            // CHECK: }
++
++"unregistered_func"() ( {
++  %1 = "foo"(%2) : (i64) -> i64
++  %2 = "bar"(%1) : (i64) -> i64
++  "unregistered_terminator"() : () -> ()
++}) {sym_name = "unregistered_op_dominance_violation_ok", type = () -> i1} : () -> ()
+diff --git a/mlir/test/IR/traits.mlir b/mlir/test/IR/traits.mlir
+--- a/mlir/test/IR/traits.mlir
++++ b/mlir/test/IR/traits.mlir
+@@ -383,3 +383,94 @@
+   %0:4 = "test.attr_sized_results"() {result_segment_sizes = dense<[0, 2, 1, 1]>: vector<4xi32>} : () -> (i32, i32, i32, i32)
+   return
+ }
++
++// -----
++
++func @succeededDominanceFreeScope() -> () {
++  test.dominance_free_scope {
++  // %1 is not dominated by its definition.
++    %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1) // CHECK: [[VAL2:%.*]]:3 = "bar"([[VAL3:%.*]]) : (i64) -> (i1, i1, i1)
++    %1 = "baz"(%2#0) : (i1) -> (i64)       // CHECK: [[VAL3]] = "baz"([[VAL2]]#0) : (i1) -> i64
++  }
++  return
++}                                          // CHECK: }
++
++// -----
++
++func @succeededCDFGInDominanceFreeScope() -> () {
++  test.dominance_free_scope {
++  // %1 is not dominated by its definition.
++    %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1) // CHECK: [[VAL2:%.*]]:3 = "bar"([[VAL3:%.*]]) : (i64) -> (i1, i1, i1)
++    br ^bb4                                // CHECK:   br ^bb2
++^bb2:                                      // CHECK: ^bb1:   // pred: ^bb1
++    br ^bb2                                // CHECK:   br ^bb1
++^bb4:                                      // CHECK: ^bb2:   // pred: ^bb0
++    %1 = "foo"() : ()->i64                 // CHECK: [[VAL3]] = "foo"() : () -> i64
++  }
++  return
++}                                          // CHECK: }
++
++// -----
++
++// Ensure that SSACFG regions of operations in GRAPH regions are
++// checked for dominance
++func @illegalInsideDominanceFreeScope() -> () {
++  test.dominance_free_scope {
++    func @test() -> i1 {
++^bb1:
++// expected-error @+1 {{operand #0 does not dominate this use}}
++      %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
++// expected-note @+1 {{operand defined here}}
++	   %1 = "baz"(%2#0) : (i1) -> (i64)
++      return %2#1 : i1
++    }
++    "terminator"() : () -> ()
++  }
++  return
++}
++
++// -----
++
++// Ensure that SSACFG regions of operations in GRAPH regions are
++// checked for dominance
++func @illegalCDFGInsideDominanceFreeScope() -> () {
++  test.dominance_free_scope {
++    func @test() -> i1 {
++^bb1:
++// expected-error @+1 {{operand #0 does not dominate this use}}
++      %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
++      br ^bb4
++^bb2:
++      br ^bb2
++^bb4:
++      %1 = "foo"() : ()->i64   // expected-note {{operand defined here}}
++		return %2#1 : i1
++    }
++     "terminator"() : () -> ()
++  }
++  return
++}
++
++// -----
++
++// Ensure that GRAPH regions still have all values defined somewhere.
++func @illegalCDFGInsideDominanceFreeScope() -> () {
++  test.dominance_free_scope {
++// expected-error @+1 {{use of undeclared SSA value name}}
++    %2:3 = "bar"(%1) : (i64) -> (i1,i1,i1)
++    "terminator"() : () -> ()
++  }
++  return
++}
++
++// -----
++
++func @blocks_in_dominance_free_scope_require_entry_block() {
++test.dominance_free_scope {
++// expected-error@-1 {{entry block of region may not have predecessors}}
++^bb42:
++  br ^bb43
++^bb43:
++  br ^bb42
++}
++}
+diff --git a/mlir/test/lib/Dialect/Test/TestDialect.h b/mlir/test/lib/Dialect/Test/TestDialect.h
+--- a/mlir/test/lib/Dialect/Test/TestDialect.h
++++ b/mlir/test/lib/Dialect/Test/TestDialect.h
+@@ -18,6 +18,7 @@
+ #include "mlir/IR/Dialect.h"
+ #include "mlir/IR/OpDefinition.h"
+ #include "mlir/IR/OpImplementation.h"
++#include "mlir/IR/RegionKindInterface.h"
+ #include "mlir/IR/StandardTypes.h"
+ #include "mlir/IR/SymbolTable.h"
+ #include "mlir/Interfaces/CallInterfaces.h"
+diff --git a/mlir/test/lib/Dialect/Test/TestDialect.cpp b/mlir/test/lib/Dialect/Test/TestDialect.cpp
+--- a/mlir/test/lib/Dialect/Test/TestDialect.cpp
++++ b/mlir/test/lib/Dialect/Test/TestDialect.cpp
+@@ -201,6 +201,34 @@
+ }
+ 
+ //===----------------------------------------------------------------------===//
++// Test HasDominanceScopeOp
++//===----------------------------------------------------------------------===//
++
++RegionKind HasDominanceScopeOp::getRegionKind(unsigned index) {
++  return RegionKind::SSACFG;
++}
++
++//===----------------------------------------------------------------------===//
++// Test DominanceFreeScopeOp
++//===----------------------------------------------------------------------===//
++
++static ParseResult parseDominanceFreeScopeOp(OpAsmParser &parser,
++                                             OperationState &result) {
++  // Parse the body region, and reuse the operand info as the argument info.
++  Region *body = result.addRegion();
++  return parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{});
++}
++
++static void print(OpAsmPrinter &p, DominanceFreeScopeOp op) {
++  p << "test.dominance_free_scope ";
++  p.printRegion(op.region(), /*printEntryBlockArgs=*/false);
++}
++
++RegionKind mlir::DominanceFreeScopeOp::getRegionKind(unsigned index) {
++  return RegionKind::Graph;
++}
++
++//===----------------------------------------------------------------------===//
+ // Test AffineScopeOp
+ //===----------------------------------------------------------------------===//
+ 
+@@ -332,7 +360,7 @@
+   return {};
+ }
+ 
+-LogicalResult mlir::OpWithInferTypeInterfaceOp::inferReturnTypes(
++LogicalResult OpWithInferTypeInterfaceOp::inferReturnTypes(
+     MLIRContext *, Optional<Location> location, ValueRange operands,
+     DictionaryAttr attributes, RegionRange regions,
+     SmallVectorImpl<Type> &inferredReturnTypes) {
+@@ -365,7 +393,7 @@
+ LogicalResult OpWithShapedTypeInferTypeInterfaceOp::reifyReturnTypeShapes(
+     OpBuilder &builder, llvm::SmallVectorImpl<Value> &shapes) {
+   shapes = SmallVector<Value, 1>{
+-      builder.createOrFold<mlir::DimOp>(getLoc(), getOperand(0), 0)};
++      builder.createOrFold<DimOp>(getLoc(), getOperand(0), 0)};
+   return success();
+ }
+ 
+@@ -501,7 +529,7 @@
+ //===----------------------------------------------------------------------===//
+ 
+ // Static initialization for Test dialect registration.
+-static mlir::DialectRegistration<mlir::TestDialect> testDialect;
++static DialectRegistration<TestDialect> testDialect;
+ 
+ #include "TestOpEnums.cpp.inc"
+ #include "TestOpStructs.cpp.inc"
+diff --git a/mlir/test/lib/Dialect/Test/TestOps.td b/mlir/test/lib/Dialect/Test/TestOps.td
+--- a/mlir/test/lib/Dialect/Test/TestOps.td
++++ b/mlir/test/lib/Dialect/Test/TestOps.td
+@@ -12,6 +12,7 @@
+ include "mlir/Dialect/Affine/IR/AffineOpsBase.td"
+ include "mlir/IR/OpBase.td"
+ include "mlir/IR/OpAsmInterface.td"
++include "mlir/IR/RegionKindInterface.td"
+ include "mlir/IR/SymbolInterfaces.td"
+ include "mlir/Interfaces/SideEffectInterfaces.td"
+ include "mlir/Interfaces/CallInterfaces.td"
+@@ -1158,6 +1159,29 @@
+   let printer = [{ return ::print(p, *this); }];
+ }
+ 
++def HasDominanceScopeOp : TEST_Op<"has_dominance_scope",  [
++    DeclareOpInterfaceMethods<RegionKindInterface>]> {
++  let summary =  "has dominance scope operation";
++  let description = [{
++    Test op that defines a new scope with dominance scope.
++  }];
++
++  let regions = (region VariadicRegion<AnyRegion>:$regions);
++  let results = (outs Variadic<AnyType>);
++}
++
++def DominanceFreeScopeOp : TEST_Op<"dominance_free_scope",  [
++    DeclareOpInterfaceMethods<RegionKindInterface>]> {
++  let summary =  "dominance-free scope operation";
++  let description = [{
++    Test op that defines a new dominance-free scope.
++  }];
++
++  let regions = (region AnyRegion:$region);
++  let parser = [{ return ::parse$cppClass(parser, result); }];
++  let printer = [{ return ::print(p, *this); }];
++}
++
+ def AffineScopeOp : TEST_Op<"affine_scope", [AffineScope]> {
+   let summary =  "affine scope operation";
+   let description = [{
+
