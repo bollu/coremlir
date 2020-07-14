@@ -64,6 +64,23 @@ builderNest depth b = Builder $ \state0 ->
   let (state1, a, doc1) = runBuilder_ b state0
   in (state1, a, nest depth doc1)
 
+-- | bracket the use of a recursive var, adding the variable to names.
+builderBracketRecursiveVar :: PossibleRecursiveVar -> Builder a -> Builder a
+builderBracketRecursiveVar newv builda = 
+    Builder $ \(i0, vars0) -> 
+        let ((i1, vars1), a, doc1) = runBuilder_ builda (i0, S.insert newv vars0)
+        in ((i1, vars0), a, doc1)
+
+builderBracketRecursiveVars :: [PossibleRecursiveVar] -> Builder a -> Builder a
+builderBracketRecursiveVars newvars builda = 
+    Builder $ \(i0, vars0) -> 
+        let ((i1, vars1), a, doc1) = runBuilder_ builda (i0, (S.fromList newvars) `S.union` vars0)
+        in ((i1, vars0), a, doc1)
+
+-- | Check if the given variable is recursive
+builderIsVarRecursive :: PossibleRecursiveVar -> Builder Bool
+builderIsVarRecursive v = Builder $ \(i0, vars0) -> ((i0, vars0), S.member v vars0, empty)
+
 
 instance Applicative Builder where pure = return; (<*>) = ap;
 instance Functor Builder where fmap f mx = mx >>= (return . f)
@@ -128,6 +145,11 @@ mlirPrelude =
 --            text $ dumpProgramAsCore dfags guts]
 
 
+getBindLHSs :: CoreBind -> [Var]
+getBindLHSs (NonRec b e) = [b]
+getBindLHSs (Rec bs) = [ b | (b, _) <- bs]                                
+
+
 cvtModuleToMLIR :: DynFlags -> String -> ModGuts -> SDoc
 cvtModuleToMLIR dfags phase guts = runBuilder $ do
   let doc_name = pprModuleName $ Module.moduleName $ mg_module guts 
@@ -136,7 +158,8 @@ cvtModuleToMLIR dfags phase guts = runBuilder $ do
   builderAppend $ (text "hask.module") <+> (text "{")
   builderAppend $ nest 4 $ mlirPrelude
   -- | TODO: convert to traverse?
-  forM_ (filter shouldKeepBind (mg_binds guts)) (\b ->  builderNest 2 $ cvtTopBind b)
+  let vars = mconcat [getBindLHSs bind | bind <- (mg_binds guts)]
+  builderBracketRecursiveVars vars $  forM_ (filter shouldKeepBind (mg_binds guts)) (\b ->  builderNest 2 $ cvtTopBind b)
   builderAppend $ text "hask.dummy_finish"
   builderAppend $ text "}"
   builderAppend $ text $ "// ============ Haskell Core ========================"
@@ -220,13 +243,18 @@ cvtBindRhs name rhs = do
 --   | otherwise      = ppr_occ_name occ   -- User style
 
 
--- use the ppr of Var because it knows whether to print or not.
-cvtVar :: Var -> SDoc
-cvtVar v = let name = unpackFS $ occNameFS $ getOccName v
-  in if name == "-#" then  (text "%minus_hash")
-       else if name == "+#" then (text "%plus_hash")
-       else if name == "()" then (text "%unit_tuple")
-       else text "%" >< ppr v 
+-- | use the ppr of Var because it knows whether to print the unique ID or not.
+-- | This function also makes sure to generate `@fib` for toplevel recursive
+-- | binders. This will also work when we have `let`s [hopefully...]
+cvtVar :: Var -> Builder SDoc
+cvtVar v = do
+  let name = unpackFS $ occNameFS $ getOccName v
+  if name == "-#" then return (text "%minus_hash")
+  else if name == "+#" then return (text "%plus_hash")
+  else if name == "()" then return (text "%unit_tuple")
+  else do 
+      isrec <- builderIsVarRecursive v
+      if isrec then return (text "@" >< ppr v) else return (text "%" >< ppr v)
 
 cvtVarORIGINAL_VERSION :: Var -> SDoc
 cvtVarORIGINAL_VERSION v = 
@@ -247,7 +275,8 @@ cvtVarORIGINAL_VERSION v =
 
 cvtTopBindImpl :: (Var, CoreExpr) -> Builder ()
 cvtTopBindImpl (b, e) = do 
-    builderAppend $ cvtVar b <+> text "=" <+> (text "hask.toplevel_binding") <+> (text "{") 
+    var_bind <- cvtVar b
+    builderAppend $ text "hask.func" <+> var_bind <+> (text "{") 
     cvtBindRhs b e
     builderAppend $ text "}"
     return ()
@@ -357,7 +386,7 @@ arrow :: SDoc; arrow = text "->"
 newtype Wild = Wild Var
 
 -- | when we print a wild, we make sure it's unique.
-cvtWild :: Wild -> SDoc
+cvtWild :: Wild -> Builder SDoc
 cvtWild (Wild v) = cvtVar v
   -- let  varToUniqueName :: Var -> String
   --     varToUniqueName v = (unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
@@ -367,7 +396,9 @@ cvtWild (Wild v) = cvtVar v
 
 cvtAltRHS :: Wild -> [Var] -> CoreExpr -> Builder ()
 cvtAltRHS wild bnds rhs = do
-    let params = hsep $ punctuate comma $ (cvtWild wild >< text ": !hask.untyped"):[cvtVar b >< text ": !hask.untyped" | b <- bnds] 
+    doc_wild <- cvtWild wild
+    doc_binds <- traverse cvtVar bnds
+    let params = hsep $ punctuate comma $ (doc_wild >< text ": !hask.untyped"):[b >< text ": !hask.untyped" | b <- doc_binds] 
     builderAppend $ text  "{"
     builderAppend $ text "^entry(" >< params >< text "):"
     -- | TODO: we need a way to nest stuff
@@ -403,11 +434,12 @@ cvtAlt wild (lhs, bs, e) = do
 flattenExpr :: CoreExpr -> Builder SSAName
 flattenExpr expr =
   case expr of
-    Var x -> return (cvtVar x)--return ((text"%") >< ppr x)
+    Var x -> (cvtVar x)--return ((text"%") >< ppr x)
     Lam param body -> do
         i <- builderMakeUnique
         let name_lambda = text $ "%lambda_" ++ show i
-        builderAppend $ name_lambda <+> (text "=")  <+> text "hask.lambdaSSA(" >< (cvtVar param) >< (text ")") <+> (text "{")
+        doc_param <- cvtVar param
+        builderAppend $ name_lambda <+> (text "=")  <+> text "hask.lambdaSSA(" >< doc_param >< (text ")") <+> (text "{")
         return_body <- builderNest 2 $ flattenExpr body
         builderAppend $ nest 2 $ (text "hask.return(") >< return_body >< (text ")")
         builderAppend $ (text "}")

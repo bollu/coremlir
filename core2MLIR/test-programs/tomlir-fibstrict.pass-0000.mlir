@@ -4,7 +4,7 @@ hask.module {
     %plus_hash = hask.make_data_constructor<"+#">
     %minus_hash = hask.make_data_constructor<"-#">
     %unit_tuple = hask.make_data_constructor<"()">
-  %fib = hask.toplevel_binding {
+  hask.func @fib {
   %lambda_0 = hask.lambdaSSA(%i_a12E) {
     %case_1 = hask.caseSSA  %i_a12E
     ["default" ->
@@ -13,12 +13,12 @@ hask.module {
       %app_2 = hask.apSSA(%minus_hash, %i_a12E)
       %lit_3 = hask.make_i32(1)
       %app_4 = hask.apSSA(%app_2, %lit_3)
-      %app_5 = hask.apSSA(%fib, %app_4)
+      %app_5 = hask.apSSA(@fib, %app_4)
       %case_6 = hask.caseSSA  %app_5
       ["default" ->
       {
       ^entry(%wild_00: !hask.untyped):
-        %app_7 = hask.apSSA(%fib, %i_a12E)
+        %app_7 = hask.apSSA(@fib, %i_a12E)
         %case_8 = hask.caseSSA  %app_7
         ["default" ->
         {
