@@ -33,31 +33,36 @@ import GHC(DynFlags)
 -- | name of the expression
 type SSAName = SDoc
 
+-- | keep around stuff that can be recursive, so we can emit them 
+-- differently.
+type PossibleRecursiveVar = Var
 
 -- | monad instance
-data Builder a = Builder { runBuilder_ :: Int -> (Int, a, SDoc) } --, recnames :: S.Set String }
+data Builder a = Builder { runBuilder_ :: (Int, S.Set PossibleRecursiveVar) -> ((Int, S.Set PossibleRecursiveVar), a, SDoc) } --, recnames :: S.Set String }
 
-runBuilder :: Builder a -> (Int, a, SDoc)
-runBuilder b = runBuilder_ b 0
+runBuilder :: Builder () -> SDoc
+runBuilder b = let (_, _, doc) = runBuilder_ b (0, S.empty) in doc
 
 instance Monad Builder where
-    return a = Builder $ \i -> (i, a, empty)
-    builda >>= a2buildb = Builder $ \i0 -> let (i1, a, doc1) = runBuilder_ builda i0
-                                               (i2, b, doc2) = runBuilder_ (a2buildb a) i1 
-                                           in (i2, b, doc1 $+$ doc2)
+    return a = Builder $ \state -> (state, a, empty)
+    builda >>= a2buildb = 
+      Builder $ \state0 ->
+        let (state1, a, doc1) = runBuilder_ builda state0
+            (state2, b, doc2) = runBuilder_ (a2buildb a) state1
+        in (state2, b, doc1 $+$ doc2)
 
 -- | FFS. Some days I hate what I do. If I build stuff like this, then my 
 -- line concatenation algo is wrong. *sigh*
 builderAppend :: SDoc -> Builder ()
-builderAppend s = Builder $ \i -> (i, (), s)
+builderAppend s = Builder $ \state -> (state, (), s)
 
 builderMakeUnique :: Builder Int
-builderMakeUnique = Builder $ \i -> (i+1, i, empty)
+builderMakeUnique = Builder $ \(i, vars) -> ((i+1, vars), i, empty)
 
 builderNest :: Int -> Builder a -> Builder a
-builderNest depth b = Builder $ \i0 -> 
-  let (i1, a, doc1) = runBuilder_ b i0
-  in (i1, a, nest depth doc1)
+builderNest depth b = Builder $ \state0 -> 
+  let (state1, a, doc1) = runBuilder_ b state0
+  in (state1, a, nest depth doc1)
 
 
 instance Applicative Builder where pure = return; (<*>) = ap;
@@ -113,25 +118,39 @@ mlirPrelude =
 -- comparison.  It is also associated with a character encoding, so that
 -- Module.moduleName is a 'FastStrring'. How does one build a 'String'
 -- from it?
+-- cvtModuleToMLIR :: DynFlags -> String -> ModGuts -> SDoc
+-- cvtModuleToMLIR dfags phase guts =
+--   let doc_name = pprModuleName $ Module.moduleName $ mg_module guts 
+--   in vcat [comment doc_name,
+--            comment (text phase),
+--            (braces_scoped (text "hask.module") $ (mlirPrelude $+$ (vcat  $ [cvtTopBind b | b <- mg_binds guts, shouldKeepBind b] ++ [text "hask.dummy_finish"]))),
+--            text $ "// ============ Haskell Core ========================",
+--            text $ dumpProgramAsCore dfags guts]
+
+
 cvtModuleToMLIR :: DynFlags -> String -> ModGuts -> SDoc
-cvtModuleToMLIR dfags phase guts =
+cvtModuleToMLIR dfags phase guts = runBuilder $ do
   let doc_name = pprModuleName $ Module.moduleName $ mg_module guts 
-  in vcat [comment doc_name,
-           comment (text phase),
-           (braces_scoped (text "hask.module") $ (mlirPrelude $+$ (vcat  $ [cvtTopBind b | b <- mg_binds guts, shouldKeepBind b] ++ [text "hask.dummy_finish"]))),
-           text $ "// ============ Haskell Core ========================",
-           text $ dumpProgramAsCore dfags guts]
+  builderAppend $ comment doc_name
+  builderAppend $ comment (text phase)
+  builderAppend $ (text "hask.module") <+> (text "{")
+  builderAppend $ nest 4 $ mlirPrelude
+  -- | TODO: convert to traverse?
+  forM_ (filter shouldKeepBind (mg_binds guts)) (\b ->  builderNest 2 $ cvtTopBind b)
+  builderAppend $ text "hask.dummy_finish"
+  builderAppend $ text "}"
+  builderAppend $ text $ "// ============ Haskell Core ========================"
+  builderAppend $ text $ dumpProgramAsCore dfags guts
+  return ()
 
-
--- | keep around stuff that can be recursive, so we can emit them 
--- differently.
-type PossibleRecursiveVar = Var
-
-cvtBindRhs :: PossibleRecursiveVar -> CoreExpr -> SDoc
-cvtBindRhs name rhs = 
-  let (_, rhs_name, rhs_preamble) = runBuilder_ (flattenExpr rhs) 0
-      body = rhs_preamble $+$ ((text "hask.return(") >< rhs_name >< (text ")"))  
-  in body
+cvtBindRhs :: PossibleRecursiveVar -> CoreExpr -> Builder ()
+cvtBindRhs name rhs = do
+  rhs_name <- flattenExpr rhs
+  builderAppend $ (text "hask.return(") >< rhs_name >< (text ")") 
+  return ()
+  -- let (_, rhs_name, rhs_preamble) = runBuilder_ (flattenExpr rhs) 0
+  --     body = rhs_preamble $+$ ((text "hask.return(") >< rhs_name >< (text ")"))  
+  -- in body
 
 
 -- instance Outputable Var where
@@ -226,13 +245,21 @@ cvtVarORIGINAL_VERSION v =
 
 
 
-cvtTopBind :: CoreBind -> SDoc
-cvtTopBind (NonRec b e) = 
-    ((cvtVar b) <+> (text "=")) $$ 
-    (nest 2 $ (text "hask.toplevel_binding") <+> (text "{") $$ (nest 2 $  (cvtBindRhs b e)) $$ (text "}"))
-cvtTopBind (Rec bs) = 
-      (vcat $ [hsep [cvtVar b, text "=",
-               braces_scoped (text "hask.toplevel_binding") (cvtBindRhs b e)] | (b, e) <- bs])
+cvtTopBindImpl :: (Var, CoreExpr) -> Builder ()
+cvtTopBindImpl (b, e) = do 
+    builderAppend $ cvtVar b <+> text "=" <+> (text "hask.toplevel_binding") <+> (text "{") 
+    cvtBindRhs b e
+    builderAppend $ text "}"
+    return ()
+
+cvtTopBind :: CoreBind -> Builder ()
+cvtTopBind (NonRec b e) = cvtTopBindImpl (b, e)
+    -- ((cvtVar b) <+> (text "=")) $$ 
+    -- (nest 2 $ (text "hask.toplevel_binding") <+> (text "{") $$ (nest 2 $  (cvtBindRhs b e)) $$ (text "}"))
+cvtTopBind (Rec bs) =
+      forM_ bs cvtTopBindImpl
+      -- (vcat $ [hsep [cvtVar b, text "=",
+      --          braces_scoped (text "hask.toplevel_binding") (cvtBindRhs b e)] | (b, e) <- bs])
 
 
 parenthesize :: SDoc -> SDoc
@@ -447,9 +474,14 @@ flattenExpr expr =
     Tick _ e -> return (text ("TICK"))
     Cast _ e -> return (text ("CAST"))
 
-    _ -> Builder $ \i0 -> let name_unimpl = text ("%unimpl_" ++ show i0)
-                              fulldoc = name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)") 
-                        in (i0+1, name_unimpl, fulldoc)
+    _ -> do
+        i <- builderMakeUnique 
+        let name_unimpl = text ("%unimpl_" ++ show i)
+        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
+        return name_unimpl
+      -- Builder $ \i0 -> let name_unimpl = text ("%unimpl_" ++ show i0)
+      --                         fulldoc = name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)") 
+      --                   in (i0+1, name_unimpl, fulldoc)
 
 -- instantiates an expression, giving it a name and an SDoc that needs to be pasted above it.
 -- TODO: we need a monad here to allow us to build an AST while returning a variable name.
