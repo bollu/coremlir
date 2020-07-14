@@ -9,6 +9,7 @@ fibstrict: clean install
 	# ../../build/bin/hask-opt tomlir-fibstrict.pass-0001.mlir
 	cat tomlir-fibstrict.pass-0000.mlir
 	../../build/bin/hask-opt tomlir-fibstrict.pass-0000.mlir
+	# ../../build/bin/hask-opt tomlir-fibstrict.pass-0001.mlir
 
 # on getting multiple package error, remove the repeated package line from
 # vim ~/.ghc/x86_64-linux-8.6.5/environments/default

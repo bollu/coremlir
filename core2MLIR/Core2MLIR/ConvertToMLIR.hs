@@ -427,9 +427,12 @@ cvtAlt wild (lhs, bs, e) = do
  builderAppend $ rbrack
  return ()
 
--- Builder $ \i0 -> 
---                     let (i1, (), rhs) = runBuilder_ (cvtAltRHS wild bs e)i0
---                     in (i1, (), (lbrack >< cvtAltLhs lhs <+> arrow) $$ (nest 2 $ rhs  >< rbrack))
+
+
+isCaseAltsOnlyDefault :: [CoreAlt] -> Maybe CoreExpr
+isCaseAltsOnlyDefault [(DEFAULT, _, e)] = Just e
+isCaseAltsOnlyDefault _ = Nothing
+
 
 flattenExpr :: CoreExpr -> Builder SSAName
 flattenExpr expr =
@@ -457,9 +460,17 @@ flattenExpr expr =
         name_scrutinee <- flattenExpr scrutinee
         i <- builderMakeUnique
         let name_case = text $ "%case_" ++ show i
-        builderAppend $ name_case <+> text "=" <+> text "hask.caseSSA " <+> name_scrutinee
-        forM_ as (cvtAlt (Wild wild))
-        return name_case
+        case isCaseAltsOnlyDefault as of
+          Nothing -> do
+              builderAppend $ name_case <+> text "=" <+> text "hask.caseSSA " <+> name_scrutinee
+              forM_ as (cvtAlt (Wild wild))
+              return name_case
+          Just defaultExpr -> do
+              doc_wild <- cvtWild (Wild wild)
+              builderAppend $ doc_wild <+> text "=" <+> text "hask.force (" >< name_scrutinee >< text ")"
+              -- builderAppend $ doc_wild <+> text "=" <+> text "hask.copy (" >< name_scrutinee >< text ")"
+              name_rhs <- flattenExpr defaultExpr
+              return name_rhs
       -- Builder $ \i0 -> 
       --           let (i1, name_scrutinee, preamble_scrutinee) = runBuilder_ (flattenExpr scrutinee) i0
       --               name_case = text ("%case_" ++ show i1) 

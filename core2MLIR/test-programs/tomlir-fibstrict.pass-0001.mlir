@@ -13,39 +13,15 @@ hask.module {
       %app_2 = hask.apSSA(%minus_hash, %i_s1wH)
       %lit_3 = hask.make_i32(1)
       %app_4 = hask.apSSA(%app_2, %lit_3)
-      %case_5 = hask.caseSSA  %app_4
-      ["default" ->
-      {
-      ^entry(%sat_s1wJ: !hask.untyped):
-        %app_6 = hask.apSSA(@fib, %sat_s1wJ)
-        %case_7 = hask.caseSSA  %app_6
-        ["default" ->
-        {
-        ^entry(%wild_s1wK: !hask.untyped):
-          %app_8 = hask.apSSA(@fib, %i_s1wH)
-          %case_9 = hask.caseSSA  %app_8
-          ["default" ->
-          {
-          ^entry(%wild_s1wL: !hask.untyped):
-            %unimpl_10  =  hask.make_i32(42)
-          hask.return(%unimpl_10)
-          }
-          ]
-          %case_11 = hask.caseSSA  %case_9
-          ["default" ->
-          {
-          ^entry(%sat_s1wN: !hask.untyped):
-            %app_12 = hask.apSSA(%sat_s1wN, %wild_s1wK)
-          hask.return(%app_12)
-          }
-          ]
-        hask.return(%case_11)
-        }
-        ]
-      hask.return(%case_7)
-      }
-      ]
-    hask.return(%case_5)
+      %sat_s1wJ = hask.force (%app_4)
+      %app_6 = hask.apSSA(@fib, %sat_s1wJ)
+      %wild_s1wK = hask.force (%app_6)
+      %app_8 = hask.apSSA(@fib, %i_s1wH)
+      %wild_s1wL = hask.force (%app_8)
+      %unimpl_10  =  hask.make_i32(42)
+      %sat_s1wN = hask.force (%unimpl_10)
+      %app_12 = hask.apSSA(%sat_s1wN, %wild_s1wK)
+    hask.return(%app_12)
     }
     ]
     [0 ->
