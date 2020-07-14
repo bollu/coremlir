@@ -853,3 +853,18 @@ Old (what we used to have):
 - So we have a new instruction called `hask.copy`, which is necessary because one can't write `%y = %x`.
   It's a stupid hack around MLIR's (overly-restrictive) SSA form. It can be removed by a rewriter that replaces
   `%y = hask.copy(%x)` by replacing all uses of `%y` with `%x`.
+
+### Another design for function calls
+
+We can perhaps force all functions to be of the form:
+
+```mlir
+hask.func @fib {
+  ...
+  %fibref = constant @fib
+  hask.apSSA(%fibref, %constant_one) // <- new proposal
+  hask.apSSA(@fib, %constant_one) // <- current version
+  This simplifies the use of the variable: We will always have an SSA variable
+  as the called function.
+}
+```
