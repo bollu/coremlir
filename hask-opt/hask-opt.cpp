@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
     applyPassManagerCLOptions(pm);
 
     // Add a run of the canonicalizer to optimize the mlir module.
-    pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
+    // pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCanonicalizerPass());
     if (mlir::failed(pm.run(*module))) {
       llvm::errs() << "Run of canonicalizer failed.\n";

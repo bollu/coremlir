@@ -264,7 +264,7 @@ void TopLevelBindingOp::print(OpAsmPrinter &p) {
 ParseResult ModuleOp::parse(OpAsmParser &parser, OperationState &result) {
     OpAsmParser::OperandType body;
     if(parser.parseRegion(*result.addRegion(), {}, {})) return failure();
-    result.addTypes(parser.getBuilder().getType<UntypedType>());
+    // result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
 
@@ -279,7 +279,6 @@ void ModuleOp::print(OpAsmPrinter &p) {
 // === DummyFinish OP ===
 
 ParseResult DummyFinishOp::parse(OpAsmParser &parser, OperationState &result) {
-    result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
 
@@ -355,15 +354,31 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     return success();
 };
 
+Optional<StringAttr> ApSSAOp::fnSymbolicAttr() {
+    StringAttr attr_name = this->getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName());
+    if (attr_name) { return attr_name; }
+    return Optional<StringAttr>();
+};
+
+Value ApSSAOp::getFn() {
+    Optional<StringAttr> attr_name = this->fnSymbolicAttr();
+    if (attr_name) {
+
+    }
+};
+int ApSSAOp::getNumFnArguments() {};
+Value ApSSAOp::getFnArgument(int i) {};
+
 void ApSSAOp::print(OpAsmPrinter &p) {
     p << "hask.apSSA(";
 
     // TODO: propose actually strongly typing this?This is just sick.
     StringAttr attr_name = this->getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName());
     if (attr_name) { p.printSymbolName(attr_name.getValue()); }
-    else { p.printOperand(this->getOperation()->getOperand(0)); };
-    for(int i = 0; i < getNumFnArguments(); ++i) {
-        p << ","; p.printOperand(getFnArgument(i));
+    
+    for(int i = 0; i < this->getOperation()->getNumOperands(); ++i) {
+        if (i > 0 || (i == 0 && attr_name)) { p << ", "; }
+        p.printOperand(this->getOperation()->getOperand(i));
     }
     p << ")";
 };
@@ -606,7 +621,6 @@ struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
   /// them in order of profitability.
   UncurryApplication(mlir::MLIRContext *context)
       : OpRewritePattern<ApSSAOp>(context, /*benefit=*/1) {
-          assert(false && "uncurry application constructed");
       }
 
   /// This method is attempting to match a pattern and rewrite it. The rewriter
@@ -616,6 +630,9 @@ struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
   matchAndRewrite(ApSSAOp op,
                   mlir::PatternRewriter &rewriter) const override {
     // Look through the input of the current transpose.
+    mlir::Value fn = op.getFn();
+    assert(false);
+
     // mlir::Value transposeInput = op.getOperand();
     // ApSSAOp transposeInputOp = transposeInput.getDefiningOp<ApSSAOp>();
     // Input defined by another transpose? If not, no match.
@@ -624,14 +641,13 @@ struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
 
     // Otherwise, we have a redundant transpose. Use the rewriter.
     // rewriter.replaceOp(op, {transposeInputOp.getOperand()});
-    assert(false && "UncurryApplication::matchAndRewrite called");
+    // assert(false && "UncurryApplication::matchAndRewrite called");
     return failure();
   }
 };
 
 void ApSSAOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
-  assert(false && "ApSSAOp::getCanonicalizationPatterns called");
   results.insert<UncurryApplication>(context);
 }
 

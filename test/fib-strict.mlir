@@ -26,7 +26,7 @@ hask.module {
     }
     hask.return(%lambda)
   }
-hask.dummy_finish
+  hask.dummy_finish
 }
 // ============ Haskell Core ========================
 //Rec {

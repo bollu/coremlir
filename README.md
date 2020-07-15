@@ -1218,3 +1218,83 @@ template <typename OpT> void addNestedPass(std::unique_ptr<Pass> pass) {
 ```
 
 - This file in MLIR about passes seems good: https://github.com/llvm/llvm-project/blob/master/mlir/docs/PassManagement.md
+
+- Got nerd sniped by the devloping story of twitter being hacked: https://news.ycombinator.com/item?id=23851275#23852853.
+  High profile accounts are asking folks to donate to a BTC address. Seems like a really weak use of 
+  incredible amounts of power. Tinfoil hat theory: this is a demonstration.
+- Twitter acknowledgement of the hack: https://twitter.com/TwitterSupport/status/1283518038445223936
+
+- OK, I'm actually writing my pass now. Jesus, I realised that my implemtnation of `ApSSA` is really annoying and perhaps
+  mildly broken.
+
+- I allow the first parameter to be either a `Symbol` or a `Value`. Now that I need to rewrite stuff,
+  how do I find out *what* the symbol is? The MLIR docs wax poetic about symbol tables:
+   https://mlir.llvm.org/docs/SymbolsAndSymbolTables/#symbol-table
+
+- I tried to give my `ModuleOp` the trait `OpTrait::SymbolTable`. All hell
+  has broken loose.
+
+- I now can't have a result from my module (makes sense). So I make it
+  `OpTrait::ZeroResult` and remove the `hask.dummy_finish` thing I had
+  hanging around.
+
+- This somehow destroys the correctness of my module, with errors:
+
+```
+./fib-strict.mlir:4:18: error: block with no terminator
+    %plus_hash = hask.make_data_constructor<"+#">
+```
+
+Here is my file:
+
+```mlir
+// Main
+// Core2MLIR: GenMLIR BeforeCorePrep
+hask.module {
+    %plus_hash = hask.make_data_constructor<"+#">
+    %minus_hash = hask.make_data_constructor<"-#">
+...
+```
+
+- I confess, I do not know what it is talking about. What terminator? Why ought
+  I terminate the block? Do I need to terminate it with an operator
+  that returns zero results?. This to me seems the most reasonable explanation
+
+- Whatever the explanation, that is an _atrocious_ place to put the error marker.
+  Maybe I send a patch.
+
+- Nice, I make progress. Now my printing of `ApSSA` is broken, my module compiles. I get the amazing backtrace:
+
+```
+(gdb) run
+The program being debugged has been started already.
+Start it from the beginning? (y or n) y
+Starting program: /home/bollu/work/mlir/coremlir/build/bin/hask-opt ./fib-strict.mlir
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+- parse:197attribute: "+#"
+- parse:198attribute ty: none
+- parse:197attribute: "-#"
+- parse:198attribute ty: none
+- parse:197attribute: "()"
+- parse:198attribute ty: none
+-parse:454:%i
+parse:396
+parse:398
+parse:413
+parse:417
+parse:420
+parse:423
+Module (no optimization):
+
+module {
+  hask.module {
+    %0 = hask.make_data_constructor<"+#">
+    %1 = hask.make_data_constructor<"-#">
+    %2 = hask.make_data_constructor<"()">
+    hask.func @fib {
+      %3 = hask.lambdaSSA(%arg0) {
+        %4 = hask.caseSSA %arg0 ["default" ->  {
+        ^bb0(%arg1: !hask.untyped):  // no predecessors
+          %5 = hask.apSSA(%5,hask-opt: /home/bollu/work/mlir/llvm-project/mlir/lib/IR/Value.cpp:22: mlir::Value::Value(mlir::Operation*, unsigned int): Assertion `op->getNumResults() > resultNo && "invalid result number"' failed.
+```

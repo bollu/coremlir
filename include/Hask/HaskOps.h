@@ -144,7 +144,7 @@ public:
 };
 
 
-class ModuleOp : public Op<ModuleOp, OpTrait::OneResult, OpTrait::OneRegion> {
+class ModuleOp : public Op<ModuleOp, OpTrait::ZeroResult, OpTrait::OneRegion, OpTrait::SymbolTable> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.module"; };
@@ -156,7 +156,7 @@ public:
 };
 
 
-class DummyFinishOp : public Op<DummyFinishOp, OpTrait::OneResult, OpTrait::IsTerminator> {
+class DummyFinishOp : public Op<DummyFinishOp, OpTrait::ZeroResult, OpTrait::IsTerminator> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.dummy_finish"; };
@@ -182,9 +182,16 @@ public:
   static StringRef getOperationName() { return "hask.apSSA"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   // void print(OpAsmPrinter &p);
+  /*
   Value getFn() { return getOperation()->getOperand(0); }
   int getNumFnArguments() { return getOperation()->getNumOperands()-1; }
   Value getFnArgument(int i) { return getOperation()->getOperand(1+i); }
+  */
+  Optional<StringAttr> fnSymbolicAttr();
+  // Optional<Value> fnValue();
+  Value getFn();
+  int getNumFnArguments();
+  Value getFnArgument(int i);
   void print(OpAsmPrinter &p);
   static void getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context);
@@ -214,8 +221,6 @@ public:
   Block::BlockArgListType inputRange() { this->getBody().begin()->getArguments();   }
   int getNumInputs() { this->getBody().begin()->getNumArguments(); }
   mlir::BlockArgument getInput(int i) { assert(i < getNumInputs()); return this->getBody().begin()->getArgument(i); }
-  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                          MLIRContext *context) { assert(false && "asserting at lambdaSSAOp"); }
 
 };
 
