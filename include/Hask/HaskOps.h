@@ -186,7 +186,8 @@ public:
   int getNumFnArguments() { return getOperation()->getNumOperands()-1; }
   Value getFnArgument(int i) { return getOperation()->getOperand(1+i); }
   void print(OpAsmPrinter &p);
-
+  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context);
 };
 
 class CaseSSAOp : public Op<CaseSSAOp, OpTrait::OneResult> {
@@ -213,6 +214,8 @@ public:
   Block::BlockArgListType inputRange() { this->getBody().begin()->getArguments();   }
   int getNumInputs() { this->getBody().begin()->getNumArguments(); }
   mlir::BlockArgument getInput(int i) { assert(i < getNumInputs()); return this->getBody().begin()->getArgument(i); }
+  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) { assert(false && "asserting at lambdaSSAOp"); }
 
 };
 

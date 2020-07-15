@@ -19,46 +19,114 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+// https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
+#include "mlir/IR/AsmState.h"
+#include "mlir/IR/Module.h"
+#include "mlir/IR/Verifier.h"
+#include "mlir/Parser.h"
+#include "mlir/Transforms/Passes.h"
+
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_ostream.h"
+
 #include "Hask/HaskDialect.h"
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
                                                 llvm::cl::init("-"));
+static llvm::cl::opt<bool> enableOptimization("optimize", llvm::cl::desc("Enable optimizations"));
 
-static llvm::cl::opt<std::string>
-    outputFilename("o", llvm::cl::desc("Output filename"),
-                   llvm::cl::value_desc("filename"), llvm::cl::init("-"));
+//0 static llvm::cl::opt<std::string>
+//0     outputFilename("o", llvm::cl::desc("Output filename"),
+//0                    llvm::cl::value_desc("filename"), llvm::cl::init("-"));
+//0 
+//0 static llvm::cl::opt<bool> splitInputFile(
+//0     "split-input-file",
+//0     llvm::cl::desc("Split the input file into pieces and process each "
+//0                    "chunk independently"),
+//0     llvm::cl::init(false));
+//0 
+//0 static llvm::cl::opt<bool> verifyDiagnostics(
+//0     "verify-diagnostics",
+//0     llvm::cl::desc("Check that emitted diagnostics match "
+//0                    "expected-* lines on the corresponding line"),
+//0     llvm::cl::init(false));
+//0 
+//0 static llvm::cl::opt<bool> verifyPasses(
+//0     "verify-each",
+//0     llvm::cl::desc("Run the verifier after each transformation pass"),
+//0     llvm::cl::init(true));
+//0 
+//0 static llvm::cl::opt<bool> allowUnregisteredDialects(
+//0     "allow-unregistered-dialect",
+//0     llvm::cl::desc("Allow operation with no registered dialects"),
+//0     llvm::cl::init(false));
+//0 
+//0 static llvm::cl::opt<bool>
+//0     showDialects("show-dialects",
+//0                  llvm::cl::desc("Print the list of registered dialects"),
+//0                  llvm::cl::init(false));
+//0 
 
-static llvm::cl::opt<bool> splitInputFile(
-    "split-input-file",
-    llvm::cl::desc("Split the input file into pieces and process each "
-                   "chunk independently"),
-    llvm::cl::init(false));
-
-static llvm::cl::opt<bool> verifyDiagnostics(
-    "verify-diagnostics",
-    llvm::cl::desc("Check that emitted diagnostics match "
-                   "expected-* lines on the corresponding line"),
-    llvm::cl::init(false));
-
-static llvm::cl::opt<bool> verifyPasses(
-    "verify-each",
-    llvm::cl::desc("Run the verifier after each transformation pass"),
-    llvm::cl::init(true));
-
-static llvm::cl::opt<bool> allowUnregisteredDialects(
-    "allow-unregistered-dialect",
-    llvm::cl::desc("Allow operation with no registered dialects"),
-    llvm::cl::init(false));
-
-static llvm::cl::opt<bool>
-    showDialects("show-dialects",
-                 llvm::cl::desc("Print the list of registered dialects"),
-                 llvm::cl::init(false));
-
+// code stolen from:
+// https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
 int main(int argc, char **argv) {
   mlir::registerAllDialects();
   mlir::registerAllPasses();
+  mlir::registerDialect<mlir::standalone::HaskDialect>();
+
+  // Register any command line options.
+  mlir::registerAsmPrinterCLOptions();
+  mlir::registerMLIRContextCLOptions();
+  mlir::registerPassManagerCLOptions();
+  llvm::cl::ParseCommandLineOptions(argc, argv, "hask core compiler\n");
+
+  std::string errorMessage;
+  auto file = mlir::openInputFile(inputFilename, &errorMessage);
+  if (!file) {
+    llvm::errs() << errorMessage << "\n";
+    return 1;
+  }
+
+
+  mlir::MLIRContext context;
+  mlir::OwningModuleRef module;
+  llvm::SourceMgr sourceMgr;
+  mlir::SourceMgrDiagnosticHandler sourceMgrHandler(sourceMgr, &context);
+
+  sourceMgr.AddNewSourceBuffer(std::move(file), llvm::SMLoc());
+  module = mlir::parseSourceFile(sourceMgr, &context);
+  if (!module) {
+    llvm::errs() << "Error can't load file " << inputFilename << "\n";
+    return 3;
+  }
+
+
+
+  if (enableOptimization) {
+    mlir::PassManager pm(&context);
+    // Apply any generic pass manager command line options and run the pipeline.
+    applyPassManagerCLOptions(pm);
+
+    // Add a run of the canonicalizer to optimize the mlir module.
+    pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
+    pm.addPass(mlir::createCanonicalizerPass());
+    if (mlir::failed(pm.run(*module))) {
+      llvm::errs() << "Run of canonicalizer failed.\n";
+      return 4;
+    }
+  }
+
+  llvm::errs() << "Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << ":";
+  module->print(llvm::outs());
+
+  return 0;
+}
+
+/*
+int main_old(int argc, char **argv) {
 
   mlir::registerDialect<mlir::standalone::HaskDialect>();
   // TODO: Register standalone passes here.
@@ -106,3 +174,4 @@ int main(int argc, char **argv) {
   output->keep();
   return 0;
 }
+*/

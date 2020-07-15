@@ -19,7 +19,6 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 
-
 using namespace mlir;
 using namespace mlir::standalone;
 
@@ -54,3 +53,4 @@ void HaskDialect::printType(mlir::Type type,
     assert(false && "unknown type");
   }
 }
+

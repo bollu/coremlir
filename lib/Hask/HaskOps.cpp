@@ -20,6 +20,11 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 
+// pattern matching
+#include "mlir/IR/Matchers.h"
+#include "mlir/IR/PatternMatch.h"
+
+
 
 namespace mlir {
 namespace standalone {
@@ -590,6 +595,46 @@ ParseResult CopyOp::parse(OpAsmParser &parser, OperationState &result) {
 void CopyOp::print(OpAsmPrinter &p) {
     p << "hask.copy(" << this->getScrutinee() << ")";
 };
+
+// ==REWRITES==
+
+// =SATURATE AP= 
+
+struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
+  /// We register this pattern to match every toy.transpose in the IR.
+  /// The "benefit" is used by the framework to order the patterns and process
+  /// them in order of profitability.
+  UncurryApplication(mlir::MLIRContext *context)
+      : OpRewritePattern<ApSSAOp>(context, /*benefit=*/1) {
+          assert(false && "uncurry application constructed");
+      }
+
+  /// This method is attempting to match a pattern and rewrite it. The rewriter
+  /// argument is the orchestrator of the sequence of rewrites. It is expected
+  /// to interact with it to perform any changes to the IR from here.
+  mlir::LogicalResult
+  matchAndRewrite(ApSSAOp op,
+                  mlir::PatternRewriter &rewriter) const override {
+    // Look through the input of the current transpose.
+    // mlir::Value transposeInput = op.getOperand();
+    // ApSSAOp transposeInputOp = transposeInput.getDefiningOp<ApSSAOp>();
+    // Input defined by another transpose? If not, no match.
+    // if (!transposeInputOp)
+    //   return failure();
+
+    // Otherwise, we have a redundant transpose. Use the rewriter.
+    // rewriter.replaceOp(op, {transposeInputOp.getOperand()});
+    assert(false && "UncurryApplication::matchAndRewrite called");
+    return failure();
+  }
+};
+
+void ApSSAOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
+  assert(false && "ApSSAOp::getCanonicalizationPatterns called");
+  results.insert<UncurryApplication>(context);
+}
+
 
 
 } // namespace standalone

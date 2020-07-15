@@ -1022,3 +1022,199 @@ hask.dummy_finish
 - It is quite unclear to me why GHC generates the extra `hask.force` around the fibs
   when it knows perfectly well that they are strict values. It is a bit weird I feel.
 - Perhaps they later use demand analysis to learn these are strict. Not sure.
+
+# Wednesday: 16th July 2020
+
+- Decided I couldn't use the default `opt` stuff any longer, since I now need
+  fine grained control over which passes are run how.
+
+- Stole code from toy to do the printing. Unfortunately, toy only uses
+  `module->dump()`.
+- What I want to do is to print the module to `stdout`. `module->print()`
+  needs an `OpAsmPrinter`. Kill me.
+- Let's see how `MlirOptMain` prints to the output file.
+
+```cpp
+LogicalResult mlir::MlirOptMain(raw_ostream &os,
+                                std::unique_ptr<MemoryBuffer> buffer,
+                                const PassPipelineCLParser &passPipeline,
+                                bool splitInputFile, bool verifyDiagnostics,
+                                bool verifyPasses,
+                                bool allowUnregisteredDialects) {
+  // The split-input-file mode is a very specific mode that slices the file
+  // up into small pieces and checks each independently.
+  if (splitInputFile)
+    return splitAndProcessBuffer(
+        std::move(buffer),
+        [&](std::unique_ptr<MemoryBuffer> chunkBuffer, raw_ostream &os) {
+          return processBuffer(os, std::move(chunkBuffer), verifyDiagnostics,
+                               verifyPasses, allowUnregisteredDialects,
+                               passPipeline);
+        },
+        os);
+
+  return processBuffer(os, std::move(buffer), verifyDiagnostics, verifyPasses,
+                       allowUnregisteredDialects, passPipeline);
+}
+```
+
+- OK, so we need to know how `processBuffer` works:
+
+```cpp
+static LogicalResult processBuffer(raw_ostream &os,
+                                   std::unique_ptr<MemoryBuffer> ownedBuffer,
+                                   bool verifyDiagnostics, bool verifyPasses,
+                                   bool allowUnregisteredDialects,
+                                   const PassPipelineCLParser &passPipeline) {
+  ...
+  // If we are in verify diagnostics mode then we have a lot of work to do,
+  // otherwise just perform the actions without worrying about it.
+  if (!verifyDiagnostics) {
+    SourceMgrDiagnosticHandler sourceMgrHandler(sourceMgr, &context);
+    return performActions(os, verifyDiagnostics, verifyPasses, sourceMgr,
+                          &context, passPipeline);
+  }
+  ...
+}
+```
+- Recursive into `performActions`:
+
+```cpp
+static LogicalResult performActions(raw_ostream &os, bool verifyDiagnostics,
+                                    bool verifyPasses, SourceMgr &sourceMgr,
+                                    MLIRContext *context,
+                                    const PassPipelineCLParser &passPipeline) {
+  ...
+  // Print the output.
+  module->print(os);
+  os << '\n';
+  ...
+}
+```
+
+- WTF, so a `raw_ostream` satisfies an `OpAsmPrinter`? no way
+- OK, I found the overloads. Weird that `VSCode`'s intellisense missed these
+  and pointed me to the wrong location. I should stop trusting it:
+
+```cpp
+class ModuleOp
+...
+public:
+...
+  /// Print the this module in the custom top-level form.
+  void print(raw_ostream &os, OpPrintingFlags flags = llvm::None);
+  void print(raw_ostream &os, AsmState &state,
+             OpPrintingFlags flags = llvm::None);
+...
+}
+```
+
+- Cool, so I can just say `module->print(llvm::outs())` and it's going to print
+  it.
+
+- OK, I now need to figure out how to get the MLIR framework to pick up
+  my `ApSSARewriter`. Jesus, getting used to MLIR is a pain. I suppose
+  some of it has to do with my refusal to use TableGen. But then again, TableGen
+  just makes me feel more lost, so it's not a good style.
+
+- Doing exactly what `toy ch3` suggests does not seem to work. OK, I guess I'll
+  read what `mlir::createCanonicalizerPass` does, since that's what seems
+  to be responsible for adding my rewriter in the code snippet:
+
+```cpp
+  if (enableOptimization) {
+    mlir::PassManager pm(&context);
+    // Apply any generic pass manager command line options and run the pipeline.
+    applyPassManagerCLOptions(pm);
+
+    // Add a run of the canonicalizer to optimize the mlir module.
+    pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
+    if (mlir::failed(pm.run(*module))) {
+      llvm::errs() << "Run of canonicalizer failed.\n";
+      return 4;
+    }
+  }
+```
+
+- It's darkly funny to me that no snippet of MLIR has ever worked out of the box.
+  Judging from past experience, I estimate an hour of searching and pain.
+
+- OK, first peppered code with `assert`s to see how far it is getting:
+
+
+```cpp
+struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
+  UncurryApplication(mlir::MLIRContext *context)
+      : OpRewritePattern<ApSSAOp>(context, /*benefit=*/1) {
+          assert(false && "uncurry application constructed")
+      }
+  mlir::LogicalResult
+  matchAndRewrite(ApSSAOp op,
+                  mlir::PatternRewriter &rewriter) const override {
+    assert(false && "UncurryApplication::matchAndRewrite called");
+    return failure();
+  }
+};
+
+void ApSSAOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
+  assert(false && "ApSSAOp::getCanonicalizationPatterns called");
+  results.insert<UncurryApplication>(context);
+}
+```
+
+- FML, literally no `assert` fails. OK, I guess I actually do need to read 
+  `mlir::createCanonicalizerPass`: https://github.com/llvm/llvm-project/blob/a5b9316b24ce1de54ae3ab7a5254f0219fee12ac/mlir/lib/Transforms/Canonicalizer.cpp#L41
+
+```cpp
+namespace {
+/// Canonicalize operations in nested regions.
+struct Canonicalizer : public CanonicalizerBase<Canonicalizer> {
+  void runOnOperation() override {
+    OwningRewritePatternList patterns;
+
+    // TODO: Instead of adding all known patterns from the whole system lazily
+    // add and cache the canonicalization patterns for ops we see in practice
+    // when building the worklist.  For now, we just grab everything.
+    auto *context = &getContext();
+    for (auto *op : context->getRegisteredOperations())
+      op->getCanonicalizationPatterns(patterns, context); // <- this should be asserting!
+    Operation *op = getOperation();
+    applyPatternsAndFoldGreedily(op->getRegions(), patterns);
+  }
+};
+} // end anonymous namespace
+```
+
+- OK, progress made. It's the difference between:
+
+```cpp
+// v this, as I understand it, runs only inside `mlir::FuncOp`.
+pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass()); 
+// v this runs on everything.
+pm.addPass(mlir::createCanonicalizerPass());
+```
+
+- Of course, I need to understand this properly. So let's figure out WTF
+  `addNestedPass` actually means: https://github.com/llvm/llvm-project/blob/6d15451b175293cc98ef1d0fd9869ac71904e3bd/mlir/include/mlir/Pass/PassManager.h#L77
+
+```cpp
+/// Add the given pass to a nested pass manager for the given operation kind
+/// `OpT`.
+template <typename OpT> void addNestedPass(std::unique_ptr<Pass> pass) {
+  nest<OpT>().addPass(std::move(pass));
+}
+```
+
+- What is `nest`? https://github.com/llvm/llvm-project/blob/6d15451b175293cc98ef1d0fd9869ac71904e3bd/mlir/include/mlir/Pass/PassManager.h#L65
+```cpp
+  /// Nest a new operation pass manager for the given operation kind under this
+  /// pass manager.
+  OpPassManager &nest(const OperationName &nestedName);
+  OpPassManager &nest(StringRef nestedName);
+  template <typename OpT> OpPassManager &nest() {
+    return nest(OpT::getOperationName());
+  }
+```
+
+- This file in MLIR about passes seems good: https://github.com/llvm/llvm-project/blob/master/mlir/docs/PassManagement.md
