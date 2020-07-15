@@ -973,3 +973,52 @@ hask.dummy_finish
 //  = base-4.12.0.0:GHC.TopHandler.runMainIO @ () main:Main.main
 //
 ```
+
+### Reading the rewriter/lowering documentation of MLIR
+- https://mlir.llvm.org/docs/Tutorials/Toy/Ch-5/
+- https://mlir.llvm.org/docs/Tutorials/Toy/Ch-6/
+- https://github.com/bollu/musquared/blob/master/lib/LeanDialect.cpp#L824
+- https://github.com/bollu/musquared/blob/master/include/LeanDialect.h#L220
+
+### Updating `fibstrict`
+- I managed to eliminate the need for `hask.copy` from the auto-generated code,
+  but I don't really understand _how_. I need to think about this a bit more, and a bit more carefully.
+  This stuff is subtle!
+
+The new readable hand-written `fibstrict` (adapted from the auto-generated code) is:
+
+```
+// Main
+// Core2MLIR: GenMLIR BeforeCorePrep
+hask.module {
+    %plus_hash = hask.make_data_constructor<"+#">
+    %minus_hash = hask.make_data_constructor<"-#">
+    %unit_tuple = hask.make_data_constructor<"()">
+  hask.func @fib {
+    %lambda = hask.lambdaSSA(%i) {
+      %retval = hask.caseSSA  %i
+      ["default" -> { ^entry(%default_random_name: !hask.untyped): // todo: remove this defult
+        %i_minus = hask.apSSA(%minus_hash, %i)
+        %lit_one = hask.make_i32(1)
+        %i_minus_one = hask.apSSA(%i_minus, %lit_one)
+        %fib_i_minus_one = hask.apSSA(@fib, %i_minus_one)
+        %force_fib_i_minus_one = hask.force (%fib_i_minus_one) // todo: this is extraneous!
+        %fib_i = hask.apSSA(@fib, %i)
+        %force_fib_i = hask.force (%fib_i) // todo: this is extraneous!
+        %plus_force_fib_i = hask.apSSA(%plus_hash, %force_fib_i)
+        %fib_i_plus_fib_i_minus_one = hask.apSSA(%plus_force_fib_i, %force_fib_i_minus_one)
+        hask.return(%fib_i_plus_fib_i_minus_one) }]
+      [0 -> { ^entry(%default_random_name: !hask.untyped):
+        hask.return(%i) }]
+      [1 -> { ^entry(%default_random_name: !hask.untyped):
+        hask.return(%i) }]
+      hask.return(%retval)
+    }
+    hask.return(%lambda)
+  }
+hask.dummy_finish
+}
+```
+- It is quite unclear to me why GHC generates the extra `hask.force` around the fibs
+  when it knows perfectly well that they are strict values. It is a bit weird I feel.
+- Perhaps they later use demand analysis to learn these are strict. Not sure.
