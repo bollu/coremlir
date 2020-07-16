@@ -105,6 +105,7 @@ int main(int argc, char **argv) {
 
 
 
+
   if (enableOptimization) {
     mlir::PassManager pm(&context);
     // Apply any generic pass manager command line options and run the pipeline.
@@ -113,12 +114,31 @@ int main(int argc, char **argv) {
     // Add a run of the canonicalizer to optimize the mlir module.
     // pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCanonicalizerPass());
+    llvm::errs() << "Module: running canonicalization...";
     if (mlir::failed(pm.run(*module))) {
       llvm::errs() << "Run of canonicalizer failed.\n";
       return 4;
     }
+    llvm::errs() << "success!\n";
   }
 
+
+  if (enableOptimization) {
+    mlir::PassManager pm(&context);
+    // Apply any generic pass manager command line options and run the pipeline.
+    applyPassManagerCLOptions(pm);
+
+    // Add a run of the canonicalizer to optimize the mlir module.
+    // pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
+    pm.addPass(mlir::createCSEPass());
+    llvm::errs() << "Module: running CSE...";
+    if (mlir::failed(pm.run(*module))) {
+      llvm::errs() << "Run of CSE failed.\n";
+      return 4;
+    }
+    llvm::errs() << "success!\n";
+
+  }
   llvm::errs() << "Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << ":";
   module->print(llvm::outs());
 
