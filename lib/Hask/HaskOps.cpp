@@ -395,6 +395,22 @@ void ApSSAOp::print(OpAsmPrinter &p) {
     p << ")";
 };
 
+void ApSSAOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    Value fn, SmallVectorImpl<Value> &params) {
+    state.addOperands(fn);
+    state.addOperands(params);
+    state.addTypes(builder.getType<UntypedType>());
+};
+
+void ApSSAOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    FlatSymbolRefAttr fn, SmallVectorImpl<Value> &params) {
+    state.addAttribute(::mlir::SymbolTable::getSymbolAttrName(), fn);
+    state.addOperands(params);
+    state.addTypes(builder.getType<UntypedType>());
+
+};
+
+
 // === CASESSA OP ===
 // === CASESSA OP ===
 // === CASESSA OP ===
@@ -626,7 +642,9 @@ void CopyOp::print(OpAsmPrinter &p) {
 // ==REWRITES==
 
 // =SATURATE AP= 
-
+// https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/mlir/ToyCombine.cpp
+// https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
+// https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/mlir/Dialect.cpp
 struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
@@ -643,16 +661,36 @@ struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
                   mlir::PatternRewriter &rewriter) const override {
     // Look through the input of the current transpose.
     Optional<mlir::Value> optionalfn = op.fnValue();
-    if (optionalfn) {
-        mlir::Value fn = *optionalfn;
-        ApSSAOp defn = fn.getDefiningOp<ApSSAOp>();
-        llvm::errs() << "found suitable op: |"  << op << " | fnval: " << fn << "\n";
-        if (defn) {
-            llvm::errs() << "***suitable op is fn! [" << defn << "]\n";
-        }
-
-        assert(false);
+    if (!optionalfn) {
+        llvm::errs() << "no match: |" << op << "|\n";
+        return failure();
     }
+
+    mlir::Value fn = *optionalfn;
+    ApSSAOp fn_as_apOp = fn.getDefiningOp<ApSSAOp>();
+    if (!fn_as_apOp) { 
+        llvm::errs() << "no match: |" << op << "|\n";
+        return failure();
+    }
+
+    llvm::errs() << "found suitable op: |"  << op << " | fn_as_apOp: " << fn_as_apOp << "\n";
+    SmallVector<Value, 4> args;
+    // we have all args.
+    for(int i = 0; i < fn_as_apOp.getNumFnArguments(); ++i) {
+        args.push_back(fn_as_apOp.getFnArgument(i));
+    }
+    for(int i  = 0; i < op.getNumFnArguments(); ++i) {
+        args.push_back(op.getFnArgument(i));
+    }
+
+    if (Optional<Value> fncall = fn_as_apOp.fnValue()) {
+        rewriter.replaceOpWithNewOp<ApSSAOp>(op, fncall.getValue(), args);
+    } else {
+        assert(fn_as_apOp.fnSymbolicAttr().hasValue() && "we must have symbol if we don't have Value");
+        rewriter.replaceOpWithNewOp<ApSSAOp>(op, fn_as_apOp.fnSymbolicAttr().getValue(), args);
+    }
+    // assert(false);
+    
 
     // mlir::Value fn = op.getFn();
     // assert(false);

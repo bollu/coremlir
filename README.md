@@ -1298,3 +1298,79 @@ module {
         ^bb0(%arg1: !hask.untyped):  // no predecessors
           %5 = hask.apSSA(%5,hask-opt: /home/bollu/work/mlir/llvm-project/mlir/lib/IR/Value.cpp:22: mlir::Value::Value(mlir::Operation*, unsigned int): Assertion `op->getNumResults() > resultNo && "invalid result number"' failed.
 ```
+
+- Had to add builder for `ApSSAOp`:
+
+```cpp
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    Value fn, SmallVectorImpl<Value> params);
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    FlatSymbolRefAttr fn, SmallVectorImpl<Value> params);
+```
+
+- I find it interesting that the builder API is specified entirely through
+  mutation of the `OperationState`. I would love to have discussions
+  with the folks who designed this API to undertand their ideas for why
+  they did it this way.
+
+- The API is getting fugly, because everywhere this dichotomy between having a `Value`
+  and having a `SymbolRef` keeps showing up. Is it really this complicated? Mh.
+
+- In LLVM, a `Function` is a `GlobalObject` is a `GlobalValue` is a `Constant` is a
+  `User` which is a `Value`: https://llvm.org/doxygen/classllvm_1_1Function.html
+- The reason it's able to break SSA is embedded in `Verifier`:https://github.com/llvm/llvm-project/blob/master/llvm/lib/IR/Verifier.cpp
+- We only check that an instruction dominates all of its uses _of other instructions_:
+  https://github.com/llvm/llvm-project/blob/master/llvm/lib/IR/Verifier.cpp#L4147;
+  https://github.com/llvm/llvm-project/blob/master/llvm/lib/IR/Verifier.cpp#L4292
+
+```cpp
+...
+// https://github.com/llvm/llvm-project/blob/master/llvm/lib/IR/Verifier.cpp#L4147
+void Verifier::verifyDominatesUse(Instruction &I, unsigned i) {
+  Instruction *Op = cast<Instruction>(I.getOperand(i));
+  ...
+  if (!isa<PHINode>(I) && InstsInThisBlock.count(Op))
+    return;
+  ...
+  const Use &U = I.getOperandUse(i);
+  Assert(DT.dominates(Op, U),
+         "Instruction does not dominate all uses!", Op, &I);
+}
+...
+// https://github.com/llvm/llvm-project/blob/master/llvm/lib/IR/Verifier.cpp#L4292
+} else if (isa<Instruction>(I.getOperand(i))) {
+  verifyDominatesUse(I, i);
+} 
+
+```
+
+- On the other hand, if the instruction has a use of a _function_, then we check
+  other (unrelated) properties:
+
+```cpp
+    if (Function *F = dyn_cast<Function>(I.getOperand(i))) {
+      // Check to make sure that the "address of" an intrinsic function is never
+      // taken.
+      Assert(!F->isIntrinsic() ||
+                 (CBI && &CBI->getCalledOperandUse() == &I.getOperandUse(i)),
+             "Cannot take the address of an intrinsic!", &I);
+      Assert(
+          !F->isIntrinsic() || isa<CallInst>(I) ||
+              F->getIntrinsicID() == Intrinsic::donothing ||
+              F->getIntrinsicID() == Intrinsic::coro_resume ||
+              F->getIntrinsicID() == Intrinsic::coro_destroy ||
+              F->getIntrinsicID() == Intrinsic::experimental_patchpoint_void ||
+              F->getIntrinsicID() == Intrinsic::experimental_patchpoint_i64 ||
+              F->getIntrinsicID() == Intrinsic::experimental_gc_statepoint ||
+              F->getIntrinsicID() == Intrinsic::wasm_rethrow_in_catch,
+          "Cannot invoke an intrinsic other than donothing, patchpoint, "
+          "statepoint, coro_resume or coro_destroy",
+          &I);
+      Assert(F->getParent() == &M, "Referencing function in another module!",
+             &I, &M, F, F->getParent());
+    } else if (BasicBlock *OpBB = dyn_cast<BasicBlock>(I.getOperand(i))) {
+```
+
+- So really, LLVM had a sort of *exception* for functions. Or, rather, it's
+  notion of SSA was strictly for *instructions*, not for *all Ops* 
+  (Ops in the MLIR sense of the word).

@@ -195,6 +195,12 @@ public:
   void print(OpAsmPrinter &p);
   static void getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context);
+
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    Value fn, SmallVectorImpl<Value> &params);
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    FlatSymbolRefAttr fn, SmallVectorImpl<Value> &params);
+
 };
 
 class CaseSSAOp : public Op<CaseSSAOp, OpTrait::OneResult> {
