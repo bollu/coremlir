@@ -1423,6 +1423,8 @@ module {
 
 
 - Good reference to learn how to deal with symbols, the inliner: https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/lib/Transforms/Inliner.cpp
+- InliningUtils that contains the actually useful function `inlineCall`:
+  https://github.com/llvm/llvm-project/blob/22219cfc6a2a752c53238df4ceea342672392818/mlir/lib/Transforms/Utils/InliningUtils.cpp
 - List of passes in MLIR: https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/include/mlir/Transforms/Passes.h 
 
 - After CSE, we get the code:
