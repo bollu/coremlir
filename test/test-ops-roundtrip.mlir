@@ -1,21 +1,26 @@
 
 
 module {
-  %0 = hask.module {
-    %1 = hask.make_data_constructor<"I#">
-    %2 = hask.make_data_constructor<"GHC.Num.+">
-    %3 = hask.make_data_constructor<"GHC.Num.-">
-    %4 = hask.make_data_constructor<"GHC.Num.$fNumInt">
-    %5 = hask.toplevel_binding {
+  hask.module {
+    %0 = hask.make_data_constructor<"I#">
+    %1 = hask.make_data_constructor<"GHC.Num.+">
+    %2 = hask.make_data_constructor<"GHC.Num.-">
+    %3 = hask.make_data_constructor<"GHC.Num.$fNumInt">
+    hask.func @fib {
       hask.lambda(%arg0) {
-        %7 = hask.caseSSA %arg0 ["default" ->  {
+        %4 = hask.apSSA(@fib, %arg0)
+        %5 = hask.caseSSA %arg0 ["default" ->  {
         ^bb0(%arg1: none):  // no predecessors
           hask.return(%arg0)
         }]
 
-        hask.return(%7)
+        hask.return(%5)
       }
     }
-    %6 = hask.dummy_finish
+    hask.func @function {
+      %4 = hask.make_i32(1 : i64)
+      hask.return(%4)
+    }
+    hask.dummy_finish
   }
 }

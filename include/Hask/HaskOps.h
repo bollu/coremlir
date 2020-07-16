@@ -187,9 +187,9 @@ public:
   int getNumFnArguments() { return getOperation()->getNumOperands()-1; }
   Value getFnArgument(int i) { return getOperation()->getOperand(1+i); }
   */
-  Optional<StringAttr> fnSymbolicAttr();
-  // Optional<Value> fnValue();
-  Value getFn();
+  // return true if the fn is symbolic.
+  Optional<FlatSymbolRefAttr> fnSymbolicAttr();
+  Optional<Value> fnValue();
   int getNumFnArguments();
   Value getFnArgument(int i);
   void print(OpAsmPrinter &p);

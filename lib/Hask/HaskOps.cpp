@@ -328,9 +328,13 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     if (parser.parseLParen()) { return failure(); }
     
     StringAttr nameAttr;
+    // parser.parseAttribute
     if (succeeded(parser.parseOptionalSymbolName(nameAttr,
         ::mlir::SymbolTable::getSymbolAttrName(),
         result.attributes))) {
+        SymbolRefAttr attr = SymbolRefAttr::get(nameAttr.getValue(), parser.getBuilder().getContext());
+        
+
         // success; nothing to do.
     }
     else if(succeeded(parser.parseOperand(op_fn))) { 
@@ -354,28 +358,36 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     return success();
 };
 
-Optional<StringAttr> ApSSAOp::fnSymbolicAttr() {
+Optional<FlatSymbolRefAttr> ApSSAOp::fnSymbolicAttr() {
     StringAttr attr_name = this->getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName());
-    if (attr_name) { return attr_name; }
-    return Optional<StringAttr>();
+    if (attr_name) { return SymbolRefAttr::get(attr_name.getValue(), this->getContext()); }
+    return Optional<FlatSymbolRefAttr>();
 };
 
-Value ApSSAOp::getFn() {
-    Optional<StringAttr> attr_name = this->fnSymbolicAttr();
-    if (attr_name) {
-
+Optional<Value> ApSSAOp::fnValue() {
+    if ( this->fnSymbolicAttr()) {
+        return Optional<Value>();        
     }
+    return this->getOperation()->getOperand(0);
 };
-int ApSSAOp::getNumFnArguments() {};
-Value ApSSAOp::getFnArgument(int i) {};
+
+int ApSSAOp::getNumFnArguments() {
+    if(fnValue()) { return this->getOperation()->getNumOperands() - 1; }
+    return this->getOperation()->getNumOperands();
+};
+
+Value ApSSAOp::getFnArgument(int i) {
+    if(fnValue()) { return this->getOperation()->getOperand(i + 1); }
+    return this->getOperation()->getOperand(i);
+};
 
 void ApSSAOp::print(OpAsmPrinter &p) {
     p << "hask.apSSA(";
 
     // TODO: propose actually strongly typing this?This is just sick.
+    SymbolRefAttr attr = this->getAttrOfType<SymbolRefAttr>(::mlir::SymbolTable::getSymbolAttrName());
     StringAttr attr_name = this->getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName());
     if (attr_name) { p.printSymbolName(attr_name.getValue()); }
-    
     for(int i = 0; i < this->getOperation()->getNumOperands(); ++i) {
         if (i > 0 || (i == 0 && attr_name)) { p << ", "; }
         p.printOperand(this->getOperation()->getOperand(i));
@@ -630,8 +642,20 @@ struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
   matchAndRewrite(ApSSAOp op,
                   mlir::PatternRewriter &rewriter) const override {
     // Look through the input of the current transpose.
-    mlir::Value fn = op.getFn();
-    assert(false);
+    Optional<mlir::Value> optionalfn = op.fnValue();
+    if (optionalfn) {
+        mlir::Value fn = *optionalfn;
+        ApSSAOp defn = fn.getDefiningOp<ApSSAOp>();
+        llvm::errs() << "found suitable op: |"  << op << " | fnval: " << fn << "\n";
+        if (defn) {
+            llvm::errs() << "***suitable op is fn! [" << defn << "]\n";
+        }
+
+        assert(false);
+    }
+
+    // mlir::Value fn = op.getFn();
+    // assert(false);
 
     // mlir::Value transposeInput = op.getOperand();
     // ApSSAOp transposeInputOp = transposeInput.getDefiningOp<ApSSAOp>();

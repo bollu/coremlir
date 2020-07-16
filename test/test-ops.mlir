@@ -10,8 +10,9 @@ hask.module {
 
 // The syntax that I encoded into the parser
 // %fib :: Int -> Int
-%fib = hask.toplevel_binding {  
+hask.func @fib {  
   hask.lambda (%i) {
+        %f = hask.apSSA(@fib, %i)
     	%x = hask.caseSSA  %i
     		[ "default" -> { ^entry(%wild: none): hask.return (%i) }]
     	hask.return(%x)
