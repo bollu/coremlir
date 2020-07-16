@@ -10,6 +10,8 @@
 #define STANDALONE_STANDALONEDIALECT_H
 
 #include "mlir/IR/Dialect.h"
+#include "mlir/Pass/Pass.h"
+
 
 namespace mlir {
 namespace standalone {
@@ -39,7 +41,8 @@ public:
   static UntypedType get(MLIRContext *context) { return Base::get(context, HaskTypes::Types::Untyped); } 
 };
 
-// =SATURATE AP= 
+// lower hask to standard
+std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass();
 
 } // namespace standalone
 } // namespace mlir

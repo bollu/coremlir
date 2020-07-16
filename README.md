@@ -1471,3 +1471,138 @@ module {
 
 - Started thinking of how to lower to LLVM. There's a huge problem: I don't know the type of `fib`. Now what? `:(`.
   For now, I can of course assume that all parameters are `i32`. This is, naturally, not scalable.
+
+# Thursday, 17th July 2020
+
+- Of course the MLIR-LLVM dialect does not have switch case: https://reviews.llvm.org/D75433.
+- I guess I should reduce my code to `scf` then? it's pretty unclear to me
+  what the expectation is.
+- Alternatively, I just emit a bunch of `cmp`s. This is really really annoying.
+  Fuck it, SCF it is.
+- First I work on lowering `hask.fib` and `hask.func` to standard, then
+  I lower case to `SCF` with its if-then-else support. 
+- If this mix of standard-and-SCF works, that will be great!
+
+```cpp
+/// This class provides a CRTP wrapper around a base pass class to define
+/// several necessary utility methods. This should only be used for passes that
+/// are not suitably represented using the declarative pass specification(i.e.
+/// tablegen backend).
+template <typename PassT, typename BaseT> class PassWrapper : public BaseT {
+public:
+  /// Support isa/dyn_cast functionality for the derived pass class.
+  static bool classof(const Pass *pass) {
+    return pass->getTypeID() == TypeID::get<PassT>();
+  }
+
+protected:
+  PassWrapper() : BaseT(TypeID::get<PassT>()) {}
+
+  /// Returns the derived pass name.
+  StringRef getName() const override { return llvm::getTypeName<PassT>(); }
+
+  /// A clone method to create a copy of this pass.
+  std::unique_ptr<Pass> clonePass() const override {
+    return std::make_unique<PassT>(*static_cast<const PassT *>(this));
+  }
+};
+```
+
+Why do we need a `PassWrapper`? whatever. I defined my own pass as:
+
+```cpp
+namespace {
+struct LowerHaskToStandardPass
+    : public PassWrapper<LowerHaskToStandardPass, OperationPass<ModuleOp>> {
+  void runOnOperation();
+};
+} // end anonymous namespace.
+void LowerHaskToStandardPass::runOnOperation() {
+  this->getOperation();
+  assert(false && "running lower hask pass");
+}
+std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass() {
+  return std::make_unique<LowerHaskToStandardPass>();
+}
+```
+
+which of course, greets me with the delightful error:
+
+```
+Module (no optimization):hask-opt: /home/bollu/work/mlir/llvm-project/mlir/lib/Pass/Pass.cpp:275:
+mlir::OpPassManager::OpPassManager(mlir::OperationName, bool):
+Assertion `name.getAbstractOperation()->hasProperty( OperationProperty::IsolatedFromAbove) &&
+"OpPassManager only supports operating on operations marked as " "'IsolatedFromAbove'"' failed.
+Aborted (core dumped)
+../build/bin/hask-opt ./fib-strict-roundtrip.mlir
+Module (no optimization):
+
+module {
+}hask-opt: /home/bollu/work/mlir/llvm-project/mlir/lib/Pass/Pass.cpp:275:
+mlir::OpPassManager::OpPassManager(mlir::OperationName, bool):
+Assertion `name.getAbstractOperation()->hasProperty( OperationProperty::IsolatedFromAbove) &&
+"OpPassManager only supports operating on operations marked as " "'IsolatedFromAbove'"' failed.
+```
+
+- Now I need to read what `IsolatedFromAbove` is. IIRC, it can't
+  use values that are defined outside/ above it in terms of depth?
+
+The MLIR docs say:
+> Passes are expected to not modify operations at or above the current
+> operation being processed.
+> If the operation is not isolated,
+> it may inadvertently
+> modify the use-list of an operation it is not supposed to modify.
+
+- Indeed, the question is precisely _what_ and _why_ am I "not supposed to modify".
+- So I made the `ModuleOp` `IsolatedFromAbove`.
+- I now realise that I'm confused. I need to change both my functions from `hask.func` to the regular `std.func`
+  while simultaneously changing my call instructions from `apSSA` to `std.call`.
+  So the IR in between will be illegal [indeed, "nonsensical"]?
+  We shall see how this goes.
+
+- OK, I see, so we are expected to replace the _root_ operation in a conversion pass. 
+  So this:
+
+```cpp
+namespace {
+struct LowerHaskToStandardPass
+    : public PassWrapper<LowerHaskToStandardPass, OperationPass<ModuleOp>> {
+  void runOnOperation();
+};
+} // end anonymous namespace.
+
+void LowerHaskToStandardPass::runOnOperation() {
+    ConversionTarget target(getContext());
+  OwningRewritePatternList patterns;
+  patterns.insert<HaskFuncOpLowering>(&getContext());
+  patterns.insert<HaskApSSAOpLowering>(&getContext());
+
+  if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    llvm::errs() << "fn\nvvvv\n";
+    getOperation().dump() ;
+    llvm::errs() << "\n^^^^^\n";
+    signalPassFailure();
+    assert(false);
+  }
+```
+dies with:
+
+```
+Module (no optimization):Module: lowering to standard+SCF...hask-opt:
+/home/bollu/work/mlir/llvm-project/mlir/lib/Transforms/DialectConversion.cpp:1504:
+mlir::LogicalResult
+  {anonymous}::OperationLegalizer
+  ::legalizePatternResult(mlir::Operation*,
+      const mlir::RewritePattern&,
+      mlir::ConversionPatternRewriter&,
+      {anonymous}::RewriterState&):
+  Assertion `(replacedRoot || updatedRootInPlace()) &&
+  "expected pattern to replace the root operation"' failed.
+```
+
+So it appears that in a `ModuleOp`, I _must_ replace a module. So I guess
+the "correct" thing to do is to have _separate_ conversion passes for 
+each of my `HaskFuncOpLowering`, `HaskApSSAOpLowering`? I really don't
+understand what the hell the invariants are.

@@ -24,6 +24,9 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 
+// dilect lowering
+#include "mlir/Transforms/DialectConversion.h"
+
 
 
 namespace mlir {
@@ -702,6 +705,106 @@ struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
 void ApSSAOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
   results.insert<UncurryApplication>(context);
+}
+
+// === LOWERING ===
+// === LOWERING ===
+
+class HaskFuncOpLowering : public ConversionPattern {
+public:
+  explicit HaskFuncOpLowering(MLIRContext *context)
+      : ConversionPattern(FuncOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    return success();
+  }
+};
+
+class HaskApSSAOpLowering : public ConversionPattern {
+public:
+  explicit HaskApSSAOpLowering(MLIRContext *context)
+      : ConversionPattern(ApSSAOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    return success();
+  }
+};
+
+
+// === LowerHaskToStandardPass === 
+// === LowerHaskToStandardPass === 
+// === LowerHaskToStandardPass === 
+// === LowerHaskToStandardPass === 
+// === LowerHaskToStandardPass === 
+
+namespace {
+struct LowerHaskToStandardPass
+    : public PassWrapper<LowerHaskToStandardPass, OperationPass<ModuleOp>> {
+  void runOnOperation();
+};
+} // end anonymous namespace.
+
+void LowerHaskToStandardPass::runOnOperation() {
+    ConversionTarget target(getContext());
+  OwningRewritePatternList patterns;
+  patterns.insert<HaskFuncOpLowering>(&getContext());
+  patterns.insert<HaskApSSAOpLowering>(&getContext());
+
+  if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    llvm::errs() << "fn\nvvvv\n";
+    getOperation().dump() ;
+    llvm::errs() << "\n^^^^^\n";
+    signalPassFailure();
+    assert(false);
+  }
+
+
+//   assert(false && "running lower hask pass");
+  return;
+
+  //   auto function = getFunction();
+
+  // The first thing to define is the conversion target. This will define the
+  // final target for this lowering.
+  //0 ConversionTarget target(getContext());
+
+  // We define the specific operations, or dialects, that are legal targets for
+  // this lowering. In our case, we are lowering to a combination of the
+  // `Affine` and `Standard` dialects.
+  //0 target.addLegalDialect<LeanDialect, StandardOpsDialect>();
+
+  // We also define the Toy dialect as Illegal so that the conversion will fail
+  // if any of these operations are *not* converted. Given that we actually want
+  // a partial lowering, we explicitly mark the Toy operations that don't want
+  // to lower, `toy.print`, as `legal`.
+  // target.addIllegalDialect<LeanDialect>();
+  // target.addLegalOp<PrintUnboxedIntOp>();
+  //0 target.addIllegalOp<PrintUnboxedIntOp>();
+
+  // Now that the conversion target has been defined, we just need to provide
+  // the set of patterns that will lower the Toy operations.
+  //0 OwningRewritePatternList patterns;
+  //0 patterns.insert<PrintOpLowering>(&getContext());
+
+  // With the target and rewrite patterns defined, we can now attempt the
+  // conversion. The conversion will signal failure if any of our `illegal`
+  // operations were not converted successfully.
+  //0 if (failed(applyPartialConversion(getFunction(), target, patterns))) {
+  //0   llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+  //0   llvm::errs() << "fn\nvvvv\n";
+  //0   getFunction().dump() ;
+  //0   llvm::errs() << "\n^^^^^\n";
+  //0   signalPassFailure();
+  //0 }
+}
+
+std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass() {
+  return std::make_unique<LowerHaskToStandardPass>();
 }
 
 

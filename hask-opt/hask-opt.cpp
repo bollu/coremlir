@@ -154,13 +154,44 @@ int main(int argc, char **argv) {
   // Lowering code to standard (?) Do I even need to (?)
   // Can I directly generate LLVM?
 
+  // lowering code to Standard/SCF
+  {
+    mlir::PassManager pm(&context);
+    pm.addPass(mlir::standalone::createLowerHaskToStandardPass());
+    llvm::errs() << "Module: lowering to standard+SCF...";
+    if (mlir::failed(pm.run(*module))) {
+      llvm::errs() << "Lowering failed.\n";
+      return 4;
+    }
+    llvm::errs() << "success!\n";
+  }
+
+  llvm::errs() << "Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << ", lowered to Standard+SCF:\n";
+  module->print(llvm::outs());
+
+
+  /*
   // Lowering code to LLVM
-  mlir::ConversionTarget target(context);
-  target.addLegalDialect<mlir::LLVM::LLVMDialect>();
-  // target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
-  target.addLegalOp<mlir::standalone::ModuleOp, mlir::standalone::DummyFinishOp>();
-  mlir::LLVMTypeConverter typeConverter(&context);
-  mlir::OwningRewritePatternList patterns;
+  {
+    mlir::ConversionTarget target(context);
+    target.addLegalDialect<mlir::LLVM::LLVMDialect>();
+    // target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
+    target.addLegalOp<mlir::standalone::ModuleOp, mlir::standalone::DummyFinishOp>();
+    mlir::LLVMTypeConverter typeConverter(&context);
+    mlir::OwningRewritePatternList patterns;
+    mlir::PassManager pm(&context);
+    // pm.addPass(mlir::standalone::createLowerApSSAPass());
+
+    llvm::errs() << "Module: lowering to MLIR-LLVM....";
+    if (mlir::failed(pm.run(*module))) {
+      llvm::errs() << "Unable to lower module\n "; return 4;
+    } else {
+      llvm::errs() << "Success!";
+    }
+  }*/
+
+  // llvm::errs() << "Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << " " << "lowered: ";
+  // module->print(llvm::outs());
 
   return 0;
 }

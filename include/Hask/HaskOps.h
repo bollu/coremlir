@@ -144,7 +144,7 @@ public:
 };
 
 
-class ModuleOp : public Op<ModuleOp, OpTrait::ZeroResult, OpTrait::OneRegion, OpTrait::SymbolTable> {
+class ModuleOp : public Op<ModuleOp, OpTrait::ZeroResult, OpTrait::OneRegion, OpTrait::SymbolTable, OpTrait::IsIsolatedFromAbove> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.module"; };
