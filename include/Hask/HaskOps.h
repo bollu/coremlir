@@ -176,7 +176,7 @@ public:
 
 };
 
-class ApSSAOp : public Op<ApSSAOp, OpTrait::OneResult> {
+class ApSSAOp : public Op<ApSSAOp, OpTrait::OneResult, MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.apSSA"; };
@@ -201,6 +201,8 @@ public:
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     FlatSymbolRefAttr fn, SmallVectorImpl<Value> &params);
 
+  // no side effects
+  void getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>> &effects) {}
 };
 
 class CaseSSAOp : public Op<CaseSSAOp, OpTrait::OneResult> {
