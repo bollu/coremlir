@@ -734,6 +734,23 @@ public:
   }
 };
 
+class ModuleOpLowering : public ConversionPattern {
+public:
+  explicit ModuleOpLowering(MLIRContext *context)
+      : ConversionPattern(ApSSAOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    // mlir::ModuleOp mod = rewriter.create<mlir::ModuleOp>(op->getLoc());
+    rewriter.replaceOpWithNewOp<mlir::ModuleOp>(op);
+
+    return success();
+  }
+};
+
+
 
 // === LowerHaskToStandardPass === 
 // === LowerHaskToStandardPass === 
@@ -751,9 +768,11 @@ struct LowerHaskToStandardPass
 void LowerHaskToStandardPass::runOnOperation() {
     ConversionTarget target(getContext());
   OwningRewritePatternList patterns;
-  patterns.insert<HaskFuncOpLowering>(&getContext());
-  patterns.insert<HaskApSSAOpLowering>(&getContext());
+  //   patterns.insert<HaskFuncOpLowering>(&getContext());
+  //   patterns.insert<HaskApSSAOpLowering>(&getContext());
+  patterns.insert<ModuleOpLowering>(&getContext()); 
 
+  
   if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
     llvm::errs() << "fn\nvvvv\n";

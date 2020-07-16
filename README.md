@@ -1605,4 +1605,47 @@ mlir::LogicalResult
 So it appears that in a `ModuleOp`, I _must_ replace a module. So I guess
 the "correct" thing to do is to have _separate_ conversion passes for 
 each of my `HaskFuncOpLowering`, `HaskApSSAOpLowering`? I really don't
-understand what the hell the invariants are.
+understand what the hell the invariants
+
+- What is the rationale of `ConversionPattern : RewritePattern`? What new
+  powers does `ConversionPattern` confer on me? `:(` I am generally sad panda
+  because I have no idea why I need this tower of abstraction, it's not
+  well motivated.
+
+- Ookay, so I decided to replace my module with Standard. It dies with:
+```
+Module (no optimization):Module: lowering to standard+SCF...
+hask-opt: /home/bollu/work/mlir/llvm-project/mlir/lib/IR/PatternMatch.cpp:142:
+void mlir::PatternRewriter::replaceOpWithResultsOfAnotherOp(mlir::Operation*, mlir::Operation*):
+Assertion `op->getNumResults() == newOp->getNumResults() &&
+"replacement op doesn't match results of original op"' failed.
+```
+
+But that's ludicrous! 
+
+```cpp
+
+
+class ModuleOp : public Op<ModuleOp, OpTrait::ZeroResult, OpTrait::OneRegion, OpTrait::SymbolTable, OpTrait::IsIsolatedFromAbove> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.module"; };
+  ...
+};
+```
+
+```cpp
+class ModuleOp
+    : public Op<
+          ModuleOp, OpTrait::ZeroOperands, OpTrait::ZeroResult,
+          OpTrait::IsIsolatedFromAbove, OpTrait::AffineScope,
+          OpTrait::SymbolTable,
+          OpTrait::SingleBlockImplicitTerminator<ModuleTerminatorOp>::Impl,
+          SymbolOpInterface::Trait> {
+public:
+  using Op::Op;
+  using Op::print;
+  static StringRef getOperationName() { return "module"; }
+```
+
+- Both of these have zero results! What drugs is it on?
