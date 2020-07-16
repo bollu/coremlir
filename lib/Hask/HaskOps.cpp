@@ -358,16 +358,14 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     return success();
 };
 
-Optional<FlatSymbolRefAttr> ApSSAOp::fnSymbolicAttr() {
+FlatSymbolRefAttr ApSSAOp::fnSymbolicAttr() {
     StringAttr attr_name = this->getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName());
     if (attr_name) { return SymbolRefAttr::get(attr_name.getValue(), this->getContext()); }
-    return Optional<FlatSymbolRefAttr>();
+    return FlatSymbolRefAttr();
 };
 
-Optional<Value> ApSSAOp::fnValue() {
-    if ( this->fnSymbolicAttr()) {
-        return Optional<Value>();        
-    }
+Value ApSSAOp::fnValue() {
+    if (this->fnSymbolicAttr()) { return Value(); }
     return this->getOperation()->getOperand(0);
 };
 
@@ -385,11 +383,10 @@ void ApSSAOp::print(OpAsmPrinter &p) {
     p << "hask.apSSA(";
 
     // TODO: propose actually strongly typing this?This is just sick.
-    SymbolRefAttr attr = this->getAttrOfType<SymbolRefAttr>(::mlir::SymbolTable::getSymbolAttrName());
-    StringAttr attr_name = this->getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName());
-    if (attr_name) { p.printSymbolName(attr_name.getValue()); }
+    SymbolRefAttr fnSymbolic = fnSymbolicAttr();
+    if (fnSymbolic) { p << fnSymbolic; }
     for(int i = 0; i < this->getOperation()->getNumOperands(); ++i) {
-        if (i > 0 || (i == 0 && attr_name)) { p << ", "; }
+        if (i > 0 || (i == 0 && fnSymbolic)) { p << ", "; }
         p.printOperand(this->getOperation()->getOperand(i));
     }
     p << ")";
@@ -656,54 +653,48 @@ struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
   /// This method is attempting to match a pattern and rewrite it. The rewriter
   /// argument is the orchestrator of the sequence of rewrites. It is expected
   /// to interact with it to perform any changes to the IR from here.
+  /// rewrite:
+  ///   %fn_b = apSSA(%fn_a, var_a)
+  ///   %out = apSSA(%fn_b, var_b) <- this is our instruction
+  /// into:
+  ///   %out = apSSA(%fn_a, var_a, var_b)
+  /// ie rewrite:
+  ///   %out = (fn_a var_a) var_b
+  /// into:
+  ///   %out fn_a (var_a, var_b)
   mlir::LogicalResult
-  matchAndRewrite(ApSSAOp op,
+  matchAndRewrite(ApSSAOp out,
                   mlir::PatternRewriter &rewriter) const override {
-    // Look through the input of the current transpose.
-    Optional<mlir::Value> optionalfn = op.fnValue();
-    if (!optionalfn) {
-        llvm::errs() << "no match: |" << op << "|\n";
+
+    
+    Value fn_b = out.fnValue();
+    if (!fn_b) {
+        llvm::errs() << "no match: |" << out << "|\n";
         return failure();
     }
 
-    mlir::Value fn = *optionalfn;
-    ApSSAOp fn_as_apOp = fn.getDefiningOp<ApSSAOp>();
-    if (!fn_as_apOp) { 
-        llvm::errs() << "no match: |" << op << "|\n";
+    ApSSAOp fn_b_op = fn_b.getDefiningOp<ApSSAOp>();
+    if (!fn_b_op) { 
+        llvm::errs() << "no match: |" << out << "|\n";
         return failure();
     }
 
-    llvm::errs() << "found suitable op: |"  << op << " | fn_as_apOp: " << fn_as_apOp << "\n";
+    llvm::errs() << "found suitable op: |"  << out << " | fn_as_apOp: " << fn_b_op << "\n";
     SmallVector<Value, 4> args;
     // we have all args.
-    for(int i = 0; i < fn_as_apOp.getNumFnArguments(); ++i) {
-        args.push_back(fn_as_apOp.getFnArgument(i));
+    for(int i = 0; i < fn_b_op.getNumFnArguments(); ++i) {
+        args.push_back(fn_b_op.getFnArgument(i));
     }
-    for(int i  = 0; i < op.getNumFnArguments(); ++i) {
-        args.push_back(op.getFnArgument(i));
+    for(int i  = 0; i < out.getNumFnArguments(); ++i) {
+        args.push_back(out.getFnArgument(i));
     }
 
-    if (Optional<Value> fncall = fn_as_apOp.fnValue()) {
-        rewriter.replaceOpWithNewOp<ApSSAOp>(op, fncall.getValue(), args);
+    if (Value fncall = fn_b_op.fnValue()) {
+        rewriter.replaceOpWithNewOp<ApSSAOp>(out, fncall, args);
     } else {
-        assert(fn_as_apOp.fnSymbolicAttr().hasValue() && "we must have symbol if we don't have Value");
-        rewriter.replaceOpWithNewOp<ApSSAOp>(op, fn_as_apOp.fnSymbolicAttr().getValue(), args);
+        assert(fn_b_op.fnSymbolicAttr() && "we must have symbol if we don't have Value");
+        rewriter.replaceOpWithNewOp<ApSSAOp>(out, fn_b_op.fnSymbolicAttr(), args);
     }
-    // assert(false);
-    
-
-    // mlir::Value fn = op.getFn();
-    // assert(false);
-
-    // mlir::Value transposeInput = op.getOperand();
-    // ApSSAOp transposeInputOp = transposeInput.getDefiningOp<ApSSAOp>();
-    // Input defined by another transpose? If not, no match.
-    // if (!transposeInputOp)
-    //   return failure();
-
-    // Otherwise, we have a redundant transpose. Use the rewriter.
-    // rewriter.replaceOp(op, {transposeInputOp.getOperand()});
-    // assert(false && "UncurryApplication::matchAndRewrite called");
     return failure();
   }
 };

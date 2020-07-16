@@ -188,8 +188,8 @@ public:
   Value getFnArgument(int i) { return getOperation()->getOperand(1+i); }
   */
   // return true if the fn is symbolic.
-  Optional<FlatSymbolRefAttr> fnSymbolicAttr();
-  Optional<Value> fnValue();
+  FlatSymbolRefAttr fnSymbolicAttr();
+  Value fnValue();
   int getNumFnArguments();
   Value getFnArgument(int i);
   void print(OpAsmPrinter &p);
