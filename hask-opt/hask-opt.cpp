@@ -19,6 +19,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Module.h"
@@ -26,12 +27,20 @@
 #include "mlir/Parser.h"
 #include "mlir/Transforms/Passes.h"
 
+
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "Hask/HaskDialect.h"
+#include "Hask/HaskOps.h"
+
+
+// conversion
+// https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch6/toyc.cpp
+#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
@@ -141,6 +150,17 @@ int main(int argc, char **argv) {
   }
   llvm::errs() << "Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << ":";
   module->print(llvm::outs());
+
+  // Lowering code to standard (?) Do I even need to (?)
+  // Can I directly generate LLVM?
+
+  // Lowering code to LLVM
+  mlir::ConversionTarget target(context);
+  target.addLegalDialect<mlir::LLVM::LLVMDialect>();
+  // target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
+  target.addLegalOp<mlir::standalone::ModuleOp, mlir::standalone::DummyFinishOp>();
+  mlir::LLVMTypeConverter typeConverter(&context);
+  mlir::OwningRewritePatternList patterns;
 
   return 0;
 }
