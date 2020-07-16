@@ -1466,3 +1466,6 @@ module {
 
 - We now need to lower `force(apSSA(...))` and `apSSA(+#, … )`, `apSSA(-#, … )`,
   and `make_i32`. Time to learn the lowering infrastructure properly.
+
+- Started thinking of how to lower to LLVM. There's a huge problem: I don't know the type of `fib`. Now what? `:(`.
+  For now, I can of course assume that all parameters are `i32`. This is, naturally, not scalable.
