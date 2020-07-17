@@ -154,6 +154,7 @@ int main(int argc, char **argv) {
   // Lowering code to standard (?) Do I even need to (?)
   // Can I directly generate LLVM?
 
+  
   // lowering code to Standard/SCF
   {
     mlir::PassManager pm(&context);
@@ -166,9 +167,11 @@ int main(int argc, char **argv) {
     llvm::errs() << "success!\n";
   }
 
+  llvm::errs() << "vvvvvvvvvvvvvvvvvvvvvvvvvvvv\n"; 
   llvm::errs() << "Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << ", lowered to Standard+SCF:\n";
   module->print(llvm::outs());
-
+  llvm::errs() << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"; 
+  
 
   /*
   // Lowering code to LLVM

@@ -737,14 +737,17 @@ public:
 class ModuleOpLowering : public ConversionPattern {
 public:
   explicit ModuleOpLowering(MLIRContext *context)
-      : ConversionPattern(ApSSAOp::getOperationName(), 1, context) {}
+      : ConversionPattern(ModuleOp::getOperationName(), 1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
 
     // mlir::ModuleOp mod = rewriter.create<mlir::ModuleOp>(op->getLoc());
+    // llvm::errs() << "\n||op->numResults: " << op->getNumResults() << "[op]: " << *op << "\n||mod->numResults: " << mod.getOperation()->getNumResults() << "\n";
     rewriter.replaceOpWithNewOp<mlir::ModuleOp>(op);
+    
+    // assert(false);
 
     return success();
   }
