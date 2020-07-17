@@ -1776,3 +1776,5 @@ module {
 ```
 
 - I have no fucking clue WTF is happening `:(`
+- Right, I built an `ApSSAOp` which I can't use because it's not `IsolatedFromAbove`. OK, I really don't understand
+  the semantics of lowering.

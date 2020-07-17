@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
   // lowering code to Standard/SCF
   {
     mlir::PassManager pm(&context);
-    pm.addPass(mlir::standalone::createLowerHaskToStandardPass());
+    pm.addPass(mlir::standalone::createHaskSSAOpLowering());
     llvm::errs() << "Module: lowering to standard+SCF...";
     if (mlir::failed(pm.run(*module))) {
       llvm::errs() << "Lowering failed.\n";

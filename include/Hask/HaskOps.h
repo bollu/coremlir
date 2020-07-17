@@ -13,7 +13,6 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 
-
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/RegionKindInterface.h"
@@ -23,7 +22,8 @@
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/DerivedAttributeOpInterface.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
-#include "mlir/Interfaces/SideEffectInterfaces.h"
+
+#include "mlir/Pass/Pass.h"
 
 
 namespace mlir {
@@ -288,6 +288,10 @@ public:
   Value getScrutinee() { this->getOperation()->getOperand(0); }
   void print(OpAsmPrinter &p);
 };
+
+// lower hask to standard
+std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass();
+std::unique_ptr<mlir::Pass> createHaskSSAOpLowering();
 
 
 } // namespace standalone

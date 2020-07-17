@@ -710,9 +710,9 @@ void ApSSAOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 // === LOWERING ===
 // === LOWERING ===
 
-class HaskFuncOpLowering : public ConversionPattern {
+class FuncOpConversionPattern : public ConversionPattern {
 public:
-  explicit HaskFuncOpLowering(MLIRContext *context)
+  explicit FuncOpConversionPattern(MLIRContext *context)
       : ConversionPattern(FuncOp::getOperationName(), 1, context) {}
 
   LogicalResult
@@ -722,9 +722,9 @@ public:
   }
 };
 
-class HaskApSSAOpLowering : public ConversionPattern {
+class ApSSAConversionPattern : public ConversionPattern {
 public:
-  explicit HaskApSSAOpLowering(MLIRContext *context)
+  explicit ApSSAConversionPattern(MLIRContext *context)
       : ConversionPattern(ApSSAOp::getOperationName(), 1, context) {}
 
   LogicalResult
@@ -734,9 +734,9 @@ public:
   }
 };
 
-class ModuleOpLowering : public ConversionPattern {
+class ModuleOpConversionPattern : public ConversionPattern {
 public:
-  explicit ModuleOpLowering(MLIRContext *context)
+  explicit ModuleOpConversionPattern(MLIRContext *context)
       : ConversionPattern(ModuleOp::getOperationName(), 1, context) {}
 
   LogicalResult
@@ -772,8 +772,8 @@ void LowerHaskToStandardPass::runOnOperation() {
     ConversionTarget target(getContext());
   OwningRewritePatternList patterns;
   //   patterns.insert<HaskFuncOpLowering>(&getContext());
-  //   patterns.insert<HaskApSSAOpLowering>(&getContext());
-  patterns.insert<ModuleOpLowering>(&getContext()); 
+//   patterns.insert<HaskSSAOpLowering>(&getContext());
+ patterns.insert<ModuleOpConversionPattern>(&getContext()); 
 
   
   if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
@@ -784,9 +784,6 @@ void LowerHaskToStandardPass::runOnOperation() {
     signalPassFailure();
     assert(false);
   }
-
-
-//   assert(false && "running lower hask pass");
   return;
 
   //   auto function = getFunction();
@@ -828,6 +825,43 @@ void LowerHaskToStandardPass::runOnOperation() {
 std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass() {
   return std::make_unique<LowerHaskToStandardPass>();
 }
+
+// === LowerHaskSSAOpToStandard === 
+// === LowerHaskSSAOpToStandard === 
+// === LowerHaskSSAOpToStandard === 
+// === LowerHaskSSAOpToStandard === 
+// === LowerHaskSSAOpToStandard === 
+
+namespace {
+struct LowerHaskSSAOpToStandardPass
+    : public PassWrapper<LowerHaskSSAOpToStandardPass, OperationPass<ApSSAOp>> {
+  void runOnOperation();
+};
+} // end anonymous namespace.
+
+
+
+void LowerHaskSSAOpToStandardPass::runOnOperation() {
+    ConversionTarget target(getContext());
+  OwningRewritePatternList patterns;
+  patterns.insert<ApSSAConversionPattern>(&getContext());
+  if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    llvm::errs() << "fn\nvvvv\n";
+    getOperation().dump() ;
+    llvm::errs() << "\n^^^^^\n";
+    signalPassFailure();
+    assert(false);
+  }
+
+  return;
+}
+
+std::unique_ptr<mlir::Pass> createHaskSSAOpLowering() {
+      return std::make_unique<LowerHaskSSAOpToStandardPass>();
+
+}
+
 
 
 

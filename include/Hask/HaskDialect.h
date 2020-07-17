@@ -41,9 +41,6 @@ public:
   static UntypedType get(MLIRContext *context) { return Base::get(context, HaskTypes::Types::Untyped); } 
 };
 
-// lower hask to standard
-std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass();
-
 } // namespace standalone
 } // namespace mlir
 
