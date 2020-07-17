@@ -1648,4 +1648,4 @@ public:
   static StringRef getOperationName() { return "module"; }
 ```
 
-- Both of these have zero results! What drugs is it on?
+- Both of these have zero results! What drugs is the assert on?
