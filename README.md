@@ -1778,3 +1778,35 @@ module {
 - I have no fucking clue WTF is happening `:(`
 - Right, I built an `ApSSAOp` which I can't use because it's not `IsolatedFromAbove`. OK, I really don't understand
   the semantics of lowering.
+
+- Read the dialect conversion document: https://mlir.llvm.org/docs/DialectConversion/
+
+- OK, now I understand why we need `ConversionPattern`:
+
+> When type conversion comes into play, the general Rewrite Patterns can no
+> longer be used. This is due to the fact that the operands of the operation
+> being matched will not correspond with the operands of the correct type as
+> determined by TypeConverter. The operation rewrites on type boundaries must
+> thus use a special pattern, the ConversionPattern
+
+Also:
+
+> If a pattern matches, it must erase or replace the op it matched on.
+>  Operations can not be updated in place.
+> Match criteria should not be based on the IR outside of the op itself. The
+> preceding ops will already have been processed by the framework (although it
+> may not update uses), and the subsequent IR will not yet be processed. This can
+> create confusion if a pattern attempts to match against a sequence of ops (e.g.
+> rewrite A + B -> C). That sort of rewrite should be performed in a separate
+> pass.
+
+- So it seems to me that my rewrite of `ApSSA(@plus_hash, %1, %2) -> addi %1 %2`
+  should be a separate Pass? and cannot reuse the infrastructure?
+
+
+- To convert the types of block arguments within a Region, a custom hook 
+  on the `ConversionPatternRewriter` must be invoked; `convertRegionTypes`
+
+- I guess I should be using the more general `PatternRewriter` and `applyPatternsAndFoldGreedily`?
+  Or can I not, because I need a `ConversionPattern`? Argh, this is so poorly
+  documented.
