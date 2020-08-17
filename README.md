@@ -1810,3 +1810,6 @@ Also:
 - I guess I should be using the more general `PatternRewriter` and `applyPatternsAndFoldGreedily`?
   Or can I not, because I need a `ConversionPattern`? Argh, this is so poorly
   documented.
+
+-`VectorToSCF.cpp`: https://github.com/llvm/llvm-project/blob/master/mlir/lib/Conversion/VectorToSCF/VectorToSCF.cpp
+- `VectorToSCF.h`: https://github.com/llvm/llvm-project/blob/master/mlir/lib/Conversion/VectorToSCF/VectorToSCF.cpp

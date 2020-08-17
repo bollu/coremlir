@@ -113,6 +113,10 @@ int main(int argc, char **argv) {
   }
 
 
+  // TODO: why does it add a module { ... } around my hask.module { ... }?
+  llvm::errs() << "\n===Module: input===\n";
+  module->print(llvm::errs());
+  llvm::errs() << "\n===\n";
 
 
   if (enableOptimization) {
@@ -123,12 +127,12 @@ int main(int argc, char **argv) {
     // Add a run of the canonicalizer to optimize the mlir module.
     // pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCanonicalizerPass());
-    llvm::errs() << "Module: running canonicalization...";
+    llvm::errs() << "===Module: running canonicalization...===\n";
     if (mlir::failed(pm.run(*module))) {
-      llvm::errs() << "Run of canonicalizer failed.\n";
+      llvm::errs() << "===Run of canonicalizer failed.===\n";
       return 4;
     }
-    llvm::errs() << "success!\n";
+    llvm::errs() << "==canonicalization succeeded!===\n";
   }
 
 
@@ -136,20 +140,18 @@ int main(int argc, char **argv) {
     mlir::PassManager pm(&context);
     // Apply any generic pass manager command line options and run the pipeline.
     applyPassManagerCLOptions(pm);
-
-    // Add a run of the canonicalizer to optimize the mlir module.
-    // pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createCSEPass());
-    llvm::errs() << "Module: running CSE...";
+    llvm::errs() << "===Module: running CSE...===\n";
     if (mlir::failed(pm.run(*module))) {
-      llvm::errs() << "Run of CSE failed.\n";
+      llvm::errs() << "===CSE failed.===\n";
       return 4;
     }
-    llvm::errs() << "success!\n";
+    llvm::errs() << "===CSE succeeded!===\n";
 
   }
-  llvm::errs() << "Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << ":";
-  module->print(llvm::outs());
+  llvm::errs() << "===Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << "===\n";
+  module->print(llvm::errs());
+  llvm::errs() << "\n===\n";
 
   // Lowering code to standard (?) Do I even need to (?)
   // Can I directly generate LLVM?
@@ -158,28 +160,30 @@ int main(int argc, char **argv) {
   // lowering code to Standard/SCF
   {
     mlir::PassManager pm(&context);
-    pm.addPass(mlir::standalone::createHaskSSAOpLowering());
-    llvm::errs() << "Module: lowering to standard+SCF...";
+    pm.addPass(mlir::standalone::createLowerHaskToStandardPass());
+    llvm::errs() << "===Module: lowering to standard+SCF...===\n";
     if (mlir::failed(pm.run(*module))) {
-      llvm::errs() << "Lowering failed.\n";
+      llvm::errs() << "===Lowering failed.\n===";
       return 4;
     }
-    llvm::errs() << "success!\n";
+    llvm::errs() << "===Lowering succeeded!===\n";
   }
 
-  llvm::errs() << "vvvvvvvvvvvvvvvvvvvvvvvvvvvv\n"; 
-  llvm::errs() << "Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << ", lowered to Standard+SCF:\n";
-  module->print(llvm::outs());
-  llvm::errs() << "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"; 
-  
+  llvm::errs() << "===Module  lowered to Standard+SCF:\n===";
+  module->print(llvm::errs());
+  llvm::errs() << "\n===\n";
 
-  /*
+
+  llvm::errs() << "===Writing module to file===\n";
+  module->print(llvm::outs()); llvm::errs() << "\n===\n";  return 0;
+
+  
   // Lowering code to LLVM
   {
     mlir::ConversionTarget target(context);
     target.addLegalDialect<mlir::LLVM::LLVMDialect>();
     // target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
-    target.addLegalOp<mlir::standalone::ModuleOp, mlir::standalone::DummyFinishOp>();
+    target.addLegalOp<mlir::standalone::HaskModuleOp, mlir::standalone::DummyFinishOp>();
     mlir::LLVMTypeConverter typeConverter(&context);
     mlir::OwningRewritePatternList patterns;
     mlir::PassManager pm(&context);
@@ -191,7 +195,7 @@ int main(int argc, char **argv) {
     } else {
       llvm::errs() << "Success!";
     }
-  }*/
+  }
 
   // llvm::errs() << "Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << " " << "lowered: ";
   // module->print(llvm::outs());

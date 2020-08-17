@@ -33,7 +33,7 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
 #include "Hask/HaskOps.cpp.inc"
   >();
  addOperations<LambdaOp, CaseOp, ApOp, ReturnOp, MakeI32Op, 
-  MakeDataConstructorOp, TopLevelBindingOp, DominanceFreeScopeOp, ModuleOp, 
+  MakeDataConstructorOp, TopLevelBindingOp, DominanceFreeScopeOp, HaskModuleOp, 
   DummyFinishOp, ConstantOp, ApSSAOp, CaseSSAOp, RecursiveRefOp, LambdaSSAOp,
   MakeStringOp, HaskFuncOp, ForceOp, CopyOp>();
 

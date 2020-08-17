@@ -28,6 +28,7 @@ hask.module {
   }
   hask.dummy_finish
 }
+
 // ============ Haskell Core ========================
 //Rec {
 //-- RHS size: {terms: 21, types: 4, coercions: 0, joins: 0/0}

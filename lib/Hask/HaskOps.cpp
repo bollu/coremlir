@@ -27,6 +27,8 @@
 // dilect lowering
 #include "mlir/Transforms/DialectConversion.h"
 
+#include "mlir/Pass/PassRegistry.h"
+
 
 
 namespace mlir {
@@ -258,20 +260,20 @@ void TopLevelBindingOp::print(OpAsmPrinter &p) {
     p << getOperationName(); p.printRegion(getBody(), /*printEntry=*/false);
 };
 
-// === Module OP ===
-// === Module OP ===
-// === Module OP ===
-// === Module OP ===
-// === Module OP ===
+// === HaskModule OP ===
+// === HaskModule OP ===
+// === HaskModule OP ===
+// === HaskModule OP ===
+// === HaskModule OP ===
 
-ParseResult ModuleOp::parse(OpAsmParser &parser, OperationState &result) {
+ParseResult HaskModuleOp::parse(OpAsmParser &parser, OperationState &result) {
     OpAsmParser::OperandType body;
     if(parser.parseRegion(*result.addRegion(), {}, {})) return failure();
     // result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
 
-void ModuleOp::print(OpAsmPrinter &p) {
+void HaskModuleOp::print(OpAsmPrinter &p) {
     p << getOperationName(); p.printRegion(getBody(), /*printEntry=*/false);
 };
 
@@ -645,11 +647,11 @@ void CopyOp::print(OpAsmPrinter &p) {
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/mlir/ToyCombine.cpp
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/mlir/Dialect.cpp
-struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
+struct RewriteUncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
   /// them in order of profitability.
-  UncurryApplication(mlir::MLIRContext *context)
+  RewriteUncurryApplication(mlir::MLIRContext *context)
       : OpRewritePattern<ApSSAOp>(context, /*benefit=*/1) {
       }
 
@@ -704,21 +706,23 @@ struct UncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
 
 void ApSSAOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
-  results.insert<UncurryApplication>(context);
+  results.insert<RewriteUncurryApplication>(context);
 }
 
 // === LOWERING ===
 // === LOWERING ===
 
-class FuncOpConversionPattern : public ConversionPattern {
+class HaskFuncOpConversionPattern : public ConversionPattern {
 public:
-  explicit FuncOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(FuncOp::getOperationName(), 1, context) {}
+  explicit HaskFuncOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(standalone::HaskFuncOp::getOperationName(), 1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    return success();
+    llvm::errs() << "running HaskFuncOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+
+    return failure();
   }
 };
 
@@ -730,26 +734,28 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    return success();
+    llvm::errs() << "running ApSSAConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    return failure();
   }
 };
 
-class ModuleOpConversionPattern : public ConversionPattern {
+class HaskModuleOpConversionPattern : public ConversionPattern {
 public:
-  explicit ModuleOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(ModuleOp::getOperationName(), 1, context) {}
+  explicit HaskModuleOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(standalone::HaskModuleOp::getOperationName(), 1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
 
+    llvm::errs() << "running HaskModuleOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
     // mlir::ModuleOp mod = rewriter.create<mlir::ModuleOp>(op->getLoc());
-    // llvm::errs() << "\n||op->numResults: " << op->getNumResults() << "[op]: " << *op << "\n||mod->numResults: " << mod.getOperation()->getNumResults() << "\n";
-    rewriter.replaceOpWithNewOp<mlir::ModuleOp>(op);
-    
-    // assert(false);
-
-    return success();
+    // llvm::errs() << "\n||op->numResults: " 
+    //      << op->getNumResults() 
+    //      << "[op]: " 
+    //      << *op << "\n||mod->numResults: " 
+    //      << mod.getOperation()->getNumResults() << "\n";
+    return failure();
   }
 };
 
@@ -763,23 +769,31 @@ public:
 
 namespace {
 struct LowerHaskToStandardPass
-    : public PassWrapper<LowerHaskToStandardPass, OperationPass<ModuleOp>> {
-  void runOnOperation();
+    : public Pass {
+    LowerHaskToStandardPass() : Pass(mlir::TypeID::get<LowerHaskToStandardPass>()) {};
+    void runOnOperation();
+    StringRef getName() const override { return "LowerHaskToStandardPass"; }
+
+    std::unique_ptr<Pass> clonePass() const override {
+        auto newInst = std::make_unique<LowerHaskToStandardPass>(*static_cast<const LowerHaskToStandardPass *>(this));
+        newInst->copyOptionValuesFrom(this);
+        return newInst;
+    }
 };
 } // end anonymous namespace.
 
 void LowerHaskToStandardPass::runOnOperation() {
     ConversionTarget target(getContext());
-  OwningRewritePatternList patterns;
-  //   patterns.insert<HaskFuncOpLowering>(&getContext());
-//   patterns.insert<HaskSSAOpLowering>(&getContext());
- patterns.insert<ModuleOpConversionPattern>(&getContext()); 
+    OwningRewritePatternList patterns;
+    patterns.insert<HaskFuncOpConversionPattern>(&getContext());
+    patterns.insert<ApSSAConversionPattern>(&getContext());
+    patterns.insert<HaskModuleOpConversionPattern>(&getContext()); 
 
   
   if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
     llvm::errs() << "fn\nvvvv\n";
-    getOperation().dump() ;
+    getOperation()->dump() ;
     llvm::errs() << "\n^^^^^\n";
     signalPassFailure();
     assert(false);
