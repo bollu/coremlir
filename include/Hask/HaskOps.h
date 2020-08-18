@@ -73,7 +73,7 @@ public:
 
 };
 
-class ReturnOp : public Op<ReturnOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
+class HaskReturnOp : public Op<HaskReturnOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.return"; };
@@ -144,7 +144,7 @@ public:
 };
 
 
-class ModuleOp : public Op<ModuleOp, OpTrait::ZeroResult, OpTrait::OneRegion, OpTrait::SymbolTable, OpTrait::IsIsolatedFromAbove> {
+class HaskModuleOp : public Op<HaskModuleOp, OpTrait::ZeroResult, OpTrait::OneRegion, OpTrait::SymbolTable, OpTrait::IsIsolatedFromAbove> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.module"; };
@@ -259,6 +259,7 @@ public:
   Region &getRegion() { return this->getOperation()->getRegion(0); };
   void print(OpAsmPrinter &p);
   llvm::StringRef getFuncName();
+  LambdaSSAOp getLambda();
   static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
 };

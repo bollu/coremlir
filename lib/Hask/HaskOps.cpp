@@ -143,7 +143,7 @@ void ApOp::print(OpAsmPrinter &p) {
 // === RETURN OP ===
 
 
-ParseResult ReturnOp::parse(OpAsmParser &parser, OperationState &result) {
+ParseResult HaskReturnOp::parse(OpAsmParser &parser, OperationState &result) {
     mlir::OpAsmParser::OperandType i;
     if (parser.parseLParen() || parser.parseOperand(i) || parser.parseRParen())
         return failure();
@@ -153,7 +153,7 @@ ParseResult ReturnOp::parse(OpAsmParser &parser, OperationState &result) {
     return success();
 };
 
-void ReturnOp::print(OpAsmPrinter &p) {
+void HaskReturnOp::print(OpAsmPrinter &p) {
     p << "hask.return(" << getInput() << ")";
 };
 
@@ -591,6 +591,17 @@ llvm::StringRef HaskFuncOp::getFuncName() {
     return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
 }
 
+
+LambdaSSAOp HaskFuncOp::getLambda() {
+    Region &region = this->getRegion();
+    // TODO: put this in a `verify` block.
+    assert(region.getBlocks().size() == 1 && "func has more than one BB");
+    Block &entry = region.front();
+    HaskReturnOp ret = cast<HaskReturnOp>(entry.getTerminator());
+    Value retval = ret.getValue();
+    return cast<LambdaSSAOp>(retval.getDefiningOp());
+}
+
 // === FORCE OP ===
 // === FORCE OP ===
 // === FORCE OP ===
@@ -720,11 +731,44 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
+    auto fn = cast<HaskFuncOp>(op);
+    LambdaSSAOp lam = fn.getLambda();
+
+
+    SmallVector<NamedAttribute, 4> attrs;
+    // TODO: HACK! types are hardcoded :)
+    rewriter.replaceOpWithNewOp<FuncOp>(fn, 
+            fn.getFuncName(),
+            FunctionType::get({}, {}, rewriter.getContext()),
+            attrs);
+
+
+    // Now lower the [LambdaSSAOp + HaskFuncOp together]
+    // TODO: deal with free floating lambads. This LambdaSSAOp is going to
+    // become a top-level function. Other lambdas will become toplevel functions with synthetic names.
     llvm::errs() << "running HaskFuncOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+
+    return success();
+  }
+};
+
+
+class LambdaSSAOpConversionPattern : public ConversionPattern {
+public:
+  explicit LambdaSSAOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(standalone::LambdaSSAOp::getOperationName(), 1, context) {}
+
+  LogicalResult 
+      matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto lam = cast<LambdaSSAOp>(op);
+    assert(lam);
+    llvm::errs() << "running LambdaSSAOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
 
     return failure();
   }
 };
+
 
 class ApSSAConversionPattern : public ConversionPattern {
 public:
@@ -759,6 +803,46 @@ public:
   }
 };
 
+class MakeI32OpConversionPattern : public ConversionPattern {
+public:
+  explicit MakeI32OpConversionPattern(MLIRContext *context)
+      : ConversionPattern(MakeI32Op::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    llvm::errs() << "running MakeI32OpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    return failure();
+  }
+};
+
+class ForceOpConversionPattern : public ConversionPattern {
+public:
+  explicit ForceOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(ForceOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    llvm::errs() << "running ForceOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    return failure();
+  }
+};
+
+class HaskReturnOpConversionPattern : public ConversionPattern {
+public:
+  explicit HaskReturnOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(HaskReturnOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    llvm::errs() << "running HaskReturnOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    return failure();
+  }
+};
+
+
 
 
 // === LowerHaskToStandardPass === 
@@ -786,8 +870,12 @@ void LowerHaskToStandardPass::runOnOperation() {
     ConversionTarget target(getContext());
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
+    patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
     patterns.insert<ApSSAConversionPattern>(&getContext());
     patterns.insert<HaskModuleOpConversionPattern>(&getContext()); 
+    patterns.insert<MakeI32OpConversionPattern>(&getContext()); 
+    patterns.insert<ForceOpConversionPattern>(&getContext()); 
+    patterns.insert<HaskReturnOpConversionPattern>(&getContext()); 
 
   
   if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
@@ -875,7 +963,6 @@ std::unique_ptr<mlir::Pass> createHaskSSAOpLowering() {
       return std::make_unique<LowerHaskSSAOpToStandardPass>();
 
 }
-
 
 
 

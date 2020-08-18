@@ -174,8 +174,8 @@ int main(int argc, char **argv) {
   llvm::errs() << "\n===\n";
 
 
-  llvm::errs() << "===Writing module to file===\n";
-  module->print(llvm::outs()); llvm::errs() << "\n===\n";  return 0;
+  module->print(llvm::outs()); llvm::outs().flush();
+  return 0;
 
   
   // Lowering code to LLVM

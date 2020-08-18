@@ -1813,3 +1813,13 @@ Also:
 
 -`VectorToSCF.cpp`: https://github.com/llvm/llvm-project/blob/master/mlir/lib/Conversion/VectorToSCF/VectorToSCF.cpp
 - `VectorToSCF.h`: https://github.com/llvm/llvm-project/blob/master/mlir/lib/Conversion/VectorToSCF/VectorToSCF.cpp
+
+# Tuesday, 18th August 2020
+
+- Lowering our IR down to LLVM. Currently hacking the shit out of it,
+  assuming all our types are int, etc. We then fix it gradually as we
+  get more online, as per our iteration strategy.
+- Currently, I'm getting annoyed at the non-existence of a `RegionTrait`
+  called `SingleBlockExplicitTerminator`: this is precisely what my `func` is:
+  it should just create a `lambda` and then return the `lambda`. Hm, perhaps
+  I should put this information in an attribute. Not sure. Oh well.
