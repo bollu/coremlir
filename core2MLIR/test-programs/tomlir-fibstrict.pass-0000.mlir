@@ -10,23 +10,14 @@ hask.module {
     ["default" ->
     {
     ^entry(%ds_d1jZ: !hask.untyped):
-      # app_2 = (-# i_a123)
       %app_2 = hask.apSSA(%minus_hash, %i_a12E)
-      # lit_3 = 1
       %lit_3 = hask.make_i32(1)
-      # app_4 = (-# i_a123 1)
       %app_4 = hask.apSSA(%app_2, %lit_3)
-      # app_5 = fib (-# i_a123 1)
       %app_5 = hask.apSSA(@fib, %app_4)
-      # wild_00 = force(fib(-# i_a123 1))
       %wild_00 = hask.force (%app_5)
-      # app_7 = fib(i)
       %app_7 = hask.apSSA(@fib, %i_a12E)
-      # wild_X5 = force(fib(i))
       %wild_X5 = hask.force (%app_7)
-      # app_7 = (+# force(fib(i)))
       %app_9 = hask.apSSA(%plus_hash, %wild_X5)
-      # app_10 = (+# force(fib(i)) fib(-# i_a123 1))
       %app_10 = hask.apSSA(%app_9, %wild_00)
     hask.return(%app_10)
     }

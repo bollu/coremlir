@@ -8,7 +8,7 @@ fibstrict: clean install
 	# cat tomlir-fibstrict.pass-0001.mlir
 	# ../../build/bin/hask-opt tomlir-fibstrict.pass-0001.mlir
 	cat tomlir-fibstrict.pass-0000.mlir
-	../../build/bin/hask-opt tomlir-fibstrict.pass-0000.mlir
+	../../build/bin/hask-opt tomlir-fibstrict.pass-0000.mlir -optimize
 	# ../../build/bin/hask-opt tomlir-fibstrict.pass-0001.mlir
 
 # on getting multiple package error, remove the repeated package line from
