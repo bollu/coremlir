@@ -353,7 +353,7 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     if (succeeded(parser.parseOptionalSymbolName(nameAttr,
         ::mlir::SymbolTable::getSymbolAttrName(),
         result.attributes))) {
-        SymbolRefAttr attr = SymbolRefAttr::get(nameAttr.getValue(), parser.getBuilder().getContext());
+        StringAttr attr = StringAttr::get(nameAttr.getValue(), parser.getBuilder().getContext());
         
 
         // success; nothing to do.
@@ -379,14 +379,12 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     return success();
 };
 
-FlatSymbolRefAttr ApSSAOp::fnSymbolicAttr() {
-    StringAttr attr_name = this->getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName());
-    if (attr_name) { return SymbolRefAttr::get(attr_name.getValue(), this->getContext()); }
-    return FlatSymbolRefAttr();
+StringAttr ApSSAOp::fnSymbolName() {
+    return this->getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName());
 };
 
 Value ApSSAOp::fnValue() {
-    if (this->fnSymbolicAttr()) { return Value(); }
+    if (this->fnSymbolName()) { return Value(); }
     return this->getOperation()->getOperand(0);
 };
 
@@ -404,7 +402,7 @@ void ApSSAOp::print(OpAsmPrinter &p) {
     p << "hask.apSSA(";
 
     // TODO: propose actually strongly typing this?This is just sick.
-    SymbolRefAttr fnSymbolic = fnSymbolicAttr();
+    StringAttr fnSymbolic = fnSymbolName();
     if (fnSymbolic) { p << fnSymbolic; }
     for(int i = 0; i < this->getOperation()->getNumOperands(); ++i) {
         if (i > 0 || (i == 0 && fnSymbolic)) { p << ", "; }
@@ -421,14 +419,11 @@ void ApSSAOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 };
 
 void ApSSAOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                    FlatSymbolRefAttr fn, SmallVectorImpl<Value> &params) {
-    llvm::errs() << " - ApSSAOp::build(" << "[[" << fn << "]], ";
+                    StringAttr fnname, SmallVectorImpl<Value> &params) {
     for(int i = 0; i < params.size() ; ++i) llvm::errs() << params[i] << ", ";
-    llvm::errs() << ")\n";
     
     // super super hacky WTF!!!
-    state.addAttribute(::mlir::SymbolTable::getSymbolAttrName(), 
-            builder.getStringAttr(fn.getValue()));
+    state.addAttribute(::mlir::SymbolTable::getSymbolAttrName(), fnname);
     state.addOperands(params);
     state.addTypes(builder.getType<UntypedType>());
 
@@ -763,7 +758,7 @@ struct RewriteUncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
         // llvm::errs() << "-replacement: " << replacement << "|" << __LINE__ << "\n";
         rewriter.replaceOpWithNewOp<ApSSAOp>(ap2, calledVal, args);
     } else {
-        FlatSymbolRefAttr calledSym = ap1.fnSymbolicAttr();
+        StringAttr calledSym = ap1.fnSymbolName();
         assert(calledSym && "we must have symbol if we don't have Value");
         llvm::errs() << "-calledSym: " << calledSym << "\n";
         // ApSSAOp replacement = rewriter.create<ApSSAOp>(ap2.getLoc(), calledSym, args);
@@ -799,8 +794,8 @@ struct RewriteUncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
     if (Value fncall = fn_b_op.fnValue()) {
         rewriter.replaceOpWithNewOp<ApSSAOp>(out, fncall, args);
     } else {
-        assert(fn_b_op.fnSymbolicAttr() && "we must have symbol if we don't have Value");
-        rewriter.replaceOpWithNewOp<ApSSAOp>(out, fn_b_op.fnSymbolicAttr(), args);
+        assert(fn_b_op.fnSymbolName() && "we must have symbol if we don't have Value");
+        rewriter.replaceOpWithNewOp<ApSSAOp>(out, fn_b_op.fnSymbolName(), args);
     }
     */
     return success();
