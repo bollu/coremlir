@@ -2125,3 +2125,31 @@ module {
   }
 }                                                                                                                                      
 ```
+
+- This `Symbol` thing is prone to breakage, I feel. For example, consider:
+
+```
+hask.func @fib {
+  %lambda = hask.lambdaSSA(%i) {
+      ...
+      %fib_i = hask.apSSA(@fib, %i)
+      ...
+  }
+}
+```
+
+- Upon lowering, if I generate a function called `@fib_lowered`, the code 
+  [which passes verification] becomes:
+
+```
+func @fib_lowered(%arg0: !hask.untyped) {
+      ...
+      %fib_i = hask.apSSA(@fib, %i) <- still called fib!
+      ...
+  }
+}
+```
+
+- The thing really, truly is a god damm symbol table, with a danging symbol
+  of `@fib`. Is there some way to verify that we do not have a dangling `Symbol`
+  in a module?

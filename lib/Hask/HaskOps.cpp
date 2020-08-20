@@ -221,7 +221,8 @@ llvm::StringRef MakeDataConstructorOp::getDataConstructorName() {
 }
 
 void MakeDataConstructorOp::print(OpAsmPrinter &p) {
-    p << getOperationName() << " " << getDataConstructorName();
+    p << getOperationName() << " ";
+    p.printSymbolName(getDataConstructorName());
 };
 
 
