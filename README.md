@@ -2071,3 +2071,57 @@ hask.module {
 - What I am actually interested is to have our function return a `%unit_tuple`,
   but that does not seem to be allowed because `FuncOp` has a `IsolatedFromAbove`
   trait. This is very strange: how do I use global data?
+
+- I think I should be using a symbol, so my signature should read something
+  like `hask.make_data_constructor @"+#"` or something like that to mark
+  the data constructor as a global piece of information. Let me try and check
+  that a `Symbol` is what I need.
+
+
+- Fun fact: LLVM out-of-memorys if you hand it an uninitialized OperandType.
+
+```cpp
+OpAsmParser::OperandType scrutinee;
+if(parser.resolveOperand(scrutinee, 
+    parser.getBuilder().getType<UntypedType>(), 
+    results)) { return failure(); } // BOOM! out of memory
+```
+
+- OK, we can now lower references to `make_data_constructor`:
+
+##### input
+```
+hask.module {
+    hask.make_data_constructor @"+#"
+    hask.make_data_constructor @"-#"
+    hask.make_data_constructor @"()"
+
+  hask.func @fib {
+    %lambda = hask.lambdaSSA(%i) {
+      // %foo_ref = constant @XXXX : () -> ()
+      %f = hask.ref(@"+#")
+      hask.return(%f)
+    }
+    hask.return(%lambda)
+  }
+  hask.dummy_finish
+}
+```
+
+##### output
+
+```
+module {
+  hask.module {
+    hask.make_data_constructor +#
+    hask.make_data_constructor -#
+    hask.make_data_constructor ()
+    vvv is a std func with a real argument.
+    func @fib_lowered(%arg0: !hask.untyped) {
+      %0 = hask.ref (@"+#")
+      hask.return(%0)
+    }
+    hask.dummy_finish
+  }
+}                                                                                                                                      
+```

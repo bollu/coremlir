@@ -107,12 +107,11 @@ public:
 
 
 
-class MakeDataConstructorOp : public Op<MakeDataConstructorOp, OpTrait::OneResult> {
+class MakeDataConstructorOp : public Op<MakeDataConstructorOp, OpTrait::ZeroResult> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.make_data_constructor"; };
-    //  getDataConstructorName() { this->getOperation()->getAttr("name") ; };
-  Attribute getDataConstructorNameAttr() { this->getOperation()->getAttr("name"); };
+  llvm::StringRef getDataConstructorName(); 
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
@@ -287,6 +286,17 @@ public:
   static StringRef getOperationName() { return "hask.copy"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   Value getScrutinee() { this->getOperation()->getOperand(0); }
+  void print(OpAsmPrinter &p);
+};
+
+// take a reference of a global. Like <std.constant> for functions, but allows
+// taking a reference of any global [function OR data constructor]
+class HaskRefOp : public Op<HaskRefOp, OpTrait::OneResult> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.ref"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  StringRef getArgumentSymbolName();
   void print(OpAsmPrinter &p);
 };
 

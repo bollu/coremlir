@@ -201,18 +201,27 @@ void MakeI32Op::print(OpAsmPrinter &p) {
 
 ParseResult MakeDataConstructorOp::parse(OpAsmParser &parser, OperationState &result) {
     // parser.parseAttribute(, parser.getBuilder().getStringAttr )
-    Attribute attr;
-    if(parser.parseLess()) return failure();
-    if(parser.parseAttribute(attr, "name", result.attributes)) { assert(false && "unable to parse attribute!");  return failure(); }
-    if(parser.parseGreater()) return failure();
-    llvm::errs() << "- " << __FUNCTION__ << ":" << __LINE__ << "attribute: " << attr << "\n";
-    llvm::errs() << "- " << __FUNCTION__ << ":" << __LINE__ << "attribute ty: " << attr.getType() << "\n";
+    // if(parser.parseLess()) return failure();
 
-    result.addTypes(parser.getBuilder().getType<UntypedType>());
+    StringAttr nameAttr;
+    if (parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
+                             result.attributes)) {
+        return failure();
+    }
+    // if(parser.parseAttribute(attr, "name", result.attributes)) {
+    //     assert(false && "unable to parse attribute!");  return failure();
+    // }
+    // if(parser.parseGreater()) return failure();
+    // result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
+
+llvm::StringRef MakeDataConstructorOp::getDataConstructorName() {
+    return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
+}
+
 void MakeDataConstructorOp::print(OpAsmPrinter &p) {
-    p << getOperationName() << "<" << getAttr("name")  << ">";
+    p << getOperationName() << " " << getDataConstructorName();
 };
 
 
@@ -654,9 +663,39 @@ ParseResult CopyOp::parse(OpAsmParser &parser, OperationState &result) {
 
 };
 
+
 void CopyOp::print(OpAsmPrinter &p) {
     p << "hask.copy(" << this->getScrutinee() << ")";
 };
+
+
+// === REF OP ===
+// === REF OP ===
+// === REF OP ===
+// === REF OP ===
+// === REF OP ===
+ParseResult HaskRefOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType scrutinee;
+
+    StringAttr nameAttr;
+    if (parser.parseLParen() ||
+        parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
+                result.attributes) ||
+        parser.parseRParen()) {
+        return failure();
+    };
+
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
+    return success();
+}
+StringRef HaskRefOp::getArgumentSymbolName() {
+    return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
+}
+void HaskRefOp::print(OpAsmPrinter &p) {
+    p << getOperationName() << " (";
+    p.printSymbolName(getArgumentSymbolName()); 
+    p << ")";
+}
 
 // ==REWRITES==
 
@@ -911,6 +950,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<ForceOp>();
     target.addLegalOp<HaskReturnOp>();
     target.addLegalOp<DummyFinishOp>();
+    target.addLegalOp<HaskRefOp>();
 
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
@@ -1007,7 +1047,6 @@ std::unique_ptr<mlir::Pass> createHaskSSAOpLowering() {
       return std::make_unique<LowerHaskSSAOpToStandardPass>();
 
 }
-
 
 
 } // namespace standalone
