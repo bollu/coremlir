@@ -943,9 +943,8 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addIllegalDialect<standalone::HaskDialect>();
     target.addLegalOp<HaskModuleOp>();
     target.addLegalOp<MakeDataConstructorOp>();
-    //target.addLegalOp<HaskFuncOp>();
     target.addLegalOp<LambdaSSAOp>();
-    target.addLegalOp<CaseSSAOp>();
+    //target.addLegalOp<CaseSSAOp>();
     target.addLegalOp<MakeI32Op>();
     target.addLegalOp<ApSSAOp>();
     target.addLegalOp<ForceOp>();
