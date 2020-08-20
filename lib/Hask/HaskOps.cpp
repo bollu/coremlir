@@ -819,6 +819,20 @@ public:
   }
 };
 
+class CaseOpConversionPattern : public ConversionPattern {
+public:
+    explicit CaseOpConversionPattern(MLIRContext *context)
+            : ConversionPattern(standalone::CaseOp::getOperationName(), 1, context) {}
+
+    LogicalResult
+    matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                    ConversionPatternRewriter &rewriter) const override {
+        assert(false && "entered CaseOp");
+        llvm::errs() << "running CaseOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+
+        return failure();
+    }
+};
 
 class LambdaSSAOpConversionPattern : public ConversionPattern {
 public:
@@ -954,6 +968,7 @@ void LowerHaskToStandardPass::runOnOperation() {
 
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
+    patterns.insert<CaseOpConversionPattern>(&getContext());
     patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
     patterns.insert<ApSSAConversionPattern>(&getContext());
     patterns.insert<HaskModuleOpConversionPattern>(&getContext()); 
