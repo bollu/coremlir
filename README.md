@@ -1839,3 +1839,59 @@ Also:
   is representing closures inside LLVM. This too needs to know types to know
   how much space to allocate. Completely ignore these issues as well.
 
+# Thursday, 20th August 2020
+- Yay, more kludge to get MLIR to behave how I want:
+
+```cpp
+llvm::errs() << "debugging? " << ::llvm::DebugFlag << "\n";
+LLVM_DEBUG({ assert(false && "llvm debug exists"); });
+::llvm::DebugFlag = true; 
+```
+
+- I **manually** turn on debugging. This is, of course, horrible. On the other
+  hand, I'm really not sure what the best practice is. When it came to developing
+  with LLVM, since we would always run with `opt`, things "just worked". This
+  time around, I'm not sure how we are expected to allow the `llvm::CommandLine`
+  machinery to kick in, without explicitly invoking said machinery.
+
+- In my `hask-opt.cpp` file, I used to use:
+
+```cpp
+  if (failed(MlirOptMain(output->os(), std::move(file), passPipeline,
+                         splitInputFile, verifyDiagnostics, verifyPasses,
+                         allowUnregisteredDialects))) {
+    return 1;
+  }
+```
+
+But I then saw that the toy tutorials themselves don't do this. They use:
+
+```cpp
+mlir::registerAsmPrinterCLOptions();
+mlir::registerMLIRContextCLOptions();
+mlir::registerPassManagerCLOptions();
+
+cl::ParseCommandLineOptions(argc, argv, "toy compiler\n");
+```
+
+So I presume that this `ParseCommandLineOptions` is going to launch the LLVM
+machinery.
+
+- Anyway, here's what the debug info of the legalizer spits out:
+
+```cpp
+    ** Erase   : 'hask.func'(0x560b1f99f5d0)
+
+    //===-------------------------------------------===//
+    Legalizing operation : 'func'(0x560b1f99f640) {
+      * Fold {
+      } -> FAILURE : unable to fold
+    } -> FAILURE : no matched legalization pattern
+    //===-------------------------------------------===//
+  } -> FAILURE : operation 'func'(0x0000560B1F99F640) became illegal after block action
+} -> FAILURE : no matched legalization pattern
+//===-------------------------------------------===//
+```
+
+- I don't understand 'became illegal after block action'. Time to read the
+  sources.

@@ -33,6 +33,8 @@
 
 #include "mlir/Pass/PassRegistry.h"
 
+#define DEBUG_TYPE "hask-ops"
+#include "llvm/Support/Debug.h"
 
 
 namespace mlir {
@@ -747,22 +749,26 @@ public:
     // become a top-level function. Other lambdas will become toplevel functions with synthetic names.
     llvm::errs() << "running HaskFuncOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
     auto fn = cast<HaskFuncOp>(op);
+    /*
     LambdaSSAOp lam = fn.getLambda();
 
     SmallVector<NamedAttribute, 4> attrs;
     // TODO: HACK! types are hardcoded :)
     FuncOp stdFunc = FuncOp::create(fn.getLoc(), fn.getFuncName(),
             FunctionType::get({}, {}, rewriter.getContext()));
-    llvm::errs() << "stdFunc: " << stdFunc << "\n";
-    llvm::errs() << "result of running HaskFuncOpConversionPattern:\n\n" << *fn.getParentOp() << "\n";
+    rewriter.setInsertionPointAfter(fn);
+    llvm::errs() << "- stdFunc: " << stdFunc << "\n";
+    llvm::errs() << "- fn.getParentOp():\n\n" << *fn.getParentOp() << "\n";
 
     rewriter.inlineRegionBefore(lam.getBody(), stdFunc.getBody(), stdFunc.end());
-    llvm::errs() << "stdFunc: " << stdFunc << "\n";
+    llvm::errs() << "- stdFunc: " << stdFunc << "\n";
+    // llvm::errs() << "- fn.getParentOp():\n\n" << *fn.getParentOp() << "\n";
 
     // TODO: Tell the rewriter to convert the region signature.
     // rewriter.applySignatureConversion(&newFuncOp.getBody(), result);
+    */
     rewriter.eraseOp(fn);
-
+    // rewriter.insert(stdFunc);
     return success();
   }
 };
@@ -889,7 +895,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addIllegalDialect<standalone::HaskDialect>();
     target.addLegalOp<HaskModuleOp>();
     target.addLegalOp<MakeDataConstructorOp>();
-    target.addLegalOp<HaskFuncOp>();
+    //target.addLegalOp<HaskFuncOp>();
     target.addLegalOp<LambdaSSAOp>();
     target.addLegalOp<CaseSSAOp>();
     target.addLegalOp<MakeI32Op>();
@@ -906,6 +912,10 @@ void LowerHaskToStandardPass::runOnOperation() {
     patterns.insert<MakeI32OpConversionPattern>(&getContext()); 
     patterns.insert<ForceOpConversionPattern>(&getContext()); 
     patterns.insert<HaskReturnOpConversionPattern>(&getContext()); 
+
+    llvm::errs() << "debugging? " << ::llvm::DebugFlag << "\n";
+    LLVM_DEBUG({ assert(false && "llvm debug exists"); });
+    ::llvm::DebugFlag = true; 
 
   
   if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {

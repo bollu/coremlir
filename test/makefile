@@ -1,4 +1,8 @@
-.PHONY: fib fibstrict
+.PHONY: fib fibstrict playground
+
+playground: 
+	make -C ~/work/mlir/coremlir/build
+	../build/bin/hask-opt ./playground.mlir -optimize 
 
 fibstrict: 
 	make -C ~/work/mlir/coremlir/build
