@@ -20,6 +20,10 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
 
+// Standard dialect
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+
 // pattern matching
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
@@ -723,6 +727,12 @@ void ApSSAOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 // === LOWERING ===
 // === LOWERING ===
 
+class HaskToStdTypeConverter : public mlir::TypeConverter {
+    using TypeConverter::TypeConverter;
+
+};
+
+// http://localhost:8000/structanonymous__namespace_02ConvertStandardToLLVM_8cpp_03_1_1FuncOpConversion.html#a9043f45e0e37eb828942ff867c4fe38d
 class HaskFuncOpConversionPattern : public ConversionPattern {
 public:
   explicit HaskFuncOpConversionPattern(MLIRContext *context)
@@ -731,22 +741,27 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto fn = cast<HaskFuncOp>(op);
-    LambdaSSAOp lam = fn.getLambda();
-
-
-    SmallVector<NamedAttribute, 4> attrs;
-    // TODO: HACK! types are hardcoded :)
-    rewriter.replaceOpWithNewOp<FuncOp>(fn, 
-            fn.getFuncName(),
-            FunctionType::get({}, {}, rewriter.getContext()),
-            attrs);
-
 
     // Now lower the [LambdaSSAOp + HaskFuncOp together]
     // TODO: deal with free floating lambads. This LambdaSSAOp is going to
     // become a top-level function. Other lambdas will become toplevel functions with synthetic names.
     llvm::errs() << "running HaskFuncOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    auto fn = cast<HaskFuncOp>(op);
+    LambdaSSAOp lam = fn.getLambda();
+
+    SmallVector<NamedAttribute, 4> attrs;
+    // TODO: HACK! types are hardcoded :)
+    FuncOp stdFunc = FuncOp::create(fn.getLoc(), fn.getFuncName(),
+            FunctionType::get({}, {}, rewriter.getContext()));
+    llvm::errs() << "stdFunc: " << stdFunc << "\n";
+    llvm::errs() << "result of running HaskFuncOpConversionPattern:\n\n" << *fn.getParentOp() << "\n";
+
+    rewriter.inlineRegionBefore(lam.getBody(), stdFunc.getBody(), stdFunc.end());
+    llvm::errs() << "stdFunc: " << stdFunc << "\n";
+
+    // TODO: Tell the rewriter to convert the region signature.
+    // rewriter.applySignatureConversion(&newFuncOp.getBody(), result);
+    rewriter.eraseOp(fn);
 
     return success();
   }
@@ -849,7 +864,6 @@ public:
 // === LowerHaskToStandardPass === 
 // === LowerHaskToStandardPass === 
 // === LowerHaskToStandardPass === 
-// === LowerHaskToStandardPass === 
 
 namespace {
 struct LowerHaskToStandardPass
@@ -866,8 +880,24 @@ struct LowerHaskToStandardPass
 };
 } // end anonymous namespace.
 
+// http://localhost:8000/ConvertSPIRVToLLVMPass_8cpp_source.html#l00031
 void LowerHaskToStandardPass::runOnOperation() {
     ConversionTarget target(getContext());
+    // do I not need a pointer to the dialect? I am so confused :(
+    HaskToStdTypeConverter converter();
+    target.addLegalDialect<mlir::StandardOpsDialect>();
+    target.addIllegalDialect<standalone::HaskDialect>();
+    target.addLegalOp<HaskModuleOp>();
+    target.addLegalOp<MakeDataConstructorOp>();
+    target.addLegalOp<HaskFuncOp>();
+    target.addLegalOp<LambdaSSAOp>();
+    target.addLegalOp<CaseSSAOp>();
+    target.addLegalOp<MakeI32Op>();
+    target.addLegalOp<ApSSAOp>();
+    target.addLegalOp<ForceOp>();
+    target.addLegalOp<HaskReturnOp>();
+    target.addLegalOp<DummyFinishOp>();
+
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
     patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
@@ -879,12 +909,10 @@ void LowerHaskToStandardPass::runOnOperation() {
 
   
   if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
-    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-    llvm::errs() << "fn\nvvvv\n";
-    getOperation()->dump() ;
-    llvm::errs() << "\n^^^^^\n";
-    signalPassFailure();
-    assert(false);
+      llvm::errs() << "===Hask -> Std lowering failed===\n";
+      getOperation()->print(llvm::errs());
+      llvm::errs() << "\n===\n";
+      signalPassFailure();
   }
   return;
 
@@ -948,12 +976,10 @@ void LowerHaskSSAOpToStandardPass::runOnOperation() {
   OwningRewritePatternList patterns;
   patterns.insert<ApSSAConversionPattern>(&getContext());
   if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
-    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-    llvm::errs() << "fn\nvvvv\n";
+    llvm::errs() << "==" << __FUNCTION__ << " failed==\n";
     getOperation().dump() ;
-    llvm::errs() << "\n^^^^^\n";
+    llvm::errs() << "====\n";
     signalPassFailure();
-    assert(false);
   }
 
   return;

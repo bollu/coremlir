@@ -1823,3 +1823,19 @@ Also:
   called `SingleBlockExplicitTerminator`: this is precisely what my `func` is:
   it should just create a `lambda` and then return the `lambda`. Hm, perhaps
   I should put this information in an attribute. Not sure. Oh well.
+- What is going on with `LLVMTypeConverter`? Why does it exist?
+- For whatever reason, any IR I generate from the legalization pass
+  mysteriously vanishes after being generated. I presume I'm being really
+  stupid and missing something extremely obvious. 
+- Got annoyed at the MLIR documentation, so spent some time messing with doxygen
+  to get both (1) very detailed doxygen pages, and also (2) man pages. Hopefully
+  this helps me search for things faster when it comes to the sprawling MLIR
+  sources.
+- There are lots of design concerns that I'm basically giving up on for the
+  first iteration. Non-exhaustive list: (1) we need to at least know the types
+  of functions when we lower to MLIR, to the granularity of int-value-or-boxed-value.
+  I currently assume everything is `int`. (2) We need to go through the usual
+  pain in converting from the nice lazy representation to the `void*` mess that
+  is representing closures inside LLVM. This too needs to know types to know
+  how much space to allocate. Completely ignore these issues as well.
+
