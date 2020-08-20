@@ -5,7 +5,8 @@ hask.module {
     %unit_tuple = hask.make_data_constructor<"()">
   hask.func @fib {
     %lambda = hask.lambdaSSA(%i) {
-      hask.return(%unit_tuple)
+      %foo = hask.make_data_constructor<"foo">
+      hask.return(%foo)
     }
     hask.return(%lambda)
   }

@@ -2030,3 +2030,44 @@ void ConvertLinalgToStandardPass::runOnOperation() {
 
 - They too add `FuncOp` as legal manually. Man I wish I understood this.
   What dialect does `FuncOp, ModuleOp`, etc belong to?
+
+
+- OK, we can now lower a dummy `hask.func` into a dummy `FuncOp`:
+
+##### input
+```
+// INPUT
+hask.module {
+  // vvvv unusedvvv
+  %unit_tuple = hask.make_data_constructor<"()">
+  hask.func @fib {
+    %lambda = hask.lambdaSSA(%i) {
+      %foo = hask.make_data_constructor<"foo">
+      hask.return(%foo)
+    }
+    hask.return(%lambda)
+  }
+  hask.dummy_finish
+}
+```
+
+##### lowered
+```
+ // LOWERED
+ module {
+  hask.module {
+    %0 = hask.make_data_constructor<"+#">
+    %1 = hask.make_data_constructor<"-#">
+    %2 = hask.make_data_constructor<"()">
+    func @fib_lowered(%arg0: !hask.untyped) {
+      %3 = hask.make_data_constructor<"foo">
+      hask.return(%3)
+    }
+    hask.dummy_finish
+  }
+}
+```
+
+- What I am actually interested is to have our function return a `%unit_tuple`,
+  but that does not seem to be allowed because `FuncOp` has a `IsolatedFromAbove`
+  trait. This is very strange: how do I use global data?

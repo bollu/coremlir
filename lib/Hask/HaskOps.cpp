@@ -749,9 +749,9 @@ public:
     // become a top-level function. Other lambdas will become toplevel functions with synthetic names.
     llvm::errs() << "running HaskFuncOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
     auto fn = cast<HaskFuncOp>(op);
-    /*
     LambdaSSAOp lam = fn.getLambda();
 
+    /*
     SmallVector<NamedAttribute, 4> attrs;
     // TODO: HACK! types are hardcoded :)
     rewriter.setInsertionPointAfter(fn);
@@ -767,11 +767,14 @@ public:
     */
     FuncOp stdFunc = ::mlir::FuncOp::create(fn.getLoc(),
             fn.getFuncName().str() + "_lowered",
-            FunctionType::get({}, {}, rewriter.getContext()));
+            FunctionType::get({rewriter.getType<UntypedType>()}, {}, rewriter.getContext()));
+    rewriter.inlineRegionBefore(lam.getBody(), stdFunc.getBody(), stdFunc.end());
     rewriter.insert(stdFunc);
 
-    llvm::errs() << "- fn.getParentOp():\n\n" << *fn.getParentOp() << "\n";
+    llvm::errs() << "- stdFunc: " << stdFunc << "\n";
     rewriter.eraseOp(fn);
+
+    // llvm::errs() << "- stdFunc.getParentOp()\n: " << *stdFunc.getParentOp() << "\n";
     return success();
   }
 };
