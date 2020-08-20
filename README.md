@@ -1977,3 +1977,56 @@ module {
   }
 }
 ```
+
+- `LinalgToStandard` creates new functions with `FuncOp`: 
+```cpp
+//LinalgToStandard.cpp
+// Get a SymbolRefAttr containing the library function name for the LinalgOp.
+// If the library function does not exist, insert a declaration.
+template <typename LinalgOp>
+static FlatSymbolRefAttr getLibraryCallSymbolRef(Operation *op,
+                                                 PatternRewriter &rewriter) {
+  auto linalgOp = cast<LinalgOp>(op);
+  auto fnName = linalgOp.getLibraryCallName();
+  if (fnName.empty()) {
+    op->emitWarning("No library call defined for: ") << *op;
+    return {};
+  }
+
+  // fnName is a dynamic std::string, unique it via a SymbolRefAttr.
+  FlatSymbolRefAttr fnNameAttr = rewriter.getSymbolRefAttr(fnName);
+  auto module = op->getParentOfType<ModuleOp>();
+  if (module.lookupSymbol(fnName)) {
+    return fnNameAttr;
+  }
+
+  SmallVector<Type, 4> inputTypes(extractOperandTypes<LinalgOp>(op));
+  assert(op->getNumResults() == 0 &&
+         "Library call for linalg operation can be generated only for ops that "
+         "have void return types");
+  auto libFnType = FunctionType::get(inputTypes, {}, rewriter.getContext());
+
+  OpBuilder::InsertionGuard guard(rewriter);
+  // Insert before module terminator.
+  rewriter.setInsertionPoint(module.getBody(),
+                             std::prev(module.getBody()->end()));
+  FuncOp funcOp =
+      rewriter.create<FuncOp>(op->getLoc(), fnNameAttr.getValue(), libFnType,
+                              ArrayRef<NamedAttribute>{});
+  // Insert a function attribute that will trigger the emission of the
+  // corresponding `_mlir_ciface_xxx` interface so that external libraries see
+  // a normalized ABI. This interface is added during std to llvm conversion.
+  funcOp.setAttr("llvm.emit_c_interface", UnitAttr::get(op->getContext()));
+  return fnNameAttr;
+}
+...
+void ConvertLinalgToStandardPass::runOnOperation() {
+   auto module = getOperation();
+   ConversionTarget target(getContext());
+   target.addLegalDialect<AffineDialect, scf::SCFDialect, StandardOpsDialect>();
+   target.addLegalOp<ModuleOp, FuncOp, ModuleTerminatorOp, ReturnOp>();
+   ...
+```
+
+- They too add `FuncOp` as legal manually. Man I wish I understood this.
+  What dialect does `FuncOp, ModuleOp`, etc belong to?
