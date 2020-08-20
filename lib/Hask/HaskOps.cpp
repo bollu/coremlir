@@ -23,6 +23,7 @@
 // Standard dialect
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/SCF/SCF.h"
 
 // pattern matching
 #include "mlir/IR/Matchers.h"
@@ -89,7 +90,12 @@ ParseResult CaseOp::parse(OpAsmParser &parser, OperationState &result) {
 
     // for (auto attr : result.attributes.getAttrs()) llvm::errs() << "-" << attr.first <<"=" << attr.second << "\n";
     // llvm::errs() << << "\n";
-    llvm::errs() <<  "***" << __FUNCTION__ << ":" << __LINE__ << ": " << " num parsed attributes: " << result.attributes.getAttrs().size() <<  "...\n"; 
+    llvm::errs() <<  "***" << 
+        __FUNCTION__ << ":" << 
+        __LINE__ << ": " << 
+        " num parsed attributes: " << 
+        result.attributes.getAttrs().size() <<  
+        "...\n"; 
     for(int i = 0; i < result.attributes.getAttrs().size(); ++i) {
         Region *r = result.addRegion();
         if(parser.parseRegion(*r, {}, {})) return failure(); 
@@ -486,6 +492,17 @@ void CaseSSAOp::print(OpAsmPrinter &p) {
     }
 };
 
+llvm::Optional<int> CaseSSAOp::getDefaultAltIndex() {
+    for(int i = 0; i < getNumAlts(); ++i) {
+        Attribute ai = this->getAltLHS(i);
+        // TODO,HACK! We are assuming that any string will be DEFAULT
+        // Of course, this is completely borked.
+         StringAttr sai = ai.dyn_cast<StringAttr>();
+         if (sai) { return i; }
+    }
+    return llvm::Optional<int>();
+}
+
 // === LAMBDASSA OP ===
 // === LAMBDASSA OP ===
 // === LAMBDASSA OP ===
@@ -848,11 +865,11 @@ public:
     */
     FuncOp stdFunc = ::mlir::FuncOp::create(fn.getLoc(),
             fn.getFuncName().str() + "_lowered",
-            FunctionType::get({rewriter.getI32Type()}, {}, rewriter.getContext()));
+            FunctionType::get({rewriter.getType<UntypedType>()}, {}, rewriter.getContext()));
     rewriter.inlineRegionBefore(lam.getBody(), stdFunc.getBody(), stdFunc.end());
 
-    Block &funcEntry = stdFunc.getBody().getBlocks().front();
-    funcEntry.args_begin()->setType(rewriter.getI32Type());
+    // Block &funcEntry = stdFunc.getBody().getBlocks().front();
+    // funcEntry.args_begin()->setType(rewriter.getType<UntypedType>());
     rewriter.insert(stdFunc);
 
     llvm::errs() << "- stdFunc: " << stdFunc << "\n";
@@ -878,6 +895,39 @@ public:
         llvm::errs() << "- scrutinee(before): " << scrutinee << "\n";
         scrutinee.setType(rewriter.getI32Type());
         llvm::errs() << "- scrutinee(after): " << scrutinee << "\n";
+
+        assert(caseop.getDefaultAltIndex() && "expected default class");
+        const int default_ix = *caseop.getDefaultAltIndex();
+
+        // this code is completely kludgy :(
+
+        for(int i = 0; i < caseop.getNumAlts(); ++i) {
+            if (i == default_ix) { continue; }
+            IntegerAttr lhsVal = caseop.getAltLHS(i).cast<IntegerAttr>();
+            mlir::ConstantOp lhs =
+                rewriter.create<mlir::ConstantOp>(caseop.getLoc(), lhsVal);
+            llvm::errs() << "- lhs constant: " << lhs << "\n";
+            // Type result, IntegerAttr predicate, Value lhs, Value rhs
+            mlir::CmpIOp scrutinee_eq_val =
+                rewriter.create<mlir::CmpIOp>(caseop.getLoc(),
+                                              rewriter.getI32Type(),
+                                              mlir::CmpIPredicate::eq,
+                                              lhs,
+                                              caseop.getScrutinee());
+            llvm::errs() << "- cmp constant: " << scrutinee_eq_val << "\n";
+
+            scf::IfOp if_ =
+                rewriter.create<scf::IfOp>(
+                    caseop.getLoc(),
+                    scrutinee_eq_val);
+            rewriter.inlineRegionBefore(caseop.getAltRHS(i), &if_.thenRegion().back());
+            llvm::errs() << " - if: " << if_ << "\n";
+
+            // mlir::scf::IfOp::build()
+            // rewriter.create<
+        }
+        assert(false);
+
 
         llvm::errs() << "- module after CaseSSAOp conversion\n";
         llvm::errs() << *caseop.getParentOp() << "\n";
@@ -1009,7 +1059,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<HaskModuleOp>();
     target.addLegalOp<MakeDataConstructorOp>();
     target.addLegalOp<LambdaSSAOp>();
-    target.addLegalOp<CaseSSAOp>();
+    //target.addLegalOp<CaseSSAOp>();
     target.addLegalOp<MakeI32Op>();
     target.addLegalOp<ApSSAOp>();
     target.addLegalOp<ForceOp>();

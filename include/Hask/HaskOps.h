@@ -215,6 +215,7 @@ public:
   mlir::DictionaryAttr getAltLHSs() { return this->getOperation()->getAttrDictionary(); }
   Attribute getAltLHS(int i) { return getAltLHSs().get("alt" + std::to_string(i)); }
   void print(OpAsmPrinter &p);
+  llvm::Optional<int> getDefaultAltIndex();
 
 };
 
