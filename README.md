@@ -1895,3 +1895,85 @@ machinery.
 
 - I don't understand 'became illegal after block action'. Time to read the
   sources.
+
+- OK, so we can do the simplest thing known to man: delete the entire `hask.func`
+
+```
+// Input
+// Debugging file: Can do anything here.
+hask.module {
+    %plus_hash = hask.make_data_constructor<"+#">
+    %minus_hash = hask.make_data_constructor<"-#">
+    %unit_tuple = hask.make_data_constructor<"()">
+  hask.func @fib {
+    %lambda = hask.lambdaSSA(%i) {
+      hask.return(%unit_tuple)
+    }
+    hask.return(%lambda)
+  }
+  hask.dummy_finish
+}
+```
+
+```
+// Output
+module {
+  hask.module {
+    %0 = hask.make_data_constructor<"+#">
+    %1 = hask.make_data_constructor<"-#">
+    %2 = hask.make_data_constructor<"()">
+    hask.dummy_finish
+  }
+}
+```
+
+
+- So to generate a `FuncOp`, I apparently need to **explicitly call**
+  `target.addLegalOp<FuncOp>()`, even though I have a
+  `target.addLegalDialect<mlir::StandardOpsDialect>()`.
+
+```cpp
+target.addLegalDialect<mlir::StandardOpsDialect>();
+// Why do I need this? Isn't adding StandardOpsDialect enough?
+target.addLegalOp<FuncOp>(); <- WHY?
+```
+
+- I really don't understand what's happening `:(`. I want to understand why
+  `FuncOp` is not considered legal-by-default on marking `std` legal. Either
+  (i) `FuncOp` does not, in fact, belong to `std`, or (ii) there is some
+  kind of precedence in the way in which the `addLegal*` rules kick in, where
+  somehow `FuncOp` is becoming illegal? I don't even know.
+
+- Anyway, we can now lower the `play.mlir` file from an empty `hask.func`
+  to an empty `func`:
+
+##### input
+```
+// INPUT
+hask.module {
+    %plus_hash = hask.make_data_constructor<"+#">
+    %minus_hash = hask.make_data_constructor<"-#">
+    %unit_tuple = hask.make_data_constructor<"()">
+  hask.func @fib {
+    %lambda = hask.lambdaSSA(%i) {
+      hask.return(%unit_tuple)
+    }
+    hask.return(%lambda)
+  }
+  hask.dummy_finish
+}
+```
+##### lowered
+
+```
+// LOWERED
+module {
+  hask.module {
+    %0 = hask.make_data_constructor<"+#">
+    %1 = hask.make_data_constructor<"-#">
+    %2 = hask.make_data_constructor<"()">
+    func @fib_lowered()
+    hask.dummy_finish
+  }
+}
+```

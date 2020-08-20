@@ -754,8 +754,6 @@ public:
 
     SmallVector<NamedAttribute, 4> attrs;
     // TODO: HACK! types are hardcoded :)
-    FuncOp stdFunc = FuncOp::create(fn.getLoc(), fn.getFuncName(),
-            FunctionType::get({}, {}, rewriter.getContext()));
     rewriter.setInsertionPointAfter(fn);
     llvm::errs() << "- stdFunc: " << stdFunc << "\n";
     llvm::errs() << "- fn.getParentOp():\n\n" << *fn.getParentOp() << "\n";
@@ -767,8 +765,13 @@ public:
     // TODO: Tell the rewriter to convert the region signature.
     // rewriter.applySignatureConversion(&newFuncOp.getBody(), result);
     */
+    FuncOp stdFunc = ::mlir::FuncOp::create(fn.getLoc(),
+            fn.getFuncName().str() + "_lowered",
+            FunctionType::get({}, {}, rewriter.getContext()));
+    rewriter.insert(stdFunc);
+
+    llvm::errs() << "- fn.getParentOp():\n\n" << *fn.getParentOp() << "\n";
     rewriter.eraseOp(fn);
-    // rewriter.insert(stdFunc);
     return success();
   }
 };
@@ -892,6 +895,8 @@ void LowerHaskToStandardPass::runOnOperation() {
     // do I not need a pointer to the dialect? I am so confused :(
     HaskToStdTypeConverter converter();
     target.addLegalDialect<mlir::StandardOpsDialect>();
+    // Why do I need this? Isn't adding StandardOpsDialect enough?
+    target.addLegalOp<FuncOp>();
     target.addIllegalDialect<standalone::HaskDialect>();
     target.addLegalOp<HaskModuleOp>();
     target.addLegalOp<MakeDataConstructorOp>();
