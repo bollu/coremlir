@@ -157,8 +157,6 @@ int main(int argc, char **argv) {
   module->print(llvm::errs());
   llvm::errs() << "\n===\n";
 
-  return 0;
-
   // Lowering code to standard (?) Do I even need to (?)
   // Can I directly generate LLVM?
 

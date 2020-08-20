@@ -5,7 +5,9 @@ playround:
 	../build/bin/hask-opt ./playground.mlir -optimize  | tee playground-roundtrip.mlir
 	(../build/bin/hask-opt playground-roundtrip.mlir \
 		-optimize 1>/dev/null 2>/dev/null) \
-		|| (echo "ROUNDTRIP FAILED"; false)
+		|| (echo "===ROUNDTRIP FAILED==="; \
+			../build/bin/hask-opt playground-roundtrip.mlir; \
+			echo "===ROUNTRIP FAILED==="; false)
 	rm playground-roundtrip.mlir
 
 

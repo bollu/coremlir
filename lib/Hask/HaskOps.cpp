@@ -403,7 +403,7 @@ void ApSSAOp::print(OpAsmPrinter &p) {
 
     // TODO: propose actually strongly typing this?This is just sick.
     StringAttr fnSymbolic = fnSymbolName();
-    if (fnSymbolic) { p << fnSymbolic; }
+    if (fnSymbolic) { p.printSymbolName(fnSymbolic.getValue()); }
     for(int i = 0; i < this->getOperation()->getNumOperands(); ++i) {
         if (i > 0 || (i == 0 && fnSymbolic)) { p << ", "; }
         p.printOperand(this->getOperation()->getOperand(i));
