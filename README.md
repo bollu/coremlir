@@ -2035,7 +2035,8 @@ void ConvertLinalgToStandardPass::runOnOperation() {
 - OK, we can now lower a dummy `hask.func` into a dummy `FuncOp`:
 
 ##### input
-```
+
+```cpp
 // INPUT
 hask.module {
   // vvvv unusedvvv
@@ -2052,7 +2053,7 @@ hask.module {
 ```
 
 ##### lowered
-```
+```cpp
  // LOWERED
  module {
   hask.module {

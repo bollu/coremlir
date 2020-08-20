@@ -135,6 +135,10 @@ int main(int argc, char **argv) {
     llvm::errs() << "==canonicalization succeeded!===\n";
   }
 
+  llvm::errs() << "===Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << "===\n";
+  module->print(llvm::errs());
+  llvm::errs() << "\n===\n";
+
 
   if (enableOptimization) {
     mlir::PassManager pm(&context);
@@ -152,6 +156,8 @@ int main(int argc, char **argv) {
   llvm::errs() << "===Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << "===\n";
   module->print(llvm::errs());
   llvm::errs() << "\n===\n";
+
+  return 0;
 
   // Lowering code to standard (?) Do I even need to (?)
   // Can I directly generate LLVM?
