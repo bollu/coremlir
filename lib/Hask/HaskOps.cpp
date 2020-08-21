@@ -901,19 +901,9 @@ public:
       const int default_ix = *caseop.getDefaultAltIndex();
       assert(caseop.getDefaultAltIndex() && "expected default case");
 
-      Block &caseBB = caseop.getParentRegion()->front();
-      Block &defaultBB = caseop.getAltRHS(default_ix).front();
-      rewriter.mergeBlocks(&defaultBB, &caseBB, caseop.getScrutinee());
-      // rewriter.inlineRegionBefore(caseop.getAltRHS(default_ix),
-//                                    defaultRegion,
-//                                    defaultRegion.end());
-
-
+        /*
         rewriter.eraseOp(op);
-        for(Operation *user : op->getUsers()) {
-          rewriter.eraseOp(user);
-        }
-        return success();
+        */
 
         llvm::errs() << "running CaseSSAOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
         Value scrutinee = caseop.getScrutinee();
@@ -951,19 +941,18 @@ public:
             // rewriter.create<
         }
 
-        Region &defaultRegion = *caseop.getParentRegion();
-        rewriter.inlineRegionBefore(caseop.getAltRHS(default_ix),
-                                    defaultRegion,
-                                    defaultRegion.end());
-
-        // generate default case as what runs after all the checks.
-        // rewriter.inlineRegionBefore(caseop.getAltRHS(default_ix),
-        //                             &caseop.getParentRegion()->back());
+        Block &caseBB = caseop.getParentRegion()->front();
+        Block &defaultBB = caseop.getAltRHS(default_ix).front();
+        rewriter.mergeBlocks(&defaultBB, &caseBB, caseop.getScrutinee());
 
         // delete the use of the case.
         // TODO: Change the IR so that a case doesn't have a use.
         // TODO: This is so kludgy :(
+        for(Operation *user : op->getUsers()) {
+          rewriter.eraseOp(user);
+        }
         rewriter.eraseOp(caseop);
+
         llvm::errs() << "------case op------:\n" <<
             *caseop.getParentOp() <<
             "\n------------\n";
@@ -1166,6 +1155,8 @@ void LowerHaskToStandardPass::runOnOperation() {
     // do I not need a pointer to the dialect? I am so confused :(
     HaskToStdTypeConverter converter();
     target.addLegalDialect<mlir::StandardOpsDialect>();
+    target.addLegalDialect<mlir::scf::SCFDialect>();
+
     // Why do I need this? Isn't adding StandardOpsDialect enough?
     target.addLegalOp<FuncOp>();
     target.addLegalOp<ModuleOp>();
@@ -1182,7 +1173,6 @@ void LowerHaskToStandardPass::runOnOperation() {
     // target.addLegalOp<HaskReturnOp>();
     // target.addLegalOp<DummyFinishOp>();
     target.addLegalOp<HaskRefOp>();
-
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
     patterns.insert<CaseSSAOpConversionPattern>(&getContext());
