@@ -26,8 +26,9 @@ using namespace mlir::standalone;
 // Hask dialect.
 //===----------------------------------------------------------------------===//
 
+
 HaskDialect::HaskDialect(mlir::MLIRContext *context)
-    : Dialect(getDialectNamespace(), context) {
+    : Dialect(getDialectNamespace(), context, TypeID::get<HaskDialect>()) {
   addOperations<
 #define GET_OP_LIST
 #include "Hask/HaskOps.cpp.inc"
