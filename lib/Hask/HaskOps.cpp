@@ -874,7 +874,7 @@ public:
     */
     FuncOp stdFunc = ::mlir::FuncOp::create(fn.getLoc(),
             fn.getFuncName().str() + "_lowered",
-            FunctionType::get({rewriter.getType<UntypedType>()}, {}, rewriter.getContext()));
+            FunctionType::get({rewriter.getI32Type()}, {}, rewriter.getContext()));
     rewriter.inlineRegionBefore(lam.getBody(), stdFunc.getBody(), stdFunc.end());
 
     // Block &funcEntry = stdFunc.getBody().getBlocks().front();
@@ -903,8 +903,8 @@ public:
 
       Block &caseBB = caseop.getParentRegion()->front();
       Block &defaultBB = caseop.getAltRHS(default_ix).front();
-      // rewriter.mergeBlocks(&defaultBB, &caseBB, {});
-      //      rewriter.inlineRegionBefore(caseop.getAltRHS(default_ix),
+      rewriter.mergeBlocks(&defaultBB, &caseBB, caseop.getScrutinee());
+      // rewriter.inlineRegionBefore(caseop.getAltRHS(default_ix),
 //                                    defaultRegion,
 //                                    defaultRegion.end());
 
@@ -1073,7 +1073,10 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     llvm::errs() << "running MakeI32OpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
     MakeI32Op makei32 = cast<MakeI32Op>(op);
-    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op, rewriter.getI32Type(), makei32.getValue());
+    int val = makei32.getValue().getInt();
+    // TODO: eliminate this nasty 32-bit <-> 64-bit juggling
+    IntegerAttr val32attr =  mlir::IntegerAttr::get(rewriter.getI32Type(), val);
+    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op,rewriter.getI32Type(), val32attr);
     return success();
   }
 };
@@ -1143,11 +1146,11 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<HaskModuleOp>();
     target.addLegalOp<MakeDataConstructorOp>();
     target.addLegalOp<LambdaSSAOp>();
-    target.addLegalOp<CaseSSAOp>();
+    // target.addLegalOp<CaseSSAOp>();
     // target.addLegalOp<MakeI32Op>();
     // target.addLegalOp<ApSSAOp>();
     // target.addLegalOp<ForceOp>();
-//    target.addLegalOp<HaskReturnOp>();
+    // target.addLegalOp<HaskReturnOp>();
     target.addLegalOp<DummyFinishOp>();
     target.addLegalOp<HaskRefOp>();
 

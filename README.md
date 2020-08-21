@@ -2195,3 +2195,36 @@ public:
 - It seems that in `Toy`, the stopped using the tablegen'd version of the
   dialect: [they define the dialect in C++](https://github.com/llvm/llvm-project/blob/e1cd7cac8a36608616d515b64d12f2e86643970d/mlir/examples/toy/Ch7/include/toy/Dialect.h#L54).
   I switched to doing this as well --- I prefer the C++ version at any rate.
+
+- Making progress with  my pile-of-hacks. I replace the `case` with the
+  body of the default, and I get this:
+
+```
+./playground.mlir:14:28: error: 'std.call' op 'fib' does not reference a valid function
+        %fib_i_minus_one = hask.apSSA(@fib, %i_minus_one)
+                           ^
+./playground.mlir:14:28: note: see current operation: %1 = "std.call"(%0) {callee = @fib} : (i32) -> i32
+===Lowering failed.===
+===Incorrectly lowered Module to Standard+SCF:===
+
+
+module {
+  hask.module {
+    hask.make_data_constructor @"+#"
+    hask.make_data_constructor @"-#"
+    hask.make_data_constructor @"()"
+    func @fib_lowered(%arg0: i32) {
+      %c1_i32 = constant 1 : i32
+      %0 = subi %arg0, %c1_i32 : i32
+      %1 = call @fib(%0) : (i32) -> i32
+      %2 = call @fib(%arg0) : (i32) -> i32
+      %3 = addi %2, %1 : i32
+      return %3 : i32
+    }
+    hask.dummy_finish
+  }
+}
+```
+
+- I am not sure why `fib` does not reference a valid function! What on earth
+  is it talking about?

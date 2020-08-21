@@ -91,7 +91,9 @@ public:
   static StringRef getOperationName() { return "hask.make_i32"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
 
-  Attribute getValue() { return this->getOperation()->getAttr("value"); }
+  IntegerAttr getValue() {
+    return this->getOperation()->getAttrOfType<IntegerAttr>("value");
+  }
   void print(OpAsmPrinter &p);
 };
 
