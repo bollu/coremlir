@@ -920,17 +920,31 @@ public:
                 rewriter.create<scf::IfOp>(
                     caseop.getLoc(),
                     scrutinee_eq_val);
-            rewriter.inlineRegionBefore(caseop.getAltRHS(i), &if_.thenRegion().back());
-            llvm::errs() << " - if: " << if_ << "\n";
-
+            Region &ifThenRegion = if_.thenRegion();
+            rewriter.inlineRegionBefore(caseop.getAltRHS(i),
+                                        ifThenRegion,
+                                        if_.thenRegion().end());
             // mlir::scf::IfOp::build()
             // rewriter.create<
         }
-        assert(false);
 
+        Region &defaultRegion = *caseop.getParentRegion();
+        rewriter.inlineRegionBefore(caseop.getAltRHS(default_ix),
+                                    defaultRegion,
+                                    defaultRegion.end());
 
-        llvm::errs() << "- module after CaseSSAOp conversion\n";
-        llvm::errs() << *caseop.getParentOp() << "\n";
+        // generate default case as what runs after all the checks.
+        // rewriter.inlineRegionBefore(caseop.getAltRHS(default_ix),
+        //                             &caseop.getParentRegion()->back());
+
+        // delete the use of the case.
+        // TODO: Change the IR so that a case doesn't have a use.
+        // TODO: This is so kludgy :(
+        rewriter.eraseOp(caseop);
+        llvm::errs() << "------case op------:\n" <<
+            *caseop.getParentOp() <<
+            "\n------------\n";
+
         return success();
     }
 };
