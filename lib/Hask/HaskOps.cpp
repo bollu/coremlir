@@ -917,15 +917,17 @@ public:
         for(int i = 0; i < caseop.getNumAlts(); ++i) {
             if (i == default_ix) { continue; }
             IntegerAttr lhsVal = caseop.getAltLHS(i).cast<IntegerAttr>();
-            mlir::ConstantOp lhs =
-                rewriter.create<mlir::ConstantOp>(caseop.getLoc(), lhsVal);
-            llvm::errs() << "- lhs constant: " << lhs << "\n";
+            mlir::IntegerAttr lhsI32 =
+                mlir::IntegerAttr::get(rewriter.getI32Type(),lhsVal.getInt());
+            mlir::ConstantOp lhsConstant =
+                rewriter.create<mlir::ConstantOp>(caseop.getLoc(), lhsI32);
+            llvm::errs() << "- lhs constant: " << lhsConstant << "\n";
             // Type result, IntegerAttr predicate, Value lhs, Value rhs
             mlir::CmpIOp scrutinee_eq_val =
                 rewriter.create<mlir::CmpIOp>(caseop.getLoc(),
-                                              rewriter.getI32Type(),
+                                              rewriter.getI1Type(),
                                               mlir::CmpIPredicate::eq,
-                                              lhs,
+                                              lhsConstant,
                                               caseop.getScrutinee());
             llvm::errs() << "- cmp constant: " << scrutinee_eq_val << "\n";
 

@@ -2243,3 +2243,43 @@ static LogicalResult verify(CallOp op) {
 ```
 
 - So I think the problem is that it doesn't have a `parentOfType<ModuleOp>`?
+
+
+- I now generate this:
+
+```cpp
+module {
+  module {
+    hask.make_data_constructor @"+#"
+    hask.make_data_constructor @"-#"
+    hask.make_data_constructor @"()"
+    func @fib(%arg0: i32) -> i32 {
+      %c0_i32 = constant 0 : i32
+      %0 = cmpi "eq", %c0_i32, %arg0 : i32
+      scf.if %0 {
+      ^bb1(%6: !hask.untyped):  // no predecessors
+        return %arg0 : i32
+      }
+      %c1_i32 = constant 1 : i32
+      %1 = cmpi "eq", %c1_i32, %arg0 : i32
+      scf.if %1 {
+      ^bb1(%6: !hask.untyped):  // no predecessors
+        return %arg0 : i32
+      }
+      %c1_i32_0 = constant 1 : i32
+      %2 = subi %arg0, %c1_i32_0 : i32
+      %3 = call @fib(%2) : (i32) -> i32
+      %4 = call @fib(%arg0) : (i32) -> i32
+      %5 = addi %4, %3 : i32
+      return %5 : i32
+    }
+  }
+}
+```
+
+which fails legalization with:
+
+> ./playground.mlir:9:17: error: 'scf.if' op expects region #0 to have 0 or 1 blocks
+
+Not sure which region is `region #0`. Need to read the code where the
+error comes from.
