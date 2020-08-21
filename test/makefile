@@ -1,5 +1,15 @@
 .PHONY: fib fibstrict playground
 
+playground: 
+	make -C ~/work/mlir/coremlir/build
+	../build/bin/hask-opt ./playground.mlir -optimize  | tee playground-roundtrip.mlir
+	(../build/bin/hask-opt playground-roundtrip.mlir \
+		-optimize 1>/dev/null 2>/dev/null) \
+		|| (echo "===ROUNDTRIP FAILED==="; \
+			../build/bin/hask-opt playground-roundtrip.mlir; \
+			echo "===ROUNTRIP FAILED==="; false)
+	rm playground-roundtrip.mlir
+
 
 fibstrict: 
 	make -C ~/work/mlir/coremlir/build
@@ -10,15 +20,6 @@ fibstrict:
 	# check that the optimized version runs
 	../build/bin/hask-opt ./fib-strict-roundtrip.mlir -optimize
 
-playground: 
-	make -C ~/work/mlir/coremlir/build
-	../build/bin/hask-opt ./playground.mlir -optimize  | tee playground-roundtrip.mlir
-	(../build/bin/hask-opt playground-roundtrip.mlir \
-		-optimize 1>/dev/null 2>/dev/null) \
-		|| (echo "===ROUNDTRIP FAILED==="; \
-			../build/bin/hask-opt playground-roundtrip.mlir; \
-			echo "===ROUNTRIP FAILED==="; false)
-	rm playground-roundtrip.mlir
 
 fib: 
 	make -C ~/work/mlir/coremlir/build

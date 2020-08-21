@@ -30,9 +30,16 @@
 #include "mlir/IR/PatternMatch.h"
 
 // dilect lowering
-#include "mlir/Transforms/DialectConversion.h"
-
 #include "mlir/Pass/PassRegistry.h"
+#include "mlir/Transforms/DialectConversion.h"
+// https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch6/toyc.cpp
+#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
+#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/DialectConversion.h"
 
 #define DEBUG_TYPE "hask-ops"
 #include "llvm/Support/Debug.h"
@@ -970,9 +977,8 @@ void LowerHaskToStandardPass::runOnOperation() {
     patterns.insert<HaskReturnOpConversionPattern>(&getContext()); 
     patterns.insert<DummyFinishOpConversionPattern>(&getContext());
 
-    llvm::errs() << "debugging? " << ::llvm::DebugFlag << "\n";
-    LLVM_DEBUG({ assert(false && "llvm debug exists"); });
-    ::llvm::DebugFlag = true; 
+    llvm::errs() << "===Enabling Debugging...===\n";
+    ::llvm::DebugFlag = true;
 
   
   if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
@@ -982,82 +988,74 @@ void LowerHaskToStandardPass::runOnOperation() {
       signalPassFailure();
   }
 
+  ::llvm::DebugFlag = false;
   return;
 
-  //   auto function = getFunction();
-
-  // The first thing to define is the conversion target. This will define the
-  // final target for this lowering.
-  //0 ConversionTarget target(getContext());
-
-  // We define the specific operations, or dialects, that are legal targets for
-  // this lowering. In our case, we are lowering to a combination of the
-  // `Affine` and `Standard` dialects.
-  //0 target.addLegalDialect<LeanDialect, StandardOpsDialect>();
-
-  // We also define the Toy dialect as Illegal so that the conversion will fail
-  // if any of these operations are *not* converted. Given that we actually want
-  // a partial lowering, we explicitly mark the Toy operations that don't want
-  // to lower, `toy.print`, as `legal`.
-  // target.addIllegalDialect<LeanDialect>();
-  // target.addLegalOp<PrintUnboxedIntOp>();
-  //0 target.addIllegalOp<PrintUnboxedIntOp>();
-
-  // Now that the conversion target has been defined, we just need to provide
-  // the set of patterns that will lower the Toy operations.
-  //0 OwningRewritePatternList patterns;
-  //0 patterns.insert<PrintOpLowering>(&getContext());
-
-  // With the target and rewrite patterns defined, we can now attempt the
-  // conversion. The conversion will signal failure if any of our `illegal`
-  // operations were not converted successfully.
-  //0 if (failed(applyPartialConversion(getFunction(), target, patterns))) {
-  //0   llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-  //0   llvm::errs() << "fn\nvvvv\n";
-  //0   getFunction().dump() ;
-  //0   llvm::errs() << "\n^^^^^\n";
-  //0   signalPassFailure();
-  //0 }
 }
 
 std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass() {
   return std::make_unique<LowerHaskToStandardPass>();
 }
 
-// === LowerHaskSSAOpToStandard === 
-// === LowerHaskSSAOpToStandard === 
-// === LowerHaskSSAOpToStandard === 
-// === LowerHaskSSAOpToStandard === 
-// === LowerHaskSSAOpToStandard === 
 
+// === LowerHaskStandardToLLVMPass ===
+// === LowerHaskStandardToLLVMPass ===
+// === LowerHaskStandardToLLVMPass ===
+// === LowerHaskStandardToLLVMPass ===
+// === LowerHaskStandardToLLVMPass ===
+
+
+// this is run in a second phase, so we delete data constructors only
+// after we are done processing data constructors.
+class MakeDataConstructorOpConversionPattern : public ConversionPattern {
+public:
+  explicit MakeDataConstructorOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(MakeDataConstructorOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+      rewriter.eraseOp(op);
+    return success();
+  }
+};
 namespace {
-struct LowerHaskSSAOpToStandardPass
-    : public PassWrapper<LowerHaskSSAOpToStandardPass, OperationPass<ApSSAOp>> {
-  void runOnOperation();
+struct LowerHaskStandardToLLVMPass : public Pass {
+    LowerHaskStandardToLLVMPass() : Pass(mlir::TypeID::get<LowerHaskStandardToLLVMPass>()) {};
+    StringRef getName() const override { return "LowerHaskToStandardPass"; }
+
+    std::unique_ptr<Pass> clonePass() const override {
+        auto newInst = std::make_unique<LowerHaskStandardToLLVMPass>(*static_cast<const LowerHaskStandardToLLVMPass *>(this));
+        newInst->copyOptionValuesFrom(this);
+        return newInst;
+    }
+
+    void runOnOperation() {
+
+      mlir::ConversionTarget target(getContext());
+      target.addLegalDialect<mlir::LLVM::LLVMDialect>();
+      target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
+      target.addIllegalDialect<HaskDialect>();
+      mlir::LLVMTypeConverter typeConverter(&getContext());
+      mlir::OwningRewritePatternList patterns;
+      patterns.insert<MakeDataConstructorOpConversionPattern>(&getContext());
+      mlir::populateStdToLLVMConversionPatterns(typeConverter, patterns);
+      if (failed(mlir::applyFullConversion(getOperation(), target, patterns))) {
+          llvm::errs() << "===Hask+Std -> LLVM lowering failed===\n";
+          getOperation()->print(llvm::errs());
+          llvm::errs() << "\n===\n";
+          signalPassFailure();
+      };
+
+    };
+
 };
 } // end anonymous namespace.
 
 
-
-void LowerHaskSSAOpToStandardPass::runOnOperation() {
-    ConversionTarget target(getContext());
-  OwningRewritePatternList patterns;
-  patterns.insert<ApSSAConversionPattern>(&getContext());
-  if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
-    llvm::errs() << "==" << __FUNCTION__ << " failed==\n";
-    getOperation().dump() ;
-    llvm::errs() << "====\n";
-    signalPassFailure();
-  }
-
-  return;
+std::unique_ptr<mlir::Pass> createLowerHaskStandardToLLVMPass() {
+  return std::make_unique<LowerHaskStandardToLLVMPass>();
 }
-
-std::unique_ptr<mlir::Pass> createHaskSSAOpLowering() {
-      return std::make_unique<LowerHaskSSAOpToStandardPass>();
-
-}
-
 
 } // namespace standalone
 } // namespace mlir

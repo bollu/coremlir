@@ -160,7 +160,6 @@ int main(int argc, char **argv) {
   // Lowering code to standard (?) Do I even need to (?)
   // Can I directly generate LLVM?
 
-  
   // lowering code to Standard/SCF
   {
     mlir::PassManager pm(&context);
@@ -184,28 +183,28 @@ int main(int argc, char **argv) {
 
 
 
-  module->print(llvm::outs()); llvm::outs().flush();
-  return 0;
 
-  
   // Lowering code to LLVM
   {
-    mlir::ConversionTarget target(context);
-    target.addLegalDialect<mlir::LLVM::LLVMDialect>();
-    // target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
-    target.addLegalOp<mlir::standalone::HaskModuleOp, mlir::standalone::DummyFinishOp>();
-    mlir::LLVMTypeConverter typeConverter(&context);
-    mlir::OwningRewritePatternList patterns;
-    mlir::PassManager pm(&context);
-    // pm.addPass(mlir::standalone::createLowerApSSAPass());
 
-    llvm::errs() << "Module: lowering to MLIR-LLVM....";
+    mlir::PassManager pm(&context);
+    pm.addPass(mlir::standalone::createLowerHaskStandardToLLVMPass());
+
+    llvm::errs() << "===Module: lowering to MLIR-LLVM...===\n";
     if (mlir::failed(pm.run(*module))) {
-      llvm::errs() << "Unable to lower module\n "; return 4;
+      llvm::errs() << "===Unable to lower module to LLVM===\n";
+      module->print(llvm::errs());
+      llvm::errs() << "\n===\n";
+      return 1;
     } else {
-      llvm::errs() << "Success!";
+      llvm::errs() << "===Success!===\n";
+      module->print(llvm::errs());
+      llvm::errs() << "\n===\n";
     }
   }
+
+  llvm::errs() << "===Printing module to stdout...===\n";
+  module->print(llvm::outs()); llvm::outs().flush();
 
   // llvm::errs() << "Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << " " << "lowered: ";
   // module->print(llvm::outs());

@@ -214,9 +214,10 @@ public:
   void print(OpAsmPrinter &p);
 };
 
-// lower hask to standard
+// lower hask to standard.
 std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass();
-std::unique_ptr<mlir::Pass> createHaskSSAOpLowering();
+// lower hask+standard to LLVM by eliminating all the junk.
+std::unique_ptr<mlir::Pass> createLowerHaskStandardToLLVMPass();
 
 
 } // namespace standalone
