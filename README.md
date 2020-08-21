@@ -2191,3 +2191,7 @@ public:
 ```
 
 - Now, I have no idea, this seems to not be the solution anymore :(
+
+- It seems that in `Toy`, the stopped using the tablegen'd version of the
+  dialect: [they define the dialect in C++](https://github.com/llvm/llvm-project/blob/e1cd7cac8a36608616d515b64d12f2e86643970d/mlir/examples/toy/Ch7/include/toy/Dialect.h#L54).
+  I switched to doing this as well --- I prefer the C++ version at any rate.
