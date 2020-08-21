@@ -901,63 +901,61 @@ public:
       const int default_ix = *caseop.getDefaultAltIndex();
       assert(caseop.getDefaultAltIndex() && "expected default case");
 
-        /*
-        rewriter.eraseOp(op);
-        */
 
-        llvm::errs() << "running CaseSSAOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+      // delete the use of the case.
+      // TODO: Change the IR so that a case doesn't have a use.
+      // TODO: This is so kludgy :(
+      for(Operation *user : op->getUsers()) { rewriter.eraseOp(user); }
+
         Value scrutinee = caseop.getScrutinee();
-        // TODO: assume all case scrutinees are integers.
-        llvm::errs() << "- scrutinee(before): " << scrutinee << "\n";
         scrutinee.setType(rewriter.getI32Type());
-        llvm::errs() << "- scrutinee(after): " << scrutinee << "\n";
 
-
-
+        rewriter.setInsertionPoint(caseop);
+        // TODO: get block of current caseop?
         for(int i = 0; i < caseop.getNumAlts(); ++i) {
             if (i == default_ix) { continue; }
+
             IntegerAttr lhsVal = caseop.getAltLHS(i).cast<IntegerAttr>();
             mlir::IntegerAttr lhsI32 =
                 mlir::IntegerAttr::get(rewriter.getI32Type(),lhsVal.getInt());
             mlir::ConstantOp lhsConstant =
-                rewriter.create<mlir::ConstantOp>(caseop.getLoc(), lhsI32);
+                rewriter.create<mlir::ConstantOp>(rewriter.getUnknownLoc(), lhsI32);
+
             llvm::errs() << "- lhs constant: " << lhsConstant << "\n";
             // Type result, IntegerAttr predicate, Value lhs, Value rhs
             mlir::CmpIOp scrutinee_eq_val =
-                rewriter.create<mlir::CmpIOp>(caseop.getLoc(),
+                rewriter.create<mlir::CmpIOp>(rewriter.getUnknownLoc(),
                                               rewriter.getI1Type(),
                                               mlir::CmpIPredicate::eq,
                                               lhsConstant,
                                               caseop.getScrutinee());
-            llvm::errs() << "- cmp constant: " << scrutinee_eq_val << "\n";
+            Block *prevBB = rewriter.getInsertionBlock();
+            SmallVector<Type, 1> BBArgs = { rewriter.getI32Type()};
+            Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), {},
+                                                 rewriter.getI32Type());
+            Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), {},
+                                                 rewriter.getI32Type());
 
-            scf::IfOp if_ =
-                rewriter.create<scf::IfOp>(
-                    caseop.getLoc(),
-                    scrutinee_eq_val);
-            Region &ifThenRegion = if_.thenRegion();
-            rewriter.inlineRegionBefore(caseop.getAltRHS(i),
-                                        ifThenRegion,
-                                        if_.thenRegion().end());
-            // mlir::scf::IfOp::build()
-            // rewriter.create<
+            rewriter.setInsertionPointToEnd(prevBB);
+            rewriter.create<mlir::CondBranchOp>(rewriter.getUnknownLoc(),
+                                                scrutinee_eq_val,
+                                                thenBB, caseop.getScrutinee(),
+                                                elseBB, caseop.getScrutinee());
+
+            rewriter.mergeBlocks(&caseop.getAltRHS(i).front(), thenBB, caseop.getScrutinee());
+            rewriter.setInsertionPointToStart(elseBB);
         }
 
-        Block &caseBB = caseop.getParentRegion()->front();
-        Block &defaultBB = caseop.getAltRHS(default_ix).front();
-        rewriter.mergeBlocks(&defaultBB, &caseBB, caseop.getScrutinee());
+        /*
+        assert(false);
+        rewriter.mergeBlocks(&caseop.getAltRHS(default_ix).front(), elseBB, caseop.getScrutinee());
+        */
 
-        // delete the use of the case.
-        // TODO: Change the IR so that a case doesn't have a use.
-        // TODO: This is so kludgy :(
-        for(Operation *user : op->getUsers()) {
-          rewriter.eraseOp(user);
-        }
+        rewriter.mergeBlocks(&caseop.getAltRHS(default_ix).front(),
+                             rewriter.getInsertionBlock(),
+                             caseop.getScrutinee());
         rewriter.eraseOp(caseop);
 
-        llvm::errs() << "------case op------:\n" <<
-            *caseop.getParentOp() <<
-            "\n------------\n";
 
         return success();
     }
