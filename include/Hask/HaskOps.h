@@ -15,7 +15,6 @@
 
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/RegionKindInterface.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Interfaces/CallInterfaces.h"
@@ -32,46 +31,6 @@ namespace standalone {
 #define GET_OP_CLASSES
 #include "Hask/HaskOps.h.inc"
 
-class LambdaOp : public Op<LambdaOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
-public:
-  using Op::Op;
-  static StringRef getOperationName() { return "hask.lambda"; };
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  void print(OpAsmPrinter &p);
-  Region &getBody() { assert(this->getOperation()->getNumRegions() == 1);  return this->getOperation()->getRegion(0);  }
-  Block::BlockArgListType inputRange() { this->getBody().begin()->getArguments();   }
-  int getNumInputs() { this->getBody().begin()->getNumArguments(); }
-  mlir::BlockArgument getInput(int i) { assert(i < getNumInputs()); return this->getBody().begin()->getArgument(i); }
-
-  // LogicalResult verify();
-};
-
-class CaseOp : public Op<CaseOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
-public:
-  using Op::Op;
-  static StringRef getOperationName() { return "hask.case"; };
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  Region &getScrutineeRegion() { this->getOperation()->getRegion(0); }
-  int getNumAlts() { return this->getOperation()->getNumRegions() - 1; }
-  Region &getAltRHS(int i) { return this->getOperation()->getRegion(i +1); }
-  mlir::DictionaryAttr getAltLHSs() { return this->getOperation()->getAttrDictionary(); }
-  Attribute getAltLHS(int i) { return getAltLHSs().get("arg" + std::to_string(i)); }
-  void print(OpAsmPrinter &p);
-
-};
-
-
-class ApOp : public Op<ApOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
-public:
-  using Op::Op;
-  static StringRef getOperationName() { return "hask.ap"; };
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  Region &getFn() { return getOperation()->getRegion(0); }
-  int getNumFnArguments() { return getOperation()->getNumRegions()-1; }
-  Region &getFnArgument(int i) { return getOperation()->getRegion(1+i); }
-  void print(OpAsmPrinter &p);
-
-};
 
 class HaskReturnOp : public Op<HaskReturnOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
 public:
@@ -118,31 +77,6 @@ public:
   void print(OpAsmPrinter &p);
 };
 
-class DominanceFreeScopeOp : public Op<DominanceFreeScopeOp, OpTrait::OneRegion, OpTrait::ZeroOperands, RegionKindInterface::Trait, OpTrait::ZeroResult, OpTrait::IsTerminator> {
-public:
-  using Op::Op;
-  static StringRef getOperationName() { return "hask.dominance_free_scope"; };
-  Region &getRegion() { return this->getOperation()->getRegion(0); };
-  void print(OpAsmPrinter &p);
-  static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  // build a single region.
-
-  static void build(OpBuilder &odsBuilder, OperationState &odsState, Type resultTy);
-
-};
-
-
-class TopLevelBindingOp : public Op<TopLevelBindingOp, OpTrait::OneResult, OpTrait::OneRegion, RegionKindInterface::Trait> {
-public:
-  using Op::Op;
-  static StringRef getOperationName() { return "hask.toplevel_binding"; };
-  Region &getRegion() { return this->getOperation()->getRegion(0); };
-  Region &getBody() { this->getRegion(); };
-  static RegionKind getRegionKind(unsigned index) { return RegionKind::SSACFG; }
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  void print(OpAsmPrinter &p);
-};
 
 
 class HaskModuleOp : public Op<HaskModuleOp, OpTrait::ZeroResult, OpTrait::OneRegion, OpTrait::SymbolTable, OpTrait::IsIsolatedFromAbove> {
@@ -151,7 +85,6 @@ public:
   static StringRef getOperationName() { return "hask.module"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
   Block &getBody() { this->getRegion().getBlocks().front(); };
-  static RegionKind getRegionKind(unsigned index) { return RegionKind::SSACFG; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
@@ -166,16 +99,6 @@ public:
 
 };
 
-class ConstantOp : public Op<ConstantOp, OpTrait::OneResult> {
-public:
-  using Op::Op;
-  static StringRef getOperationName() { return "hask.constant"; };
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  void print(OpAsmPrinter &p);
-  Value getConstantValue() { return this->getOperation()->getOperand(0); }
-  Type getConstantType() { return this->getConstantValue().getType(); }
-
-};
 
 class ApSSAOp : public Op<ApSSAOp, OpTrait::OneResult, MemoryEffectOpInterface::Trait> {
 public:
@@ -236,13 +159,12 @@ public:
 };
 
 
-class RecursiveRefOp : public Op<RecursiveRefOp, OpTrait::OneRegion, OpTrait::ZeroOperands, RegionKindInterface::Trait, OpTrait::OneResult> {
+class RecursiveRefOp : public Op<RecursiveRefOp, OpTrait::OneRegion, OpTrait::ZeroOperands, OpTrait::OneResult> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.recursive_ref"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
   void print(OpAsmPrinter &p);
-  static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   // build a single region.
 
@@ -263,7 +185,6 @@ public:
   void print(OpAsmPrinter &p);
   llvm::StringRef getFuncName();
   LambdaSSAOp getLambda();
-  static RegionKind getRegionKind(unsigned index) { return RegionKind::Graph; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
 };
 
@@ -290,17 +211,6 @@ public:
   static StringRef getOperationName() { return "hask.copy"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   Value getScrutinee() { this->getOperation()->getOperand(0); }
-  void print(OpAsmPrinter &p);
-};
-
-// take a reference of a global. Like <std.constant> for functions, but allows
-// taking a reference of any global [function OR data constructor]
-class HaskRefOp : public Op<HaskRefOp, OpTrait::OneResult> {
-public:
-  using Op::Op;
-  static StringRef getOperationName() { return "hask.ref"; };
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  StringRef getArgumentSymbolName();
   void print(OpAsmPrinter &p);
 };
 

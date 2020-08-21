@@ -33,10 +33,10 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
 #define GET_OP_LIST
 #include "Hask/HaskOps.cpp.inc"
   >();
- addOperations<LambdaOp, CaseOp, ApOp, HaskReturnOp, MakeI32Op, 
-  MakeDataConstructorOp, TopLevelBindingOp, DominanceFreeScopeOp, HaskModuleOp, 
-  DummyFinishOp, ConstantOp, ApSSAOp, CaseSSAOp, RecursiveRefOp, LambdaSSAOp,
-  MakeStringOp, HaskFuncOp, ForceOp, CopyOp, HaskRefOp>();
+ addOperations<HaskReturnOp, MakeI32Op,
+  MakeDataConstructorOp, HaskModuleOp,
+  DummyFinishOp, ApSSAOp, CaseSSAOp, RecursiveRefOp, LambdaSSAOp,
+  MakeStringOp, HaskFuncOp, ForceOp, CopyOp>();
 
   addTypes<UntypedType>();
 }

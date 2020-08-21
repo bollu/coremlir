@@ -44,107 +44,6 @@ namespace standalone {
 #include "Hask/HaskOps.cpp.inc"
 
 
-// === LAMBDA OP ===
-// === LAMBDA OP ===
-// === LAMBDA OP ===
-// === LAMBDA OP ===
-// === LAMBDA OP ===
-ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
-    SmallVector<mlir::OpAsmParser::OperandType, 4> regionArgs;
-    if (parser.parseRegionArgumentList(regionArgs, mlir::OpAsmParser::Delimiter::Paren)) return failure();
-
-
-    for(int i = 0; i < regionArgs.size(); ++ i) {
-    	llvm::errs() << "-" << __FUNCTION__ << ":" << __LINE__ << ":" << regionArgs[i].name <<"\n";
-    }
-
-    Region *r = result.addRegion();
-    return parser.parseRegion(*r, regionArgs, {parser.getBuilder().getType<UntypedType>()});
-}
-
-void LambdaOp::print(OpAsmPrinter &p) {
-    p << "hask.lambda";
-    p << "(";
-        for(int i = 0; i < this->getNumInputs(); ++i) {
-            p << this->getInput(i);
-            if (i < this->getNumInputs() - 1) { p << ","; }
-        } 
-    p << ")";
-    p.printRegion(this->getBody(), /*printEntryBlockArgs=*/false);
-    // p.printRegion(this->getBody(), /*printEntryBlockArgs=*/true);
-}
-
-
-// === CASE OP ===
-// === CASE OP ===
-// === CASE OP ===
-// === CASE OP ===
-// === CASE OP ===
-
-ParseResult CaseOp::parse(OpAsmParser &parser, OperationState &result) {
-    Region *r = result.addRegion();
-    if(parser.parseRegion(*r, {}, {})) return failure();
-    llvm::errs() << "***" << __FUNCTION__ << ":" << __LINE__ << ": " <<  "\n"; 
-    llvm::errs() << "***" << __FUNCTION__ << ":" << __LINE__ << ": " << "parsing attributes...\n"; 
-    if(parser.parseOptionalAttrDict(result.attributes)) return failure();
-
-    // for (auto attr : result.attributes.getAttrs()) llvm::errs() << "-" << attr.first <<"=" << attr.second << "\n";
-    // llvm::errs() << << "\n";
-    llvm::errs() <<  "***" << 
-        __FUNCTION__ << ":" << 
-        __LINE__ << ": " << 
-        " num parsed attributes: " << 
-        result.attributes.getAttrs().size() <<  
-        "...\n"; 
-    for(int i = 0; i < result.attributes.getAttrs().size(); ++i) {
-        Region *r = result.addRegion();
-        if(parser.parseRegion(*r, {}, {})) return failure(); 
-    }
-
-    return success();
-
-};
-
-void CaseOp::print(OpAsmPrinter &p) {
-    p << "hask.case";
-    p.printRegion(this->getScrutineeRegion());
-    p.printOptionalAttrDict(this->getAltLHSs().getValue());
-    for(int i = 0; i < this->getNumAlts(); ++i) {
-        p.printRegion(this->getAltRHS(i)); 
-    }
-};
-
-
-// === AP OP ===
-// === AP OP ===
-// === AP OP ===
-// === AP OP ===
-// === AP OP ===
-
-
-ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
-    
-    Region *fn = result.addRegion();
-    // (<fn-arg>
-    if (parser.parseLParen() || parser.parseRegion(*fn, {}, {})) { return failure(); }
-
-
-    // ["," <arg>]
-    while(succeeded(parser.parseOptionalComma())) {
-            Region *arg = result.addRegion(); parser.parseRegion(*arg, {}, {});
-    }   
-    //)
-    return parser.parseRParen();
-};
-
-void ApOp::print(OpAsmPrinter &p) {
-    p << "hask.ap("; p.printRegion(getFn(), /*blockArgs=*/false);
-    
-    for(int i = 0; i < getNumFnArguments(); ++i) {
-        p << ","; p.printRegion(getFnArgument(i), /*blockArgs=*/false);
-    }
-    p << ")";
-};
 
 
 
@@ -234,54 +133,6 @@ void MakeDataConstructorOp::print(OpAsmPrinter &p) {
 
 
 
-// === DomninanceFreeScope OP ===
-// === DomninanceFreeScope OP ===
-// === DomninanceFreeScope OP ===
-// === DomninanceFreeScope OP ===
-// === DomninanceFreeScope OP ===
-
-
-
-ParseResult DominanceFreeScopeOp::parse(OpAsmParser &parser,
-                                             OperationState &result) {
-  // Parse the body region, and reuse the operand info as the argument info.
-  Region *body = result.addRegion();
-  if (parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
-    return failure();
-  return success();
-
-  // magic++, wtf++;
-  // DominanceFreeScopeOp::ensureTerminator(*body, parser.getBuilder(), result.location);
-}
-void DominanceFreeScopeOp::print(OpAsmPrinter &p) {
-    p << getOperationName(); p.printRegion(getRegion(), /*printEntry=*/false);
-};
-
-void DominanceFreeScopeOp::build(OpBuilder &odsBuilder, OperationState &odsState, Type resultType) {
-      odsState.addTypes(resultType);
-};
-
-
-
-// === MakeTopLevelBinding OP ===
-// === MakeTopLevelBinding OP ===
-// === MakeTopLevelBinding OP ===
-// === MakeTopLevelBinding OP ===
-// === MakeTopLevelBinding OP ===
-
-ParseResult TopLevelBindingOp::parse(OpAsmParser &parser, OperationState &result) {
-    OpAsmParser::OperandType body;
-
-
-    if(parser.parseRegion(*result.addRegion(), {}, {})) return failure();
-    result.addTypes(parser.getBuilder().getType<UntypedType>());
-    return success();
-};
-
-void TopLevelBindingOp::print(OpAsmPrinter &p) {
-    p << getOperationName(); p.printRegion(getBody(), /*printEntry=*/false);
-};
-
 // === HaskModule OP ===
 // === HaskModule OP ===
 // === HaskModule OP ===
@@ -313,33 +164,6 @@ void DummyFinishOp::print(OpAsmPrinter &p) {
     p << getOperationName();
 };
 
-// === CONSTANT OP ===
-// === CONSTANT OP ===
-// === CONSTANT OP ===
-// === CONSTANT OP ===
-// === CONSTANT OP ===
-
-ParseResult ConstantOp::parse(OpAsmParser &parser, OperationState &result) {
-    // TODO: how to parse an int32?
-
-    mlir::OpAsmParser::OperandType const_operand;
-    Type const_type;
-    
-    if (parser.parseLParen() || parser.parseOperand(const_operand) ||
-        parser.parseComma() || parser.parseType(const_type) || parser.parseRParen()) {
-            return failure();
-        }
-    SmallVector<mlir::Value, 1> const_value;
-    if(parser.resolveOperand(const_operand, const_type, const_value)) { return failure(); }
-    result.addOperands(const_value);
-    result.addTypes(parser.getBuilder().getType<UntypedType>());
-    return success();
-};
-
-void ConstantOp::print(OpAsmPrinter &p) {
-    // p << getOperationName() << "(" << "[" << getOperation()->getNumOperands() << "]" << ")";
-    p << getOperationName() << "(" << getConstantValue() << ", " << getConstantType() << ")";
-};
 
 // === APSSA OP ===
 // === APSSA OP ===
@@ -696,34 +520,6 @@ void CopyOp::print(OpAsmPrinter &p) {
     p << "hask.copy(" << this->getScrutinee() << ")";
 };
 
-
-// === REF OP ===
-// === REF OP ===
-// === REF OP ===
-// === REF OP ===
-// === REF OP ===
-ParseResult HaskRefOp::parse(OpAsmParser &parser, OperationState &result) {
-    OpAsmParser::OperandType scrutinee;
-
-    StringAttr nameAttr;
-    if (parser.parseLParen() ||
-        parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
-                result.attributes) ||
-        parser.parseRParen()) {
-        return failure();
-    };
-
-    result.addTypes(parser.getBuilder().getType<UntypedType>());
-    return success();
-}
-StringRef HaskRefOp::getArgumentSymbolName() {
-    return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
-}
-void HaskRefOp::print(OpAsmPrinter &p) {
-    p << getOperationName() << " (";
-    p.printSymbolName(getArgumentSymbolName()); 
-    p << ")";
-}
 
 // ==REWRITES==
 
@@ -1165,14 +961,13 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addIllegalDialect<standalone::HaskDialect>();
     // target.addLegalOp<HaskModuleOp>();
     target.addLegalOp<MakeDataConstructorOp>();
-    target.addLegalOp<LambdaSSAOp>();
+    // target.addLegalOp<LambdaSSAOp>();
     // target.addLegalOp<CaseSSAOp>();
     // target.addLegalOp<MakeI32Op>();
     // target.addLegalOp<ApSSAOp>();
     // target.addLegalOp<ForceOp>();
     // target.addLegalOp<HaskReturnOp>();
     // target.addLegalOp<DummyFinishOp>();
-    target.addLegalOp<HaskRefOp>();
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
     patterns.insert<CaseSSAOpConversionPattern>(&getContext());
