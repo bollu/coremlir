@@ -2154,3 +2154,13 @@ func @fib_lowered(%arg0: !hask.untyped) {
 - The thing really, truly is a god damm symbol table, with a danging symbol
   of `@fib`. Is there some way to verify that we do not have a dangling `Symbol`
   in a module?
+
+
+# Friday, 21 August 2020
+
+- `ConversionPatternRewriter::mergeBlocks` is not defined in my copy of MLIR.
+  Time to pull and waste a whole bunch of time in building `:(`
+  my MLIR commit is [`7ddee0922fc2b8629fa12392e61801a8ad96b7af`](https://github.com/llvm/llvm-project/commit/7ddee0922fc2b8629fa12392e61801a8ad96b7af)
+  `Tue Jun 23 16:07:44 2020 +0300`, with message `[NFCI][CostModel] Add const to Value*`
+- I'm going to get the stuff other than `case` working before I pull and
+  waste an hour or two compiling MLIR.

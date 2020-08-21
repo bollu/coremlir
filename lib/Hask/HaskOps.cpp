@@ -888,18 +888,32 @@ public:
     LogicalResult
     matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                     ConversionPatternRewriter &rewriter) const override {
+      auto caseop = cast<CaseSSAOp>(op);
+      const int default_ix = *caseop.getDefaultAltIndex();
+      assert(caseop.getDefaultAltIndex() && "expected default case");
+
+      Block &caseBB = caseop.getParentRegion()->front();
+      Block &defaultBB = caseop.getAltRHS(default_ix).front();
+      // rewriter.mergeBlocks(&defaultBB, &caseBB, {});
+      //      rewriter.inlineRegionBefore(caseop.getAltRHS(default_ix),
+//                                    defaultRegion,
+//                                    defaultRegion.end());
+
+
+        rewriter.eraseOp(op);
+        for(Operation *user : op->getUsers()) {
+          rewriter.eraseOp(user);
+        }
+        return success();
+
         llvm::errs() << "running CaseSSAOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-        auto caseop = cast<CaseSSAOp>(op);
         Value scrutinee = caseop.getScrutinee();
         // TODO: assume all case scrutinees are integers.
         llvm::errs() << "- scrutinee(before): " << scrutinee << "\n";
         scrutinee.setType(rewriter.getI32Type());
         llvm::errs() << "- scrutinee(after): " << scrutinee << "\n";
 
-        assert(caseop.getDefaultAltIndex() && "expected default class");
-        const int default_ix = *caseop.getDefaultAltIndex();
 
-        // this code is completely kludgy :(
 
         for(int i = 0; i < caseop.getNumAlts(); ++i) {
             if (i == default_ix) { continue; }
@@ -1073,9 +1087,9 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<HaskModuleOp>();
     target.addLegalOp<MakeDataConstructorOp>();
     target.addLegalOp<LambdaSSAOp>();
-    //target.addLegalOp<CaseSSAOp>();
+    target.addLegalOp<CaseSSAOp>();
     target.addLegalOp<MakeI32Op>();
-    target.addLegalOp<ApSSAOp>();
+    // target.addLegalOp<ApSSAOp>();
     target.addLegalOp<ForceOp>();
     target.addLegalOp<HaskReturnOp>();
     target.addLegalOp<DummyFinishOp>();
