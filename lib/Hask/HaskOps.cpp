@@ -873,7 +873,7 @@ public:
     // rewriter.applySignatureConversion(&newFuncOp.getBody(), result);
     */
     FuncOp stdFunc = ::mlir::FuncOp::create(fn.getLoc(),
-            fn.getFuncName().str() + "_lowered",
+            fn.getFuncName().str(),
             FunctionType::get({rewriter.getI32Type()}, {}, rewriter.getContext()));
     rewriter.inlineRegionBefore(lam.getBody(), stdFunc.getBody(), stdFunc.end());
 
@@ -1034,6 +1034,7 @@ public:
       rewriter.replaceOpWithNewOp<CallOp>(ap,
                                           fn_symbol_name.getValue(),
                                           retty, ap.getFnArguments());
+
 
       return success();
     }
