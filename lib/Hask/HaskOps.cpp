@@ -874,7 +874,7 @@ public:
     */
     FuncOp stdFunc = ::mlir::FuncOp::create(fn.getLoc(),
             fn.getFuncName().str(),
-            FunctionType::get({rewriter.getI32Type()}, {}, rewriter.getContext()));
+            FunctionType::get({rewriter.getI32Type()}, {rewriter.getI32Type()}, rewriter.getContext()));
     rewriter.inlineRegionBefore(lam.getBody(), stdFunc.getBody(), stdFunc.end());
 
     // Block &funcEntry = stdFunc.getBody().getBlocks().front();
