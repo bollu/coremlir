@@ -77,10 +77,9 @@ void HaskReturnOp::print(OpAsmPrinter &p) {
 // === MakeI32 OP ===
 
 
-ParseResult MakeI32Op::parse(OpAsmParser &parser, OperationState &result) {
+ParseResult MakeI64Op::parse(OpAsmParser &parser, OperationState &result) {
     // mlir::OpAsmParser::OperandType i;
     Attribute attr;
-    
     if (parser.parseLParen() || parser.parseAttribute(attr, "value", result.attributes) || parser.parseRParen())
         return failure();
     // result.addAttribute("value", attr);
@@ -94,7 +93,7 @@ ParseResult MakeI32Op::parse(OpAsmParser &parser, OperationState &result) {
     return success();
 };
 
-void MakeI32Op::print(OpAsmPrinter &p) {
+void MakeI64Op::print(OpAsmPrinter &p) {
     p << "hask.make_i32(" << getValue() << ")";
 };
 
@@ -670,7 +669,7 @@ public:
     */
     FuncOp stdFunc = ::mlir::FuncOp::create(fn.getLoc(),
             fn.getFuncName().str(),
-            FunctionType::get({rewriter.getI32Type()}, {rewriter.getI32Type()}, rewriter.getContext()));
+            FunctionType::get({rewriter.getI64Type()}, {rewriter.getI64Type()}, rewriter.getContext()));
     rewriter.inlineRegionBefore(lam.getBody(), stdFunc.getBody(), stdFunc.end());
 
     // Block &funcEntry = stdFunc.getBody().getBlocks().front();
@@ -704,20 +703,15 @@ public:
       for(Operation *user : op->getUsers()) { rewriter.eraseOp(user); }
 
         Value scrutinee = caseop.getScrutinee();
-        scrutinee.setType(rewriter.getI32Type());
+        scrutinee.setType(rewriter.getI64Type());
 
         rewriter.setInsertionPoint(caseop);
         // TODO: get block of current caseop?
         for(int i = 0; i < caseop.getNumAlts(); ++i) {
             if (i == default_ix) { continue; }
-
-            IntegerAttr lhsVal = caseop.getAltLHS(i).cast<IntegerAttr>();
-            mlir::IntegerAttr lhsI32 =
-                mlir::IntegerAttr::get(rewriter.getI32Type(),lhsVal.getInt());
             mlir::ConstantOp lhsConstant =
-                rewriter.create<mlir::ConstantOp>(rewriter.getUnknownLoc(), lhsI32);
-
-            llvm::errs() << "- lhs constant: " << lhsConstant << "\n";
+                rewriter.create<mlir::ConstantOp>(rewriter.getUnknownLoc(),
+                                                  caseop.getAltLHS(i));
             // Type result, IntegerAttr predicate, Value lhs, Value rhs
             mlir::CmpIOp scrutinee_eq_val =
                 rewriter.create<mlir::CmpIOp>(rewriter.getUnknownLoc(),
@@ -726,11 +720,11 @@ public:
                                               lhsConstant,
                                               caseop.getScrutinee());
             Block *prevBB = rewriter.getInsertionBlock();
-            SmallVector<Type, 1> BBArgs = { rewriter.getI32Type()};
+            SmallVector<Type, 1> BBArgs = { rewriter.getI64Type()};
             Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), {},
-                                                 rewriter.getI32Type());
+                                                 rewriter.getI64Type());
             Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), {},
-                                                 rewriter.getI32Type());
+                                                 rewriter.getI64Type());
 
             rewriter.setInsertionPointToEnd(prevBB);
             rewriter.create<mlir::CondBranchOp>(rewriter.getUnknownLoc(),
@@ -796,26 +790,26 @@ public:
     ApSSAOp ap = cast<ApSSAOp>(op);
     if (ap.fnSymbolName().getValue() == "-#") {
       assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
-      rewriter.replaceOpWithNewOp<SubIOp>(ap, rewriter.getI32Type(), ap.getFnArgument(0), ap.getFnArgument(1));
+      rewriter.replaceOpWithNewOp<SubIOp>(ap, rewriter.getI64Type(), ap.getFnArgument(0), ap.getFnArgument(1));
 
       for(int i = 0; i < 2; ++i) {
-        unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI32Type());
+        unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI64Type());
       }
 
       return success();
     }
     else if (ap.fnSymbolName().getValue() == "+#") {
       assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
-      rewriter.replaceOpWithNewOp<AddIOp>(ap, rewriter.getI32Type(), ap.getFnArgument(0), ap.getFnArgument(1));
+      rewriter.replaceOpWithNewOp<AddIOp>(ap, rewriter.getI64Type(), ap.getFnArgument(0), ap.getFnArgument(1));
       for(int i = 0; i < 2; ++i) {
-        unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI32Type());
+        unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI64Type());
       }
       return success();
     }
     else if (StringAttr fn_symbol_name = ap.fnSymbolName()){
       llvm::errs() << "function symbol name: |" << fn_symbol_name << "|\n";
       // HACK: hardcoding type
-      const Type retty = rewriter.getI32Type();
+      const Type retty = rewriter.getI64Type();
       rewriter.replaceOpWithNewOp<CallOp>(ap,
                                           fn_symbol_name.getValue(),
                                           retty, ap.getFnArguments());
@@ -861,20 +855,17 @@ public:
   }
 };
 
-class MakeI32OpConversionPattern : public ConversionPattern {
+class MakeI64OpConversionPattern : public ConversionPattern {
 public:
-  explicit MakeI32OpConversionPattern(MLIRContext *context)
-      : ConversionPattern(MakeI32Op::getOperationName(), 1, context) {}
+  explicit MakeI64OpConversionPattern(MLIRContext *context)
+      : ConversionPattern(MakeI64Op::getOperationName(), 1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    llvm::errs() << "running MakeI32OpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-    MakeI32Op makei32 = cast<MakeI32Op>(op);
-    int val = makei32.getValue().getInt();
-    // TODO: eliminate this nasty 32-bit <-> 64-bit juggling
-    IntegerAttr val32attr =  mlir::IntegerAttr::get(rewriter.getI32Type(), val);
-    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op,rewriter.getI32Type(), val32attr);
+    llvm::errs() << "running MakeI64OpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    MakeI64Op makei64 = cast<MakeI64Op>(op);
+    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op,rewriter.getI64Type(), makei64.getValue());
     return success();
   }
 };
@@ -963,7 +954,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<MakeDataConstructorOp>();
     // target.addLegalOp<LambdaSSAOp>();
     // target.addLegalOp<CaseSSAOp>();
-    // target.addLegalOp<MakeI32Op>();
+    // target.addLegalOp<MakeI64Op>();
     // target.addLegalOp<ApSSAOp>();
     // target.addLegalOp<ForceOp>();
     // target.addLegalOp<HaskReturnOp>();
@@ -974,7 +965,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
     patterns.insert<ApSSAConversionPattern>(&getContext());
     patterns.insert<HaskModuleOpConversionPattern>(&getContext()); 
-    patterns.insert<MakeI32OpConversionPattern>(&getContext()); 
+    patterns.insert<MakeI64OpConversionPattern>(&getContext());
     patterns.insert<ForceOpConversionPattern>(&getContext()); 
     patterns.insert<HaskReturnOpConversionPattern>(&getContext()); 
     patterns.insert<DummyFinishOpConversionPattern>(&getContext());

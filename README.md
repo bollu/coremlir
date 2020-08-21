@@ -2283,3 +2283,21 @@ which fails legalization with:
 
 Not sure which region is `region #0`. Need to read the code where the
 error comes from.
+
+
+- The MLIR API sucks with 32 bit numbers `:(` The problem is that `IntegerAttr`
+  is parsed as 64-bit by default. So to get to 32 bit values, one needs
+  to juggle a decent amount. By switching to 64-bit as the
+  default, I got quite a bit of code cleanup:
+
+```patch
+-            IntegerAttr lhsVal = caseop.getAltLHS(i).cast<IntegerAttr>();
+-            mlir::IntegerAttr lhsI32 =
+-                mlir::IntegerAttr::get(rewriter.getI32Type(),lhsVal.getInt());
+             mlir::ConstantOp lhsConstant =
+-                rewriter.create<mlir::ConstantOp>(rewriter.getUnknownLoc(), lhsI32);
+-
+-            llvm::errs() << "- lhs constant: " << lhsConstant << "\n";
++                rewriter.create<mlir::ConstantOp>(rewriter.getUnknownLoc(),
++                                                  caseop.getAltLHS(i));
+```

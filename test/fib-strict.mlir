@@ -10,7 +10,7 @@ hask.module {
       %retval = hask.caseSSA  %i
       ["default" -> { ^entry(%default_random_name: !hask.untyped): // todo: remove this defult
         %i_minus = hask.apSSA(@"-#", %i)
-        %lit_one = hask.make_i32(1)
+        %lit_one = hask.make_i64(1)
         %i_minus_one = hask.apSSA(%i_minus, %lit_one)
         %fib_i_minus_one = hask.apSSA(@fib, %i_minus_one)
         %force_fib_i_minus_one = hask.force (%fib_i_minus_one) // todo: this is extraneous!

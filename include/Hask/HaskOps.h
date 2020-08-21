@@ -44,10 +44,10 @@ public:
 };
 
 
-class MakeI32Op : public Op<MakeI32Op, OpTrait::OneResult, OpTrait::ZeroSuccessor> {
+class MakeI64Op : public Op<MakeI64Op, OpTrait::OneResult, OpTrait::ZeroSuccessor> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "hask.make_i32"; };
+  static StringRef getOperationName() { return "hask.make_i64"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
 
   IntegerAttr getValue() {
