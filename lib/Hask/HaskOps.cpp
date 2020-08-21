@@ -404,6 +404,15 @@ Value ApSSAOp::getFnArgument(int i) {
     return this->getOperation()->getOperand(i);
 };
 
+SmallVector<Value, 4> ApSSAOp::getFnArguments() {
+    SmallVector<Value, 4> args;
+    for(int i = 0; i < getNumFnArguments(); ++i) {
+      args.push_back(getFnArgument(i));
+    }
+    return args;
+};
+
+
 void ApSSAOp::print(OpAsmPrinter &p) {
     p << "hask.apSSA(";
 
@@ -979,6 +988,16 @@ public:
   }
 };
 
+// Humongous hack: we run a sort of "type inference" algorithm, where at the
+// call-site, we convert from a !hask.untyped to a concrete (say, int32)
+// type. We bail with an error if we are unable to replace the type.
+void unifyOpTypeWithType(Value src, Type dstty) {
+    if (src.getType() == dstty) { return; }
+    if (src.getType().isa<UntypedType>()) {
+       src.setType(dstty);
+    } else {
+    }
+}
 
 class ApSSAConversionPattern : public ConversionPattern {
 public:
@@ -989,6 +1008,37 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     llvm::errs() << "running ApSSAConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    ApSSAOp ap = cast<ApSSAOp>(op);
+    if (ap.fnSymbolName().getValue() == "-#") {
+      assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
+      rewriter.replaceOpWithNewOp<SubIOp>(ap, rewriter.getI32Type(), ap.getFnArgument(0), ap.getFnArgument(1));
+
+      for(int i = 0; i < 2; ++i) {
+        unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI32Type());
+      }
+
+      return success();
+    }
+    else if (ap.fnSymbolName().getValue() == "+#") {
+      assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
+      rewriter.replaceOpWithNewOp<AddIOp>(ap, rewriter.getI32Type(), ap.getFnArgument(0), ap.getFnArgument(1));
+      for(int i = 0; i < 2; ++i) {
+        unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI32Type());
+      }
+      return success();
+    }
+    else if (StringAttr fn_symbol_name = ap.fnSymbolName()){
+      llvm::errs() << "function symbol name: |" << fn_symbol_name << "|\n";
+      // HACK: hardcoding type
+      const Type retty = rewriter.getI32Type();
+      rewriter.replaceOpWithNewOp<CallOp>(ap,
+                                          fn_symbol_name.getValue(),
+                                          retty, ap.getFnArguments());
+
+      return success();
+    }
+
+    else { assert(false && "unhandled ApSSA type"); }
     return failure();
   }
 };
@@ -1022,7 +1072,9 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     llvm::errs() << "running MakeI32OpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-    return failure();
+    MakeI32Op makei32 = cast<MakeI32Op>(op);
+    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op, rewriter.getI32Type(), makei32.getValue());
+    return success();
   }
 };
 
@@ -1034,8 +1086,10 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
+    ForceOp force = cast<ForceOp>(op);
     llvm::errs() << "running ForceOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-    return failure();
+    rewriter.replaceOp(op, force.getScrutinee());
+    return success();
   }
 };
 
@@ -1047,8 +1101,10 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
+    HaskReturnOp ret = cast<HaskReturnOp>(op);
     llvm::errs() << "running HaskReturnOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-    return failure();
+    rewriter.replaceOpWithNewOp<mlir::ReturnOp>(ret, ret.getValue());
+    return success();
   }
 };
 
@@ -1088,10 +1144,10 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<MakeDataConstructorOp>();
     target.addLegalOp<LambdaSSAOp>();
     target.addLegalOp<CaseSSAOp>();
-    target.addLegalOp<MakeI32Op>();
+    // target.addLegalOp<MakeI32Op>();
     // target.addLegalOp<ApSSAOp>();
-    target.addLegalOp<ForceOp>();
-    target.addLegalOp<HaskReturnOp>();
+    // target.addLegalOp<ForceOp>();
+//    target.addLegalOp<HaskReturnOp>();
     target.addLegalOp<DummyFinishOp>();
     target.addLegalOp<HaskRefOp>();
 
@@ -1116,6 +1172,7 @@ void LowerHaskToStandardPass::runOnOperation() {
       llvm::errs() << "\n===\n";
       signalPassFailure();
   }
+
   return;
 
   //   auto function = getFunction();

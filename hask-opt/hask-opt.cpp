@@ -167,15 +167,21 @@ int main(int argc, char **argv) {
     pm.addPass(mlir::standalone::createLowerHaskToStandardPass());
     llvm::errs() << "===Module: lowering to standard+SCF...===\n";
     if (mlir::failed(pm.run(*module))) {
-      llvm::errs() << "===Lowering failed.\n===";
+      llvm::errs() << "===Lowering failed.===\n";
+      llvm::errs() << "===Incorrectly lowered Module to Standard+SCF:===\n";
+      module->print(llvm::errs());
+      llvm::errs() << "\n===\n";
       return 4;
     }
-    llvm::errs() << "===Lowering succeeded!===\n";
+    else {
+      llvm::errs() << "===Lowering succeeded!===\n";
+      llvm::errs() << "===Module  lowered to Standard+SCF:===\n";
+      module->print(llvm::errs());
+      llvm::errs() << "\n===\n";
+    }
+
   }
 
-  llvm::errs() << "===Module  lowered to Standard+SCF:\n===";
-  module->print(llvm::errs());
-  llvm::errs() << "\n===\n";
 
 
   module->print(llvm::outs()); llvm::outs().flush();

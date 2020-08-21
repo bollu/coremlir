@@ -191,6 +191,7 @@ public:
   Value fnValue();
   int getNumFnArguments();
   Value getFnArgument(int i);
+  SmallVector<Value, 4> getFnArguments();
   void print(OpAsmPrinter &p);
   static void getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context);
