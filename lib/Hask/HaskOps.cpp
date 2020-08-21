@@ -296,7 +296,7 @@ ParseResult HaskModuleOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void HaskModuleOp::print(OpAsmPrinter &p) {
-    p << getOperationName(); p.printRegion(getBody(), /*printEntry=*/false);
+    p << getOperationName(); p.printRegion(getRegion(), /*printEntry=*/false);
 };
 
 // === DummyFinish OP ===
@@ -1052,14 +1052,26 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
 
+    HaskModuleOp haskmod = cast<HaskModuleOp>(op);
     llvm::errs() << "running HaskModuleOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    mlir::ModuleOp module = rewriter.create<mlir::ModuleOp>(op->getLoc());
+    rewriter.eraseBlock(module.getBody());
+    Region &module_region = module.getBodyRegion();
+    rewriter.inlineRegionBefore(haskmod.getRegion(), module_region, module_region.begin());
+    // rewriter.insert(module);
+    rewriter.eraseOp(haskmod);
+
+    llvm::errs() << "---generated module---\n";
+    llvm::errs() << module;
+    llvm::errs() << "---\n";
+
     // mlir::ModuleOp mod = rewriter.create<mlir::ModuleOp>(op->getLoc());
     // llvm::errs() << "\n||op->numResults: " 
     //      << op->getNumResults() 
     //      << "[op]: " 
     //      << *op << "\n||mod->numResults: " 
     //      << mod.getOperation()->getNumResults() << "\n";
-    return failure();
+    return success();
   }
 };
 
@@ -1111,7 +1123,20 @@ public:
   }
 };
 
+class DummyFinishOpConversionPattern : public ConversionPattern {
+public:
+  explicit DummyFinishOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(DummyFinishOp::getOperationName(), 1, context) {}
 
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    DummyFinishOp finish = cast<DummyFinishOp>(op);
+    llvm::errs() << "running DummyFinishOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    rewriter.replaceOpWithNewOp<mlir::ModuleTerminatorOp>(finish);
+    return success();
+  }
+};
 
 
 // === LowerHaskToStandardPass === 
@@ -1142,8 +1167,11 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalDialect<mlir::StandardOpsDialect>();
     // Why do I need this? Isn't adding StandardOpsDialect enough?
     target.addLegalOp<FuncOp>();
+    target.addLegalOp<ModuleOp>();
+    target.addLegalOp<ModuleTerminatorOp>();
+
     target.addIllegalDialect<standalone::HaskDialect>();
-    target.addLegalOp<HaskModuleOp>();
+    // target.addLegalOp<HaskModuleOp>();
     target.addLegalOp<MakeDataConstructorOp>();
     target.addLegalOp<LambdaSSAOp>();
     // target.addLegalOp<CaseSSAOp>();
@@ -1151,7 +1179,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     // target.addLegalOp<ApSSAOp>();
     // target.addLegalOp<ForceOp>();
     // target.addLegalOp<HaskReturnOp>();
-    target.addLegalOp<DummyFinishOp>();
+    // target.addLegalOp<DummyFinishOp>();
     target.addLegalOp<HaskRefOp>();
 
     OwningRewritePatternList patterns;
@@ -1163,6 +1191,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     patterns.insert<MakeI32OpConversionPattern>(&getContext()); 
     patterns.insert<ForceOpConversionPattern>(&getContext()); 
     patterns.insert<HaskReturnOpConversionPattern>(&getContext()); 
+    patterns.insert<DummyFinishOpConversionPattern>(&getContext());
 
     llvm::errs() << "debugging? " << ::llvm::DebugFlag << "\n";
     LLVM_DEBUG({ assert(false && "llvm debug exists"); });

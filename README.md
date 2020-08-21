@@ -2228,3 +2228,18 @@ module {
 
 - I am not sure why `fib` does not reference a valid function! What on earth
   is it talking about?
+
+```cpp
+static LogicalResult verify(CallOp op) {
+  // Check that the callee attribute was specified.
+  auto fnAttr = op.getAttrOfType<FlatSymbolRefAttr>("callee");
+  if (!fnAttr)
+    return op.emitOpError("requires a 'callee' symbol reference attribute");
+  auto fn =
+      op.getParentOfType<ModuleOp>().lookupSymbol<FuncOp>(fnAttr.getValue());
+  if (!fn)
+    return op.emitOpError() << "'" << fnAttr.getValue()
+                            << "' does not reference a valid function";
+```
+
+- So I think the problem is that it doesn't have a `parentOfType<ModuleOp>`?

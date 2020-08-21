@@ -150,7 +150,7 @@ public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.module"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
-  Region &getBody() { this->getRegion(); };
+  Block &getBody() { this->getRegion().getBlocks().front(); };
   static RegionKind getRegionKind(unsigned index) { return RegionKind::SSACFG; }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
