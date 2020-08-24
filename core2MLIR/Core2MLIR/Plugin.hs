@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-
 module Core2MLIR.Plugin where
 
 import Data.Maybe

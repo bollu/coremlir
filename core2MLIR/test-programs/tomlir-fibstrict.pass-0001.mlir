@@ -1,17 +1,17 @@
 // Main
 // Core2MLIR: GenMLIR AfterCorePrep
-hask.module {
-    %plus_hash = hask.make_data_constructor<"+#">
-    %minus_hash = hask.make_data_constructor<"-#">
-    %unit_tuple = hask.make_data_constructor<"()">
+module {
+    hask.make_data_constructor @"+#"
+    hask.make_data_constructor @"-#"
+    hask.make_data_constructor @"()"
   hask.func @sat_s1wO {
   %lambda_0 = hask.lambdaSSA(%i_s1wH) {
     %case_1 = hask.caseSSA  %i_s1wH
     ["default" ->
     {
     ^entry(%ds_s1wI: !hask.untyped):
-      %app_2 = hask.apSSA(%minus_hash, %i_s1wH)
-      %lit_3 = hask.make_i32(1)
+      %app_2 = hask.apSSA(@"-#", %i_s1wH)
+      %lit_3 = hask.make_i64(1)
       %app_4 = hask.apSSA(%app_2, %lit_3)
       %sat_s1wJ = hask.force (%app_4)
       %app_6 = hask.apSSA(@fib, %sat_s1wJ)
@@ -43,7 +43,6 @@ hask.module {
   hask.func @fib {
   hask.return(@sat_s1wO)
   }
-hask.dummy_finish
 }
 // ============ Haskell Core ========================
 //Rec {

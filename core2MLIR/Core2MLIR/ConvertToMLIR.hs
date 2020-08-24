@@ -127,9 +127,9 @@ shouldKeepBind (Rec _) = True
 
 mlirPrelude :: SDoc
 mlirPrelude = 
-  (text "%plus_hash = hask.make_data_constructor<\"+#\">") $+$
-  (text "%minus_hash = hask.make_data_constructor<\"-#\">") $+$
-  (text "%unit_tuple = hask.make_data_constructor<\"()\">")
+  (text "hask.make_data_constructor @\"+#\"") $+$
+  (text "hask.make_data_constructor @\"-#\"") $+$
+  (text "hask.make_data_constructor @\"()\"")
 
 -- A 'FastString' is an array of bytes, hashed to support fast O(1)
 -- comparison.  It is also associated with a character encoding, so that
@@ -155,12 +155,11 @@ cvtModuleToMLIR dfags phase guts = runBuilder $ do
   let doc_name = pprModuleName $ Module.moduleName $ mg_module guts 
   builderAppend $ comment doc_name
   builderAppend $ comment (text phase)
-  builderAppend $ (text "hask.module") <+> (text "{")
+  builderAppend $ (text "module") <+> (text "{")
   builderAppend $ nest 4 $ mlirPrelude
   -- | TODO: convert to traverse?
   let vars = mconcat [getBindLHSs bind | bind <- (mg_binds guts)]
   builderBracketRecursiveVars vars $  forM_ (filter shouldKeepBind (mg_binds guts)) (\b ->  builderNest 2 $ cvtTopBind b)
-  builderAppend $ text "hask.dummy_finish"
   builderAppend $ text "}"
   builderAppend $ text $ "// ============ Haskell Core ========================"
   builderAppend $ text $ dumpProgramAsCore dfags guts
@@ -246,12 +245,14 @@ cvtBindRhs name rhs = do
 -- | use the ppr of Var because it knows whether to print the unique ID or not.
 -- | This function also makes sure to generate `@fib` for toplevel recursive
 -- | binders. This will also work when we have `let`s [hopefully...]
+-- | TODO: check what scope the variable `v` is defined in, this is a 
+--         completely broken solution
 cvtVar :: Var -> Builder SDoc
 cvtVar v = do
   let name = unpackFS $ occNameFS $ getOccName v
-  if name == "-#" then return (text "%minus_hash")
-  else if name == "+#" then return (text "%plus_hash")
-  else if name == "()" then return (text "%unit_tuple")
+  if name == "-#" then return (text "@\"-#\"")
+  else if name == "+#" then return (text "@\"+#\"")
+  else if name == "()" then return (text "@\"()\"")
   else do 
       isrec <- builderIsVarRecursive v
       if isrec then return (text "@" >< ppr v) else return (text "%" >< ppr v)
@@ -318,7 +319,7 @@ cvtLit l =
 #if MIN_VERSION_ghc(8,6,0)
       Literal.LitNumber numty n _ ->
         case numty of
-          Literal.LitNumInt -> text "hask.make_i32(" >< ppr n >< text ")"
+          Literal.LitNumInt -> text "hask.make_i64(" >< ppr n >< text ")"
           Literal.LitNumInt64 -> ppr n
           Literal.LitNumWord -> ppr n
           Literal.LitNumWord64 -> ppr n
