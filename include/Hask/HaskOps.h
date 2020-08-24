@@ -89,7 +89,6 @@ public:
   Value getFnArgument(int i) { return getOperation()->getOperand(1+i); }
   */
   // return true if the fn is symbolic.
-  StringAttr fnSymbolName();
   Value fnValue();
   int getNumFnArguments();
   Value getFnArgument(int i);
@@ -100,8 +99,6 @@ public:
 
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value fn, SmallVectorImpl<Value> &params);
-  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                    StringAttr fnname, SmallVectorImpl<Value> &params);
 
   // no side effects
   void getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>> &effects) {}

@@ -5,11 +5,11 @@ module {
     hask.make_data_constructor @"-#"
     hask.make_data_constructor @"()"
 
-  hask.func @fib {
+  hask.func @fibstrict {
     %lambda = hask.lambdaSSA(%i) {
       %retval = hask.caseSSA  %i
       ["default" -> { ^entry(%default_random_name: !hask.untyped): // todo: remove this defult
-        %fib_rec = hask.ref (@fib)
+        %fib_rec = hask.ref (@fibstrict)
         %minus_hash = hask.ref (@"-#")
         %i_minus = hask.apSSA(%minus_hash, %i)
         %lit_one = hask.make_i64(1)
@@ -35,17 +35,17 @@ module {
 // ============ Haskell Core ========================
 //Rec {
 //-- RHS size: {terms: 21, types: 4, coercions: 0, joins: 0/0}
-//main:Main.fib [Occ=LoopBreaker]
+//main:Main.fibstrict [Occ=LoopBreaker]
 //  :: ghc-prim-0.5.3:GHC.Prim.Int# -> ghc-prim-0.5.3:GHC.Prim.Int#
 //[LclId]
-//main:Main.fib
+//main:Main.fibstrict
 //  = \ (i_a12E :: ghc-prim-0.5.3:GHC.Prim.Int#) ->
 //      case i_a12E of {
 //        __DEFAULT ->
-//          case main:Main.fib (ghc-prim-0.5.3:GHC.Prim.-# i_a12E 1#)
+//          case main:Main.fibstrict (ghc-prim-0.5.3:GHC.Prim.-# i_a12E 1#)
 //          of wild_00
 //          { __DEFAULT ->
-//          (case main:Main.fib i_a12E of wild_X5 { __DEFAULT ->
+//          (case main:Main.fibstrict i_a12E of wild_X5 { __DEFAULT ->
 //           ghc-prim-0.5.3:GHC.Prim.+# wild_X5
 //           })
 //            wild_00
@@ -67,7 +67,7 @@ module {
 //main:Main.main :: ghc-prim-0.5.3:GHC.Types.IO ()
 //[LclIdX]
 //main:Main.main
-//  = case main:Main.fib 10# of { __DEFAULT ->
+//  = case main:Main.fibstrict 10# of { __DEFAULT ->
 //    base-4.12.0.0:GHC.Base.return
 //      @ ghc-prim-0.5.3:GHC.Types.IO
 //      base-4.12.0.0:GHC.Base.$fMonadIO

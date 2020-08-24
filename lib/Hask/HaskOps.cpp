@@ -185,14 +185,7 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     return success();
 };
 
-StringAttr ApSSAOp::fnSymbolName() {
-    return this->getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName());
-};
-
-Value ApSSAOp::fnValue() {
-    if (this->fnSymbolName()) { return Value(); }
-    return this->getOperation()->getOperand(0);
-};
+Value ApSSAOp::fnValue() { return this->getOperation()->getOperand(0); };
 
 int ApSSAOp::getNumFnArguments() {
     if(fnValue()) { return this->getOperation()->getNumOperands() - 1; }
@@ -200,8 +193,7 @@ int ApSSAOp::getNumFnArguments() {
 };
 
 Value ApSSAOp::getFnArgument(int i) {
-    if(fnValue()) { return this->getOperation()->getOperand(i + 1); }
-    return this->getOperation()->getOperand(i);
+    return this->getOperation()->getOperand(i + 1);
 };
 
 SmallVector<Value, 4> ApSSAOp::getFnArguments() {
@@ -217,10 +209,8 @@ void ApSSAOp::print(OpAsmPrinter &p) {
     p << "hask.apSSA(";
 
     // TODO: propose actually strongly typing this?This is just sick.
-    StringAttr fnSymbolic = fnSymbolName();
-    if (fnSymbolic) { p.printSymbolName(fnSymbolic.getValue()); }
     for(int i = 0; i < this->getOperation()->getNumOperands(); ++i) {
-        if (i > 0 || (i == 0 && fnSymbolic)) { p << ", "; }
+        if (i > 0) { p << ", "; }
         p.printOperand(this->getOperation()->getOperand(i));
     }
     p << ")";
@@ -231,17 +221,6 @@ void ApSSAOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
     state.addOperands(fn);
     state.addOperands(params);
     state.addTypes(builder.getType<UntypedType>());
-};
-
-void ApSSAOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                    StringAttr fnname, SmallVectorImpl<Value> &params) {
-    for(int i = 0; i < params.size() ; ++i) llvm::errs() << params[i] << ", ";
-    
-    // super super hacky WTF!!!
-    state.addAttribute(::mlir::SymbolTable::getSymbolAttrName(), fnname);
-    state.addOperands(params);
-    state.addTypes(builder.getType<UntypedType>());
-
 };
 
 
@@ -554,20 +533,11 @@ struct RewriteUncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
         llvm::errs() << args[i] << ", ";
     }
     llvm::errs() << "]\n";
-    if (Value calledVal = ap1.fnValue()) {
-        llvm::errs() << "-calledVal: " << calledVal << "\n";
-        // ApSSAOp replacement = rewriter.create<ApSSAOp>(ap2.getLoc(), calledVal, args);
-        // llvm::errs() << "-replacement: " << replacement << "|" << __LINE__ << "\n";
-        rewriter.replaceOpWithNewOp<ApSSAOp>(ap2, calledVal, args);
-    } else {
-        StringAttr calledSym = ap1.fnSymbolName();
-        assert(calledSym && "we must have symbol if we don't have Value");
-        llvm::errs() << "-calledSym: " << calledSym << "\n";
-        // ApSSAOp replacement = rewriter.create<ApSSAOp>(ap2.getLoc(), calledSym, args);
-        // llvm::errs() << "-replacement: " << replacement << "|" << __LINE__ << "\n";
-        rewriter.replaceOpWithNewOp<ApSSAOp>(ap2, calledSym, args);
-    }
-
+    Value calledVal = ap1.fnValue();
+    llvm::errs() << "-calledVal: " << calledVal << "\n";
+    // ApSSAOp replacement = rewriter.create<ApSSAOp>(ap2.getLoc(), calledVal, args);
+    // llvm::errs() << "-replacement: " << replacement << "|" << __LINE__ << "\n";
+    rewriter.replaceOpWithNewOp<ApSSAOp>(ap2, calledVal, args);
     llvm::errs() << "\n====\n";
 
     /*
@@ -756,6 +726,7 @@ void unifyOpTypeWithType(Value src, Type dstty) {
     if (src.getType().isa<UntypedType>()) {
        src.setType(dstty);
     } else {
+        assert(false && "unable to unify types!");
     }
 }
 
@@ -769,7 +740,8 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     llvm::errs() << "running ApSSAConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
     ApSSAOp ap = cast<ApSSAOp>(op);
-    if (ap.fnSymbolName().getValue() == "-#") {
+    /*
+    if (ap.getValue() == "-#") {
       assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
       rewriter.replaceOpWithNewOp<SubIOp>(ap, rewriter.getI64Type(), ap.getFnArgument(0), ap.getFnArgument(1));
 
@@ -800,6 +772,7 @@ public:
     }
 
     else { assert(false && "unhandled ApSSA type"); }
+    */
     return failure();
   }
 };

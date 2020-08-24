@@ -93,6 +93,8 @@ one _operand_ (`%v1` / `%v2`) and they both have one _symbol attribute_,
    other case, we write `%vf2 = hask.reference(@f2); apSSA(%v2, %vf2)`. 
 3. This makes me sad. Why can't we have `@var` as a real parameter, rather than some kind of
    stilted "attribute".
+   
+It seems like I'll be spending today fixing my lowering to learn about this `hask.ref` syntax.
 
 # Log:  [oldest] to [newest]
 

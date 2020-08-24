@@ -3,7 +3,7 @@
 -- https://hackage.haskell.org/package/base-4.3.1.0/docs/src/GHC-Int.html
 --  https://hackage.haskell.org/package/ghc-prim-0.6.1/docs/GHC-Prim.html
 import GHC.Prim
-fib :: Int# -> Int#
-fib i = case i of 0# ->  i; 1# ->  i; _ ->  (fib i) +# (fib (i -# 1#))
+fibstrict :: Int# -> Int#
+fibstrict i = case i of 0# ->  i; 1# ->  i; _ ->  (fibstrict i) +# (fibstrict (i -# 1#))
 main :: IO ();
-main = let x = fib 10# in return ()
+main = let x = fibstrict 10# in return ()
