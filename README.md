@@ -69,6 +69,12 @@ main = IO (\s -> (# s, ()#))
   also decides to run `CorePrep`. So I came up with the brilliant solution of killing `GHC`
   in a plugin pass after all of my scheduled passes run. This is so fucked up.
 
+- I need to change `apSSA` to be capable of accepting the second parameter as a symbol
+  as well.
+```
+tomlir-fib.pass-0000.mlir:82:39: error: expected SSA operand
+        %app_24 = hask.apSSA(%app_23, @one)
+```
 # Log:  [oldest] to [newest]
 
 ## Concerns about this `Graph` version of region

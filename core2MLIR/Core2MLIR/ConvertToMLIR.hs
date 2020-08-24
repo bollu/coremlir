@@ -123,10 +123,11 @@ dumpProgramAsCore dflags guts =
 -- Fuck this, I have no idea how to do this right.
 -- I'm just going to
 shouldKeepBind :: CoreBind -> Bool
-shouldKeepBind (NonRec var e) = 
-    let binderName =  unpackFS . occNameFS $ getOccName $ var
-    in False -- (binderName == "fib")
-shouldKeepBind (Rec _) = True
+shouldKeepBind _ = True
+-- shouldKeepBind (NonRec var e) = 
+--     let binderName =  unpackFS . occNameFS $ getOccName $ var
+--     in False -- (binderName == "fib")
+-- shouldKeepBind (Rec _) = True
 
 mlirPrelude :: SDoc
 mlirPrelude = 
