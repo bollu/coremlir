@@ -35,7 +35,7 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
   >();
  addOperations<HaskReturnOp, MakeI64Op,
   MakeDataConstructorOp,
-  ApSSAOp, CaseSSAOp, RecursiveRefOp, LambdaSSAOp,
+  ApSSAOp, CaseSSAOp, HaskRefOp, LambdaSSAOp,
   MakeStringOp, HaskFuncOp, ForceOp, CopyOp>();
 
   addTypes<UntypedType>();

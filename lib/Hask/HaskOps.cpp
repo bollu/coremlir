@@ -142,40 +142,45 @@ void MakeDataConstructorOp::print(OpAsmPrinter &p) {
 // === APSSA OP ===
 // === APSSA OP ===
 
+ParseResult parseUntypedValueOrSymbol(OpAsmParser &parser, OperationState &result,
+                               const char *symbolAttrName) {
+  StringAttr name;
+  if (parser.parseOptionalSymbolName(name,
+        ::mlir::SymbolTable::getSymbolAttrName(),
+        result.attributes)) {
+    OpAsmParser::OperandType op;
+    if(parser.parseOperand(op) ||
+           parser.resolveOperand(op, parser.getBuilder().getType<UntypedType>(),
+                                 result.operands)) {
+      return failure();
+    }
+  }
+  return success();
+}
+
 ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     // OpAsmParser::OperandType operand_fn;
     OpAsmParser::OperandType op_fn;
     SmallVector<Value, 4> results;
     // (<fn-arg>
     if (parser.parseLParen()) { return failure(); }
-    
-    StringAttr nameAttr;
-    // parser.parseAttribute
-    if (succeeded(parser.parseOptionalSymbolName(nameAttr,
-        ::mlir::SymbolTable::getSymbolAttrName(),
-        result.attributes))) {
-        StringAttr attr = StringAttr::get(nameAttr.getValue(), parser.getBuilder().getContext());
-        
 
-        // success; nothing to do.
+    if(parser.parseOperand(op_fn) ||
+           parser.resolveOperand(op_fn, parser.getBuilder().getType<UntypedType>(),
+                                 result.operands)) {
+      return failure();
     }
-    else if(succeeded(parser.parseOperand(op_fn))) { 
-        if(parser.resolveOperand(op_fn, parser.getBuilder().getType<UntypedType>(), results)) {
-            return failure();
-        }
-    }
-    else { return failure(); }
 
     // ["," <arg>]
     while(succeeded(parser.parseOptionalComma())) {
         OpAsmParser::OperandType op;
         if (parser.parseOperand(op)) return failure();
-        if(parser.resolveOperand(op, parser.getBuilder().getType<UntypedType>(), results)) return failure();
-    }   
-    
+        if(parser.resolveOperand(op, parser.getBuilder().getType<UntypedType>(), result.operands)) return failure();
+    }
+
+    //)
     if (parser.parseRParen()) return failure();
 
-    result.addOperands(results);
     result.addTypes(parser.getBuilder().getType<UntypedType>());
     return success();
 };
@@ -348,21 +353,25 @@ void LambdaSSAOp::print(OpAsmPrinter &p) {
 // === RECURSIVEREF OP ===
 // === RECURSIVEREF OP ===
 
-ParseResult RecursiveRefOp::parse(OpAsmParser &parser,
+ParseResult HaskRefOp::parse(OpAsmParser &parser,
                                     OperationState &result) {
-  // Parse the body region, and reuse the operand info as the argument info.
-  Region *body = result.addRegion();
-  if (parser.parseRegion(*body, /*arguments=*/{}, /*argTypes=*/{}))
-    return failure();
-
-  result.addTypes(parser.getBuilder().getType<UntypedType>());
-  return success();
-
-  // magic++, wtf++;
-  // RecursiveRefOp::ensureTerminator(*body, parser.getBuilder(), result.location);
+    StringAttr nameAttr;
+    if(parser.parseLParen() ||
+            parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
+                result.attributes) ||
+            parser.parseRParen()) { return failure(); }
+    result.addTypes(parser.getBuilder().getType<UntypedType>());
+    return success();
 }
-void RecursiveRefOp::print(OpAsmPrinter &p) {
-    p << getOperationName(); p.printRegion(getRegion(), /*printEntry=*/false);
+
+llvm::StringRef HaskRefOp::getParamName() {
+    return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
+}
+
+void HaskRefOp::print(OpAsmPrinter &p) {
+    p << getOperationName() << "(";
+    p.printSymbolName(this->getParamName());
+    p << ")";
 };
 
 

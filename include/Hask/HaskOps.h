@@ -136,12 +136,12 @@ public:
 };
 
 
-class RecursiveRefOp : public Op<RecursiveRefOp, OpTrait::OneRegion, OpTrait::ZeroOperands, OpTrait::OneResult> {
+class HaskRefOp : public Op<HaskRefOp, OpTrait::OneResult> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "hask.recursive_ref"; };
-  Region &getRegion() { return this->getOperation()->getRegion(0); };
+  static StringRef getOperationName() { return "hask.ref"; };
   void print(OpAsmPrinter &p);
+  llvm::StringRef getParamName();
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   // build a single region.
 

@@ -9,14 +9,17 @@ module {
     %lambda = hask.lambdaSSA(%i) {
       %retval = hask.caseSSA  %i
       ["default" -> { ^entry(%default_random_name: !hask.untyped): // todo: remove this defult
-        %i_minus = hask.apSSA(@"-#", %i)
+        %fib_rec = hask.ref (@fib)
+        %minus_hash = hask.ref (@"-#")
+        %i_minus = hask.apSSA(%minus_hash, %i)
         %lit_one = hask.make_i64(1)
         %i_minus_one = hask.apSSA(%i_minus, %lit_one)
-        %fib_i_minus_one = hask.apSSA(@fib, %i_minus_one)
+        %fib_i_minus_one = hask.apSSA(%fib_rec, %i_minus_one)
         %force_fib_i_minus_one = hask.force (%fib_i_minus_one) // todo: this is extraneous!
-        %fib_i = hask.apSSA(@fib, %i)
+        %fib_i = hask.apSSA(%fib_rec, %i)
         %force_fib_i = hask.force (%fib_i) // todo: this is extraneous!
-        %plus_force_fib_i = hask.apSSA(@"+#", %force_fib_i)
+        %plus_hash = hask.ref(@"+#")
+        %plus_force_fib_i = hask.apSSA(%plus_hash, %force_fib_i)
         %fib_i_plus_fib_i_minus_one = hask.apSSA(%plus_force_fib_i, %force_fib_i_minus_one)
         hask.return(%fib_i_plus_fib_i_minus_one) }]
       [0 -> { ^entry(%default_random_name: !hask.untyped):

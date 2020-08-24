@@ -75,6 +75,25 @@ main = IO (\s -> (# s, ()#))
 tomlir-fib.pass-0000.mlir:82:39: error: expected SSA operand
         %app_24 = hask.apSSA(%app_23, @one)
 ```
+
+- OK, no, that's not going to work. I now understand why MLIR needs the `std.constant` instruction. So, consider
+two different variations:
+
+1. `apSSA(@f1, %v1)`
+2. `apSSA(%v2, @f2)`
+
+Now, note that as MLIR `Op`s, these have the exact same "shape". They both have
+one _operand_ (`%v1` / `%v2`) and they both have one _symbol attribute_, 
+`@f1 / @f2`. So, there's no way to tell one from the other (easily)!. 
+
+1. Either we do something terrible, like naming the symbol attribute at the `i`th parameter
+  location as `param_i`, but, I mean, this is too horrible to even consider.
+2. Or, we introduce a `%val = hask.reference(@sym)` just like `std.constant`, which we then
+   use to write `%vf1 = hask.reference(@f1); apSSA(%vf1, %v1)` and similarly for the
+   other case, we write `%vf2 = hask.reference(@f2); apSSA(%v2, %vf2)`. 
+3. This makes me sad. Why can't we have `@var` as a real parameter, rather than some kind of
+   stilted "attribute".
+
 # Log:  [oldest] to [newest]
 
 ## Concerns about this `Graph` version of region
