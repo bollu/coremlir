@@ -1,5 +1,21 @@
 # Core-MLIR
 
+Convert GHC Core to MLIR.
+
+
+# Log:  [newest] to [oldest]
+
+# Monday, 24 August 2020
+- Nuked `HaskModuleOp`, `HaskDummyFinishOp` since I'm just using the regular `ModuleOp` now. I now understand
+  why `ModuleOp` doesn't allow SSA variables in its body: these are not accessible from functions because of the
+  `IsolatedFromAbove` constraint. So it only makes sense to have "true global data" in a `ModuleOp`. I really wish
+  I didn't have to "learn their design choices" by reinventing the bloody wheel. Oh well, it was at least very
+  instructive.
+  
+- Got full lowering down into LLVM. I now need to lower a program with `Int`, not just `Int#`.
+
+# Log:  [oldest] to [newesst]
+
 ## Concerns about this `Graph` version of region
 
 The code that looks like below is considered as a non-dominated use. So it
@@ -2155,7 +2171,6 @@ func @fib_lowered(%arg0: !hask.untyped) {
   of `@fib`. Is there some way to verify that we do not have a dangling `Symbol`
   in a module?
 
-
 # Friday, 21 August 2020
 
 - `ConversionPatternRewriter::mergeBlocks` is not defined in my copy of MLIR.
@@ -2301,3 +2316,7 @@ error comes from.
 +                rewriter.create<mlir::ConstantOp>(rewriter.getUnknownLoc(),
 +                                                  caseop.getAltLHS(i));
 ```
+
+# Monday, 24 August 2020
+- See under "Newest to Oldest". I changed the organization strategy to keep the 
+  newest log at the top.
