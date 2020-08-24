@@ -77,29 +77,6 @@ public:
   void print(OpAsmPrinter &p);
 };
 
-
-
-class HaskModuleOp : public Op<HaskModuleOp, OpTrait::ZeroResult, OpTrait::OneRegion, OpTrait::SymbolTable, OpTrait::IsIsolatedFromAbove> {
-public:
-  using Op::Op;
-  static StringRef getOperationName() { return "hask.module"; };
-  Region &getRegion() { return this->getOperation()->getRegion(0); };
-  Block &getBody() { this->getRegion().getBlocks().front(); };
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  void print(OpAsmPrinter &p);
-};
-
-
-class DummyFinishOp : public Op<DummyFinishOp, OpTrait::ZeroResult, OpTrait::IsTerminator> {
-public:
-  using Op::Op;
-  static StringRef getOperationName() { return "hask.dummy_finish"; };
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  void print(OpAsmPrinter &p);
-
-};
-
-
 class ApSSAOp : public Op<ApSSAOp, OpTrait::OneResult, MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;

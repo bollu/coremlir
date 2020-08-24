@@ -136,41 +136,6 @@ void MakeDataConstructorOp::print(OpAsmPrinter &p) {
     p.printSymbolName(getDataConstructorName());
 };
 
-
-
-
-// === HaskModule OP ===
-// === HaskModule OP ===
-// === HaskModule OP ===
-// === HaskModule OP ===
-// === HaskModule OP ===
-
-ParseResult HaskModuleOp::parse(OpAsmParser &parser, OperationState &result) {
-    OpAsmParser::OperandType body;
-    if(parser.parseRegion(*result.addRegion(), {}, {})) return failure();
-    // result.addTypes(parser.getBuilder().getType<UntypedType>());
-    return success();
-};
-
-void HaskModuleOp::print(OpAsmPrinter &p) {
-    p << getOperationName(); p.printRegion(getRegion(), /*printEntry=*/false);
-};
-
-// === DummyFinish OP ===
-// === DummyFinish OP ===
-// === DummyFinish OP ===
-// === DummyFinish OP ===
-// === DummyFinish OP ===
-
-ParseResult DummyFinishOp::parse(OpAsmParser &parser, OperationState &result) {
-    return success();
-};
-
-void DummyFinishOp::print(OpAsmPrinter &p) {
-    p << getOperationName();
-};
-
-
 // === APSSA OP ===
 // === APSSA OP ===
 // === APSSA OP ===
@@ -830,38 +795,6 @@ public:
   }
 };
 
-class HaskModuleOpConversionPattern : public ConversionPattern {
-public:
-  explicit HaskModuleOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(standalone::HaskModuleOp::getOperationName(), 1, context) {}
-
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-
-    HaskModuleOp haskmod = cast<HaskModuleOp>(op);
-    llvm::errs() << "running HaskModuleOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-    mlir::ModuleOp module = rewriter.create<mlir::ModuleOp>(op->getLoc());
-    rewriter.eraseBlock(module.getBody());
-    Region &module_region = module.getBodyRegion();
-    rewriter.inlineRegionBefore(haskmod.getRegion(), module_region, module_region.begin());
-    // rewriter.insert(module);
-    rewriter.eraseOp(haskmod);
-
-    llvm::errs() << "---generated module---\n";
-    llvm::errs() << module;
-    llvm::errs() << "---\n";
-
-    // mlir::ModuleOp mod = rewriter.create<mlir::ModuleOp>(op->getLoc());
-    // llvm::errs() << "\n||op->numResults: " 
-    //      << op->getNumResults() 
-    //      << "[op]: " 
-    //      << *op << "\n||mod->numResults: " 
-    //      << mod.getOperation()->getNumResults() << "\n";
-    return success();
-  }
-};
-
 class MakeI64OpConversionPattern : public ConversionPattern {
 public:
   explicit MakeI64OpConversionPattern(MLIRContext *context)
@@ -907,22 +840,6 @@ public:
   }
 };
 
-class DummyFinishOpConversionPattern : public ConversionPattern {
-public:
-  explicit DummyFinishOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(DummyFinishOp::getOperationName(), 1, context) {}
-
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    DummyFinishOp finish = cast<DummyFinishOp>(op);
-    llvm::errs() << "running DummyFinishOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-    rewriter.replaceOpWithNewOp<mlir::ModuleTerminatorOp>(finish);
-    return success();
-  }
-};
-
-
 // === LowerHaskToStandardPass === 
 // === LowerHaskToStandardPass === 
 // === LowerHaskToStandardPass === 
@@ -957,7 +874,6 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<ModuleTerminatorOp>();
 
     target.addIllegalDialect<standalone::HaskDialect>();
-    // target.addLegalOp<HaskModuleOp>();
     target.addLegalOp<MakeDataConstructorOp>();
     // target.addLegalOp<LambdaSSAOp>();
     // target.addLegalOp<CaseSSAOp>();
@@ -965,17 +881,14 @@ void LowerHaskToStandardPass::runOnOperation() {
     // target.addLegalOp<ApSSAOp>();
     // target.addLegalOp<ForceOp>();
     // target.addLegalOp<HaskReturnOp>();
-    // target.addLegalOp<DummyFinishOp>();
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
     patterns.insert<CaseSSAOpConversionPattern>(&getContext());
     patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
     patterns.insert<ApSSAConversionPattern>(&getContext());
-    patterns.insert<HaskModuleOpConversionPattern>(&getContext()); 
     patterns.insert<MakeI64OpConversionPattern>(&getContext());
     patterns.insert<ForceOpConversionPattern>(&getContext()); 
-    patterns.insert<HaskReturnOpConversionPattern>(&getContext()); 
-    patterns.insert<DummyFinishOpConversionPattern>(&getContext());
+    patterns.insert<HaskReturnOpConversionPattern>(&getContext());
 
     llvm::errs() << "===Enabling Debugging...===\n";
     ::llvm::DebugFlag = true;
