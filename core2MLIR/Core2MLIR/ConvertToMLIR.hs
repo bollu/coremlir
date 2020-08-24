@@ -18,6 +18,7 @@ import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
 import PprCore (pprCoreBindingsWithSize)
 import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
+import DataCon
 import Control.Monad (ap, forM_)
 import FastString
 import Literal
@@ -29,6 +30,8 @@ import GHC(DynFlags)
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/Outputable.html#v:SDoc
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/src/Pretty.html#Doc
 
+docDoubleQuote :: SDoc
+docDoubleQuote = text "\""
 
 -- | name of the expression
 type SSAName = SDoc
@@ -376,7 +379,7 @@ cvtAltLHSLit l =
       Literal.LitInteger x _ -> ppr x
 #endif
 cvtAltLhs :: CoreSyn.AltCon -> SDoc
-cvtAltLhs (DataAlt altcon) = text "DATACONSTRUCTOR" -- Ast.AltDataCon $ occNameToText $ getOccName altcon
+cvtAltLhs (DataAlt altcon) = text "@" >< docDoubleQuote >< ppr (dataConName altcon) >< docDoubleQuote
 cvtAltLhs (LitAlt l)       = cvtAltLHSLit l
 cvtAltLhs DEFAULT          = text "\"default\""
 

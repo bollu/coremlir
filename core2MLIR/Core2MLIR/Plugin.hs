@@ -16,6 +16,7 @@ import Text.Printf
 import System.FilePath
 import System.Directory
 import System.IO (withFile, IOMode(..))
+import System.Exit(exitSuccess)
 
 import Core2MLIR.Convert
 import Core2MLIR.ConvertToMLIR
@@ -33,7 +34,8 @@ install _opts todo = do
             CoreDoPluginPass "genMLIR" (liftIO . genMLIR dflags 0 "Core2MLIR: GenMLIR BeforeCorePrep"),
             CoreDoPluginPass "RunCorePrep" (liftIO . runCorePrep dflags hscenv),
             CoreDoPluginPass "dumpIntersperse" (liftIO . dumpIntersperse dflags 1 "dumpIntersperse: Dump AfterCorePrep"),
-            CoreDoPluginPass "genMLIR" (liftIO . genMLIR dflags 1 "Core2MLIR: GenMLIR AfterCorePrep")]
+            CoreDoPluginPass "genMLIR" (liftIO . genMLIR dflags 1 "Core2MLIR: GenMLIR AfterCorePrep"),
+            CoreDoPluginPass "killCompiler" (liftIO . killCompiler)]
 
 
 runCorePrep :: DynFlags -> HscEnv -> ModGuts -> IO ModGuts
@@ -68,7 +70,7 @@ dumpIntersperse :: DynFlags -> Int -> String -> ModGuts -> IO ModGuts
 dumpIntersperse dflags n phase guts = do
     let prefix = fromMaybe "dump" $ dumpPrefix dflags
         fname = printf "%spass-%04u.cbor" prefix n
-    showPass dflags $ "GhcDump: Dumping core to "++fname
+    showPass dflags $ "===GhcDump: Dumping core to "++fname++"==="
     let in_dump_dir = maybe id (</>) (dumpDir dflags)
     createDirectoryIfMissing True $ takeDirectory $ in_dump_dir fname
     BSL.writeFile (in_dump_dir fname) $ Ser.serialise (cvtModule phase guts)
@@ -80,10 +82,17 @@ genMLIR dflags n phase guts = do
     let prefix = fromMaybe "dump" $ dumpPrefix dflags
     let fname = printf "tomlir-%spass-%04u.mlir" prefix n
 
-    putStrLn $ "running Core2MLIR"
-    showPass dflags $ "GhcDump: Dumping MLIR to "++ fname
+    putStrLn $ "===running Core2MLIR==="
+    showPass dflags $ "===GhcDump: Dumping MLIR to "++ fname++"==="
     let in_dump_dir = maybe id (</>) (dumpDir dflags)
     createDirectoryIfMissing True $ takeDirectory $ in_dump_dir fname
     withFile (in_dump_dir fname) WriteMode (\h -> printSDoc PageMode dflags h (defaultDumpStyle dflags) (cvtModuleToMLIR dflags phase guts))
-    putStrLn $ "ran core2MLIR"
+    putStrLn $ "===ran core2MLIR==="
+    return guts
+
+
+killCompiler :: ModGuts -> IO ModGuts
+killCompiler guts = do
+    putStrLn $ "===killing compiler==="
+    exitSuccess
     return guts

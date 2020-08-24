@@ -14,7 +14,62 @@ Convert GHC Core to MLIR.
   
 - Got full lowering down into LLVM. I now need to lower a program with `Int`, not just `Int#`.
 
-# Log:  [oldest] to [newesst]
+- [Wow the names of data constructors are complicated](https://haskell-code-explorer.mfix.io/package/ghc-8.6.1/show/basicTypes/DataCon.hs#L126)
+
+> Note [Data Constructor Naming]
+> ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+> Each data constructor C has two, and possibly up to four, Names associated with it:
+- My god, GHC does love inflicting pain on those who decide to read its sources.
+
+- I'm writing the simplest possible version of `fib` that compiles through the GHC toolchain:
+
+```hs
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
+import GHC.Prim
+import GHC.Types(IO(..))
+data SimpleInt = MkSimpleInt Int#
+
+plus :: SimpleInt -> SimpleInt -> SimpleInt
+plus i j = case i of MkSimpleInt ival -> case j of MkSimpleInt jval -> MkSimpleInt (ival +# jval)
+
+
+minus :: SimpleInt -> SimpleInt -> SimpleInt
+minus i j = case i of MkSimpleInt ival -> case j of MkSimpleInt jval -> MkSimpleInt (ival -# jval)
+
+
+one :: SimpleInt; one = MkSimpleInt 1#
+zero :: SimpleInt; zero = MkSimpleInt 0#
+
+fib :: SimpleInt -> SimpleInt
+fib i =
+    case i of
+       MkSimpleInt 0# -> zero
+       MkSimpleInt 1# -> one
+       n -> plus (fib n) (fib (minus n one))
+main = IO (\s -> (# s, ()#))
+```
+
+```
+/tmp/ghc1433_0/ghc_2.s:194:0: error:
+     Error: symbol `Main_MkSimpleInt_info' is already defined
+    |
+194 | Main_MkSimpleInt_info:
+    | ^
+
+/tmp/ghc1433_0/ghc_2.s:214:0: error:
+     Error: symbol `Main_MkSimpleInt_closure' is already defined
+    |
+214 | Main_MkSimpleInt_closure:
+    | ^
+```
+- OK, interesting, my GHC plugin is somehow causing `Int` to be defined twice.
+ 
+- I gave up. It seems to be because I run `CorePrep` myself manually, after which GHC
+  also decides to run `CorePrep`. So I came up with the brilliant solution of killing `GHC`
+  in a plugin pass after all of my scheduled passes run. This is so fucked up.
+
+# Log:  [oldest] to [newest]
 
 ## Concerns about this `Graph` version of region
 
