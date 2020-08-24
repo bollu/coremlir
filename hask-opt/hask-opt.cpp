@@ -39,7 +39,15 @@
 
 // conversion
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch6/toyc.cpp
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Target/LLVMIR.h"
+
+
+// Execution
+#include "llvm/IR/Module.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/raw_ostream.h"
+#include "mlir/ExecutionEngine/ExecutionEngine.h"
+#include "mlir/ExecutionEngine/OptUtils.h"
 
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
@@ -182,9 +190,7 @@ int main(int argc, char **argv) {
   }
 
 
-
-
-  // Lowering code to LLVM
+  // Lowering code to MLIR-LLVM
   {
 
     mlir::PassManager pm(&context);
@@ -192,7 +198,7 @@ int main(int argc, char **argv) {
 
     llvm::errs() << "===Module: lowering to MLIR-LLVM...===\n";
     if (mlir::failed(pm.run(*module))) {
-      llvm::errs() << "===Unable to lower module to LLVM===\n";
+      llvm::errs() << "===Unable to lower module to MLIR-LLVM===\n";
       module->print(llvm::errs());
       llvm::errs() << "\n===\n";
       return 1;
@@ -203,62 +209,20 @@ int main(int argc, char **argv) {
     }
   }
 
-  llvm::errs() << "===Printing module to stdout...===\n";
+
+  llvm::errs() << "===Printing MLIR-LLVM module to stdout...===\n";
   module->print(llvm::outs()); llvm::outs().flush();
 
-  // llvm::errs() << "Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << " " << "lowered: ";
-  // module->print(llvm::outs());
+
+  // Lower MLIR-LLVM all the way down to "real LLVM"
+  // https://github.com/llvm/llvm-project/blob/670063eb220663b5a42fd4e9bd63f51d379c9aa0/mlir/examples/toy/Ch6/toyc.cpp#L193
+  llvm::LLVMContext llvmContext;
+  llvm::errs() << "===Lowering MLIR-LLVM module to LLVM===\n";
+  std::unique_ptr<llvm::Module> llvmModule =
+      mlir::translateModuleToLLVMIR(*module, llvmContext);
+  llvm::errs() << *llvmModule << "\n===\n";
+
 
   return 0;
 }
 
-/*
-int main_old(int argc, char **argv) {
-
-  mlir::registerDialect<mlir::standalone::HaskDialect>();
-  // TODO: Register standalone passes here.
-
-  llvm::InitLLVM y(argc, argv);
-
-  // Register any pass manager command line options.
-  mlir::registerPassManagerCLOptions();
-  mlir::PassPipelineCLParser passPipeline("", "Compiler passes to run");
-
-  // Parse pass names in main to ensure static initialization completed.
-  llvm::cl::ParseCommandLineOptions(argc, argv,
-                                    "MLIR modular optimizer driver\n");
-
-  mlir::MLIRContext context;
-  
-  if (showDialects) {
-    llvm::outs() << "Registered Dialects:\n";
-    for (mlir::Dialect *dialect : context.getRegisteredDialects()) {
-      llvm::outs() << dialect->getNamespace() << "\n";
-    }
-    return 0;
-  }
-
-  // Set up the input file.
-  std::string errorMessage;
-  auto file = mlir::openInputFile(inputFilename, &errorMessage);
-  if (!file) {
-    llvm::errs() << errorMessage << "\n";
-    return 1;
-  }
-
-  auto output = mlir::openOutputFile(outputFilename, &errorMessage);
-  if (!output) {
-    llvm::errs() << errorMessage << "\n";
-    exit(1);
-  }
-
-  if (failed(MlirOptMain(output->os(), std::move(file), passPipeline,
-                         splitInputFile, verifyDiagnostics, verifyPasses,
-                         allowUnregisteredDialects))) {
-    return 1;
-  }
-  // Keep the output file if the invocation of MlirOptMain was successful.
-  output->keep();
-  return 0;
-}
-*/
