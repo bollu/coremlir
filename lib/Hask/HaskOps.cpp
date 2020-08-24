@@ -185,10 +185,10 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     return success();
 };
 
-Value ApSSAOp::fnValue() { return this->getOperation()->getOperand(0); };
+Value ApSSAOp::getFn() { return this->getOperation()->getOperand(0); };
 
 int ApSSAOp::getNumFnArguments() {
-    if(fnValue()) { return this->getOperation()->getNumOperands() - 1; }
+    if(getFn()) { return this->getOperation()->getNumOperands() - 1; }
     return this->getOperation()->getNumOperands();
 };
 
@@ -343,13 +343,13 @@ ParseResult HaskRefOp::parse(OpAsmParser &parser,
     return success();
 }
 
-llvm::StringRef HaskRefOp::getParamName() {
+llvm::StringRef HaskRefOp::getRef() {
     return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
 }
 
 void HaskRefOp::print(OpAsmPrinter &p) {
     p << getOperationName() << "(";
-    p.printSymbolName(this->getParamName());
+    p.printSymbolName(this->getRef());
     p << ")";
 };
 
@@ -508,7 +508,7 @@ struct RewriteUncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
                   mlir::PatternRewriter &rewriter) const override {
 
 
-    Value f2 = ap2.fnValue();
+    Value f2 = ap2.getFn();
     if (!f2) { return failure(); }
     ApSSAOp ap1 = f2.getDefiningOp<ApSSAOp>();
     if (!ap1) {  return failure(); }
@@ -533,7 +533,7 @@ struct RewriteUncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
         llvm::errs() << args[i] << ", ";
     }
     llvm::errs() << "]\n";
-    Value calledVal = ap1.fnValue();
+    Value calledVal = ap1.getFn();
     llvm::errs() << "-calledVal: " << calledVal << "\n";
     // ApSSAOp replacement = rewriter.create<ApSSAOp>(ap2.getLoc(), calledVal, args);
     // llvm::errs() << "-replacement: " << replacement << "|" << __LINE__ << "\n";
@@ -541,7 +541,7 @@ struct RewriteUncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
     llvm::errs() << "\n====\n";
 
     /*
-    Value fn_b = out.fnValue();
+    Value fn_b = out.getFn();
     if (!fn_b) {
         llvm::errs() << "no match: |" << out << "|\n";
         return failure();
@@ -563,7 +563,7 @@ struct RewriteUncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
         args.push_back(out.getFnArgument(i));
     }
 
-    if (Value fncall = fn_b_op.fnValue()) {
+    if (Value fncall = fn_b_op.getFn()) {
         rewriter.replaceOpWithNewOp<ApSSAOp>(out, fncall, args);
     } else {
         assert(fn_b_op.fnSymbolName() && "we must have symbol if we don't have Value");
@@ -740,41 +740,40 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     llvm::errs() << "running ApSSAConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
     ApSSAOp ap = cast<ApSSAOp>(op);
-    /*
-    if (ap.getValue() == "-#") {
-      assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
-      rewriter.replaceOpWithNewOp<SubIOp>(ap, rewriter.getI64Type(), ap.getFnArgument(0), ap.getFnArgument(1));
+    if (HaskRefOp ref = (ap.getFn().getDefiningOp<HaskRefOp>())) {
+        if (ref.getRef() == "-#") {
+            assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
+            rewriter.replaceOpWithNewOp<SubIOp>(ap, rewriter.getI64Type(), ap.getFnArgument(0), ap.getFnArgument(1));
 
-      for(int i = 0; i < 2; ++i) {
-        unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI64Type());
-      }
+            for(int i = 0; i < 2; ++i) {
+                unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI64Type());
+            }
 
-      return success();
-    }
-    else if (ap.fnSymbolName().getValue() == "+#") {
-      assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
-      rewriter.replaceOpWithNewOp<AddIOp>(ap, rewriter.getI64Type(), ap.getFnArgument(0), ap.getFnArgument(1));
-      for(int i = 0; i < 2; ++i) {
-        unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI64Type());
-      }
-      return success();
-    }
-    else if (StringAttr fn_symbol_name = ap.fnSymbolName()){
-      llvm::errs() << "function symbol name: |" << fn_symbol_name << "|\n";
-      // HACK: hardcoding type
-      const Type retty = rewriter.getI64Type();
-      rewriter.replaceOpWithNewOp<CallOp>(ap,
-                                          fn_symbol_name.getValue(),
-                                          retty, ap.getFnArguments());
+            return success();
+        }
+        else if (ref.getRef() == "+#") {
+            assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
+            rewriter.replaceOpWithNewOp<AddIOp>(ap, rewriter.getI64Type(), ap.getFnArgument(0), ap.getFnArgument(1));
+            for(int i = 0; i < 2; ++i) {
+                unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI64Type());
+            }
+            return success();
+        }
+        else {
+            llvm::StringRef fnName = ref.getRef();
+            llvm::errs() << "function symbol name: |" << fnName << "|\n";
+            // HACK: hardcoding type
+            const Type retty = rewriter.getI64Type();
+            rewriter.replaceOpWithNewOp<CallOp>(ap,
+                    fnName, retty, ap.getFnArguments());
 
-
-      return success();
-    }
+            return success();
+        }
+    } // end ap(HaskRefOp(...), ...)
 
     else { assert(false && "unhandled ApSSA type"); }
-    */
     return failure();
-  }
+  } // end matchAndRewrite
 };
 
 class MakeI64OpConversionPattern : public ConversionPattern {
@@ -857,6 +856,7 @@ void LowerHaskToStandardPass::runOnOperation() {
 
     target.addIllegalDialect<standalone::HaskDialect>();
     target.addLegalOp<MakeDataConstructorOp>();
+    target.addLegalOp<HaskRefOp>();
     // target.addLegalOp<LambdaSSAOp>();
     // target.addLegalOp<CaseSSAOp>();
     // target.addLegalOp<MakeI64Op>();
@@ -914,6 +914,22 @@ public:
     return success();
   }
 };
+
+
+// this is run in a second phase, so we refs only
+// after we are done processing data constructors.
+class HaskRefOpConversionPattern : public ConversionPattern {
+public:
+  explicit HaskRefOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(HaskRefOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+      rewriter.eraseOp(op);
+    return success();
+  }
+};
 namespace {
 struct LowerHaskStandardToLLVMPass : public Pass {
     LowerHaskStandardToLLVMPass() : Pass(mlir::TypeID::get<LowerHaskStandardToLLVMPass>()) {};
@@ -934,6 +950,7 @@ struct LowerHaskStandardToLLVMPass : public Pass {
       mlir::LLVMTypeConverter typeConverter(&getContext());
       mlir::OwningRewritePatternList patterns;
       patterns.insert<MakeDataConstructorOpConversionPattern>(&getContext());
+      patterns.insert<HaskRefOpConversionPattern>(&getContext());
       mlir::populateStdToLLVMConversionPatterns(typeConverter, patterns);
       if (failed(mlir::applyFullConversion(getOperation(), target, patterns))) {
           llvm::errs() << "===Hask+Std -> LLVM lowering failed===\n";

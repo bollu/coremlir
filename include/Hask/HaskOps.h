@@ -89,7 +89,7 @@ public:
   Value getFnArgument(int i) { return getOperation()->getOperand(1+i); }
   */
   // return true if the fn is symbolic.
-  Value fnValue();
+  Value getFn();
   int getNumFnArguments();
   Value getFnArgument(int i);
   SmallVector<Value, 4> getFnArguments();
@@ -138,7 +138,7 @@ public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.ref"; };
   void print(OpAsmPrinter &p);
-  llvm::StringRef getParamName();
+  llvm::StringRef getRef();
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   // build a single region.
 
