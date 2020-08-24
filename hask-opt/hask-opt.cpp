@@ -222,7 +222,6 @@ int main(int argc, char **argv) {
       mlir::translateModuleToLLVMIR(*module, llvmContext);
   llvm::errs() << *llvmModule << "\n===\n";
 
-
   return 0;
 }
 

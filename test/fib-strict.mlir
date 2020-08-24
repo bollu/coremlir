@@ -1,6 +1,6 @@
 // Main
 // Core2MLIR: GenMLIR BeforeCorePrep
-hask.module {
+module {
     hask.make_data_constructor @"+#"
     hask.make_data_constructor @"-#"
     hask.make_data_constructor @"()"
@@ -27,7 +27,6 @@ hask.module {
     }
     hask.return(%lambda)
   }
-  hask.dummy_finish
 }
 
 // ============ Haskell Core ========================

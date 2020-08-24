@@ -1,5 +1,5 @@
 // Debugging file: Can do anything here.
-hask.module {
+module {
     hask.make_data_constructor @"+#"
     hask.make_data_constructor @"-#"
     hask.make_data_constructor @"()"
@@ -26,5 +26,4 @@ hask.module {
     }
     hask.return(%lambda)
   }
-  hask.dummy_finish
 }
