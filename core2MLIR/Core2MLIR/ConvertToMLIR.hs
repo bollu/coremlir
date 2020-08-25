@@ -20,11 +20,12 @@ import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
 import DataCon
 import Control.Monad (ap, forM_)
+import TyCon
 import FastString
 import Literal
 import qualified Data.Set as S
 import qualified Data.ByteString.Char8 as BS
-import GHC(DynFlags)
+import GHC(DynFlags, TyCon)
 
 -- import Text.PrettyPrint.ANSI.Leijen
 -- https://hackage.haskell.org/package/ghc-8.10.1/docs/Outputable.html#v:SDoc
@@ -154,15 +155,29 @@ getBindLHSs (NonRec b e) = [b]
 getBindLHSs (Rec bs) = [ b | (b, _) <- bs]                                
 
 
+cvtDataConToMLIR :: DataCon -> Builder ()
+cvtDataConToMLIR _ = return ()
+
+cvtTyConToMLIR :: TyCon -> Builder()
+cvtTyConToMLIR c = do
+ builderAppend $ text "//unique:">< ppr (tyConUnique c)
+ builderAppend $ text"//name: " >< ppr (tyConName c)
+ builderAppend $ text"//datacons: " >< ppr (tyConDataCons c)
+ builderAppend $ text"//ctype: " >< ppr (tyConCType_maybe c)
+ forM_  (tyConDataCons c)  cvtDataConToMLIR
+ builderAppend $ text"//arity: " >< ppr (tyConArity c)
+ builderAppend $ text"//binders: " >< ppr (tyConBinders c)
+
 cvtModuleToMLIR :: DynFlags -> String -> ModGuts -> SDoc
 cvtModuleToMLIR dfags phase guts = runBuilder $ do
   let doc_name = pprModuleName $ Module.moduleName $ mg_module guts 
   builderAppend $ comment doc_name
   builderAppend $ comment (text phase)
   builderAppend $ (text "module") <+> (text "{")
-  builderAppend $ nest 4 $ mlirPrelude
+  -- builderAppend $ nest 4 $ mlirPrelude
   -- | TODO: convert to traverse?
   let vars = mconcat [getBindLHSs bind | bind <- (mg_binds guts)]
+  forM_ (mg_tcs guts) cvtTyConToMLIR
   builderBracketRecursiveVars vars $  forM_ (filter shouldKeepBind (mg_binds guts)) (\b ->  builderNest 2 $ cvtTopBind b)
   builderAppend $ text "}"
   builderAppend $ text $ "// ============ Haskell Core ========================"
