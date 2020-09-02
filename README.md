@@ -78,6 +78,46 @@ Convert GHC Core to MLIR.
   ...
 ```
 
+- So, I am unsure how we ought to handle abstract types like `Maybe a = Just a | Nothing`.
+  I don't have a good sense of whether we should respect Core or not. I believe that
+  what GRIN does is to not *care* about such issues: It doesn't even know what the hell
+  a `Maybe` is. To it, it's just two types of boxes: Either `{tag:Just, data: [a]}`,
+  `{tag:nothing, data:[]}`. Mh, I wish I had more clarity on any of this.
+
+- Either way, let's say I want to represent these data constructors. I would
+  like to have been able to write:
+
+```
+data ConcreteSum = ConcreteLeft Int# | ConcreteRight Int#
+hask.make_algebraic_data_type @ConcreteSum  -- name of the ADT
+  [@ConcreteLeft"[@"Int#"], # constructor1: Int# -> ConcreteSum
+   @ConcreteRight[@"Int#"]] # constructor2: Int# -> ConcreteSum
+
+# data ConcreteProd = MkConcreteProd Int# Int#
+hask.make_algebraic_data_type @ConcreteProd 
+ [@MkConcreteProd [@"Int#", @"Int#"]] 
+
+# data ConcreteRec = MkConcreteRec Int# ConcreteRec
+hask.make_algebraic_data_type @ConcreteRec 
+ [@MkConcreteRec [@"Int#", @ConcreteRec]] 
+```
+
+- However, as far as I understand, such a declaration cannot be done easily
+  because MLIR does not support *attribute lists*. It supports *type lists*,
+  and *attribute dicts*. What do? One can of course encode a list using a dict
+  with judicious use of torture. This seems like  a terrible solution to me
+  though. Can we just beg upstram for attribute lists?
+
+- OK, never mind, I am just horrendous at RTFMing. Turns out they call it
+  "array attributes":
+
+```
+array-attribute ::= `[` (attribute-value (`,` attribute-value)*)? `]`
+```
+> An array attribute is an attribute that represents a collection of attribute values.
+
+
+
 
 # Monday, 24 August 2020
 - Nuked `HaskModuleOp`, `HaskDummyFinishOp` since I'm just using the regular `ModuleOp` now. I now understand
