@@ -5,6 +5,80 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Wed, Sep 2 2020
+
+
+- [`A @Class@ corresponds to a Greek kappa in the static semantics:`](https://haskell-code-explorer.mfix.io/package/ghc-8.4.3/show/types/Class.hs#L271)
+  --- Gee thanks,                                             
+  that tells me where to lookup the static semantics and what `kappa` is...
+
+- We extract out the data from `data ConcreteProd = MkConcreteProd Int# Int#`
+  as:
+
+```
+//unique:rza
+//name: ConcreteProd
+//|data constructors|
+  dcName: MkConcreteProd
+  dcOrigTyCon: ConcreteProd
+  dcFieldLabels: []
+  dcRepType: Int# -> Int# -> ConcreteProd
+  constructor types: [Int#, Int#]
+  result type: ConcreteProd
+  ---
+  dcSig: ([], [], [Int#, Int#], ConcreteProd)
+  dcFullSig: ([], [], [], [], [Int#, Int#], ConcreteProd)
+  dcUniverseTyVars: []
+  dcArgs: [Int#, Int#]
+  dcOrigArgTys: [Int#, Int#]
+  dcOrigResTy: ConcreteProd
+  dcRepArgTys: [Int#, Int#]
+```
+
+- Similarly, for an *abstract* product, things are slightl more complicated:
+  `data AbstractProd a b = MkAbstractProd a b`. I don't have a good idea for
+  how the abstract binders should be serialized. In theory, we can just represent
+  them as `lambda`s. In practice...
+
+- For a concrete sum type, we get two data constructors:
+```
+//unique:rz7
+//name: ConcreteSum
+//|data constructors|
+  dcName: ConcreteLeft
+  dcOrigTyCon: ConcreteSum
+  dcFieldLabels: []
+  dcRepType: Int# -> ConcreteSum
+  constructor types: [Int#]
+  result type: ConcreteSum
+  ...
+
+  dcName: ConcreteRight
+  dcOrigTyCon: ConcreteSum
+  dcFieldLabels: []
+  dcRepType: Int# -> ConcreteSum
+  constructor types: [Int#]
+  result type: ConcreteSum
+  ...
+//----
+```
+
+- For a concrete recursive type, the data constructor `ConcreteRecSumCons`
+  refers to the type constructor `ConcreteRecSum`, which is also the result.
+```
+//unique:rz2
+//name: ConcreteRecSum
+//|data constructors|
+  dcName: ConcreteRecSumCons
+  dcOrigTyCon: ConcreteRecSum
+  dcFieldLabels: []
+  dcRepType: Int# -> ConcreteRecSum -> ConcreteRecSum
+  constructor types: [Int#, ConcreteRecSum]
+  result type: ConcreteRecSum
+  ...
+```
+
+
 # Monday, 24 August 2020
 - Nuked `HaskModuleOp`, `HaskDummyFinishOp` since I'm just using the regular `ModuleOp` now. I now understand
   why `ModuleOp` doesn't allow SSA variables in its body: these are not accessible from functions because of the

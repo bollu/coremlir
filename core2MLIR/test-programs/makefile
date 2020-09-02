@@ -1,9 +1,10 @@
 .PHONY: build core2mlir fib fibstrict clean install
 
-nonrecsum: clean install
-	ghc -O0 -dverbose-core2core -ddump-prep -ddump-ds -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O nonrecsum.hs
-	cp dump/tomlir-nonrecsum.pass-0001.mlir .
-	cp dump/tomlir-nonrecsum.pass-0000.mlir .
+dataconstructors: clean install
+	ghc -O0 -dverbose-core2core -ddump-prep -ddump-ds -ddump-simpl  -ddump-to-file \
+		-fplugin Core2MLIR.Plugin -dumpdir=dump -O dataconstructors.hs
+	cp dump/tomlir-dataconstructors.pass-0001.mlir .
+	cp dump/tomlir-dataconstructors.pass-0000.mlir .
 	# make -C ../../build/
 	# ../../build/bin/hask-opt tomlir-fib.pass-0000.mlir -optimize
 

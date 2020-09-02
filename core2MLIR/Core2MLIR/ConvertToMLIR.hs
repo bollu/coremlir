@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ViewPatterns #-}
 module Core2MLIR.ConvertToMLIR(cvtModuleToMLIR) where
 import Var (Var, varName)
 import qualified Var
@@ -149,22 +150,41 @@ mlirPrelude =
 --            text $ "// ============ Haskell Core ========================",
 --            text $ dumpProgramAsCore dfags guts]
 
-
+                                                                
 getBindLHSs :: CoreBind -> [Var]
 getBindLHSs (NonRec b e) = [b]
 getBindLHSs (Rec bs) = [ b | (b, _) <- bs]                                
 
 
 cvtDataConToMLIR :: DataCon -> Builder ()
-cvtDataConToMLIR _ = return ()
+cvtDataConToMLIR dc@(isVanillaDataCon -> True) = do
+  let (univex, theta, constructorTys, origResultTy) =   (dataConSig dc) 
+  builderAppend $ text "  ==DATACON: " ><  ppr (dataConName dc) >< text "=="
+  builderAppend $ text "  dcOrigTyCon: " ><  ppr (dataConOrigTyCon dc)
+  builderAppend $ text "  dcFieldLabels: " ><  ppr (dataConFieldLabels dc)
+  builderAppend $ text "  dcRepType: " ><  ppr (dataConRepType dc)
+  builderAppend $ text "  constructor types: " ><  ppr  (constructorTys)
+  builderAppend $ text "  result type: " ><  ppr  (origResultTy)
+  builderAppend $ text "  ---"
+  builderAppend $ text "  dcSig: " ><  ppr  (dataConSig dc)
+  builderAppend $ text "  dcFullSig: " ><  ppr (dataConFullSig dc)
+  builderAppend $ text "  dcUniverseTyVars: " >< ppr (dataConUnivTyVars dc)
+  builderAppend $ text "  dcArgs: " >< ppr (dataConOrigArgTys dc)
+  builderAppend $ text "  dcOrigArgTys: " ><  ppr (dataConOrigArgTys dc)
+  builderAppend $ text "  dcOrigResTy: " ><  ppr (dataConOrigResTy dc)
+  builderAppend $ text "  dcRepArgTys: " ><  ppr (dataConRepArgTys dc)
+cvtDataConToMLIR dc = builderAppend $ text"// ***NOT HASKELL 98!***"
+
+
 
 cvtTyConToMLIR :: TyCon -> Builder()
 cvtTyConToMLIR c = do
+ builderAppend $ text"//==TYCON: " >< ppr (tyConName c) >< (text "==")
  builderAppend $ text "//unique:">< ppr (tyConUnique c)
- builderAppend $ text"//name: " >< ppr (tyConName c)
- builderAppend $ text"//datacons: " >< ppr (tyConDataCons c)
- builderAppend $ text"//ctype: " >< ppr (tyConCType_maybe c)
+ builderAppend $ text"//|data constructors|"
  forM_  (tyConDataCons c)  cvtDataConToMLIR
+ builderAppend $ text"//----"
+ builderAppend $ text"//ctype: " >< ppr (tyConCType_maybe c)
  builderAppend $ text"//arity: " >< ppr (tyConArity c)
  builderAppend $ text"//binders: " >< ppr (tyConBinders c)
 
