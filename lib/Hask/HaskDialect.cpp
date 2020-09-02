@@ -68,7 +68,7 @@ void HaskDialect::printType(mlir::Type type,
 
   mlir::Attribute HaskDialect::parseAttribute(mlir::DialectAsmParser &parser, Type type) const {
     if (succeeded(parser.parseKeyword("data_constructor"))) {
-      parseDataConstructorAttribute(parser, type);
+      return parseDataConstructorAttribute(parser, type);
     }
     return Attribute();
   };
