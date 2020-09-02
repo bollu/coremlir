@@ -79,7 +79,7 @@ void HaskDialect::printType(mlir::Type type,
     if(attr.isa<DataConstructorAttr>()) {
       DataConstructorAttr d = attr.cast<DataConstructorAttr>();
       p << "data_constructor<";
-
+      p << *d.getName().data()  << " " << *d.getArgTys().data();
       p << ">";
     } else {
       assert(false && "unknown attribute");

@@ -60,7 +60,6 @@ struct DataConstructorAttributeStorage : public AttributeStorage {
            DataConstructorAttributeStorage(
             std::make_pair(allocator.copyInto(std::get<0>(key)), allocator.copyInto(std::get<1>(key))));
   }
-
   KeyTy value;
 };
 
@@ -88,6 +87,8 @@ public:
     return Base::get(context, data);
   }
 
+  ArrayRef<SymbolRefAttr> getName() { return this->getImpl()->value.first; }
+  ArrayRef<ArrayAttr> getArgTys() { return this->getImpl()->value.second; }
 
 //  static UntypedType get(MLIRContext *context) { return Base::get(context); }
 };
