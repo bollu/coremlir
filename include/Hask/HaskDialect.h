@@ -42,7 +42,10 @@ public:
 };
 
 struct DataConstructorAttributeStorage : public AttributeStorage {
-  using KeyTy = std::pair<SymbolRefAttr, ArrayAttr>;
+  using KeyTy = std::pair<ArrayRef<SymbolRefAttr>, ArrayRef<ArrayAttr>>;
+
+  // Why does this not work?
+  // using KeyTy = std::pair<SymbolRefAttr, ArrayAttr>;
 
   DataConstructorAttributeStorage(KeyTy value) : value(value) {}
 
@@ -52,9 +55,10 @@ struct DataConstructorAttributeStorage : public AttributeStorage {
   /// Construct a DataConstructorAttributeStorage storage instance.
   static DataConstructorAttributeStorage *construct(AttributeStorageAllocator &allocator,
                                           const KeyTy &key) {
-    return nullptr;
-    // return new (allocator.allocate<DataConstructorAttributeStorage>())
-   //        DataConstructorAttributeStorage(allocator.copyInto(key));
+    // https://github.com/llvm/llvm-project/blob/a517191a474f7d6867621d0f8e8cc454c27334bf/mlir/lib/IR/AttributeDetail.h#L281
+     return new (allocator.allocate<DataConstructorAttributeStorage>())
+           DataConstructorAttributeStorage(
+            std::make_pair(allocator.copyInto(std::get<0>(key)), allocator.copyInto(std::get<1>(key))));
   }
 
   KeyTy value;
