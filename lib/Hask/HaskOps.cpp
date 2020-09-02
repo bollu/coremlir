@@ -493,11 +493,14 @@ ParseResult HaskADTOp::parse(OpAsmParser &parser, OperationState &result) {
     SmallVector<Value, 4> results;
     Attribute name;
     Attribute constructors;
-    if(parser.parseAttribute(name)) { return failure(); }
-    if(parser.parseAttribute(constructors)) { return failure(); }
+    if(parser.parseAttribute(name, "name", result.attributes)) { return failure(); }
+    if(parser.parseAttribute(name, "constructors", result.attributes)) { return failure(); }
+
+//    result.addAttribute("name", name);
+//    result.addAttribute("constructors", constructors);
+//    if(parser.parseAttribute(constructors)) { return failure(); }
 
     llvm::errs() << "ADT: " << name << "\n" << "cons: " << constructors << "\n";
-    assert(0 && "successfully parsed ADT");
     return success();
 
 };
@@ -505,6 +508,11 @@ ParseResult HaskADTOp::parse(OpAsmParser &parser, OperationState &result) {
 
 void HaskADTOp::print(OpAsmPrinter &p) {
     p << getOperationName();
+    p << "{ ";
+   for (const std::pair<Identifier,Attribute> &it : this->getAttrs()) {
+      p << it.first << ":" << it.second << " ";
+   }
+   p << " }";
 };
 
 

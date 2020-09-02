@@ -139,6 +139,19 @@ Gee, thanks.
 OK, now I need to find out which part of what I wrote is illegal.
 
 
+- Fun aside: creating an `Op` derived class with _no traits_ results in an error!
+
+```
+/usr/local/include/mlir/IR/OpDefinition.h: In instantiation of ‘static bool mlir::Op<ConcreteType, Traits>::hasTrait(mlir::TypeID) [with ConcreteType = mlir::standalone::HaskADTOp; Traits = {}]’:
+/usr/local/include/mlir/IR/OperationSupport.h:156:12:   required from ‘static mlir::AbstractOperation mlir::AbstractOperation::get(mlir::Dialect&) [with T = mlir::standalone::HaskADTOp]’
+/usr/local/include/mlir/IR/Dialect.h:154:54:   required from ‘void mlir::Dialect::addOperations() [with Args = {mlir::standalone::HaskADTOp}]’
+/home/bollu/mlir/coremlir/lib/Hask/HaskDialect.cpp:40:28:   required from here
+/usr/local/include/mlir/IR/OpDefinition.h:1357:49: error: no matching function for call to ‘makeArrayRef(<brace-enclosed initializer list>)’
+     return llvm::is_contained(llvm::makeArrayRef({TypeID::get<Traits>()...}),
+```
+
+
+
 
 
 # Monday, 24 August 2020

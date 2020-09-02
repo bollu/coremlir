@@ -36,9 +36,10 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
  addOperations<HaskReturnOp, MakeI64Op,
   MakeDataConstructorOp,
   ApSSAOp, CaseSSAOp, HaskRefOp, LambdaSSAOp,
-  MakeStringOp, HaskFuncOp, ForceOp, CopyOp, HaskADTOp>();
-
+  MakeStringOp, HaskFuncOp, ForceOp, CopyOp>();
+  addOperations<HaskADTOp>();
   addTypes<UntypedType>();
+  //  addAttributes<>()
 }
 
 mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {

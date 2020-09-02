@@ -189,12 +189,11 @@ public:
 };
 
 
-class HaskADTOp : public Op<HaskADTOp, OpTrait::OneResult> {
+class HaskADTOp : public Op<HaskADTOp, OpTrait::ZeroResult, OpTrait::ZeroOperands> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.adt"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  Value getScrutinee() { this->getOperation()->getOperand(0); }
   void print(OpAsmPrinter &p);
 };
 
