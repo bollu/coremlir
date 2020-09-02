@@ -188,6 +188,17 @@ public:
   void print(OpAsmPrinter &p);
 };
 
+
+class HaskADTOp : public Op<HaskADTOp, OpTrait::OneResult> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.adt"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  Value getScrutinee() { this->getOperation()->getOperand(0); }
+  void print(OpAsmPrinter &p);
+};
+
+
 // lower hask to standard.
 std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass();
 // lower hask+standard to LLVM by eliminating all the junk.

@@ -480,6 +480,34 @@ void CopyOp::print(OpAsmPrinter &p) {
 };
 
 
+// === ADT OP ===
+// === ADT OP ===
+// === ADT OP ===
+// === ADT OP ===
+// === ADT OP ===
+//
+
+ParseResult HaskADTOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType scrutinee;
+
+    SmallVector<Value, 4> results;
+    Attribute name;
+    Attribute constructors;
+    if(parser.parseAttribute(name)) { return failure(); }
+    if(parser.parseAttribute(constructors)) { return failure(); }
+
+    llvm::errs() << "ADT: " << name << "\n" << "cons: " << constructors << "\n";
+    assert(0 && "successfully parsed ADT");
+    return success();
+
+};
+
+
+void HaskADTOp::print(OpAsmPrinter &p) {
+    p << getOperationName();
+};
+
+
 // ==REWRITES==
 
 // =SATURATE AP= 

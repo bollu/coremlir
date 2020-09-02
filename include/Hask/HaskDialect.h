@@ -22,6 +22,7 @@ class HaskDialect : public mlir::Dialect {
 public:
   explicit HaskDialect(mlir::MLIRContext *ctx);
   mlir::Type parseType(mlir::DialectAsmParser &parser) const override;
+  mlir::Attribute parseAttribute(mlir::DialectAsmParser &parser, Type type) const override;
 
   void printType(mlir::Type type,
                  mlir::DialectAsmPrinter &printer) const override;
@@ -39,6 +40,9 @@ public:
   /// and dyn_cast.
   static UntypedType get(MLIRContext *context) { return Base::get(context); }
 };
+
+Attribute parseDataConstructorAttribute(DialectAsmParser &parser, Type type);
+
 
 } // namespace standalone
 } // namespace mlir

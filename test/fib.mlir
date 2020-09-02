@@ -1,180 +1,134 @@
-// fib :: Int -> Int
-// fib i = case i of
-//           0 -> 0
-//           1 -> 1
-//           n -> fib n + fib (n - 1)
-// main :: IO (); main = print (fib 10)
-// module Main where
-// 
+// Fib
+// Core2MLIR: GenMLIR BeforeCorePrep
+module {
+  // should it be Attr Attr, with the "list" embedded as an attribute,
+  // or should it be Attr [Attr]? Who really knows :(
+  // define the algebraic data type
+  hask.adt @SimpleInt [#hask.data_constructor<@MkSimpleInt, [@"Int#"]>]
+  // how do we represent this?
 
-// Pretty printed core from `ghc-dump-core` [output directly from `desugar`]:
-// =========================================================================
-// $trModule :: Module
-// 
-// {- Core Size{terms=5 types=0 cos=0 vbinds=0 jbinds=0} -}
-// $trModule =
-//   APP(GHC.Types.Module
-//     (APP(GHC.Types.TrNameS "main"#))
-//     (APP(GHC.Types.TrNameS
-//        "Main"#)))
-// 
-// rec {
-// fib :: Int -> Int
-// 
-// {- Core Size{terms=23 types=6 cos=0 vbinds=0 jbinds=0} -}
-// fib =
-//   λ i →
-//     case i of wild {
-//       I# ds →
-//         case ds of ds {
-//           DEFAULT →
-//             APP(GHC.Num.+
-//               @Int
-//               GHC.Num.$fNumInt
-//               (APP(Main.fib i))
-//               (APP(Main.fib
-//                  (APP(GHC.Num.-
-//                     @Int
-//                     GHC.Num.$fNumInt
-//                     i
-//                     (APP(GHC.Types.I# 1#)))))))
-//           0# → APP(GHC.Types.I# 0#)
-//           1# → APP(GHC.Types.I# 1#)
-//         }
-//     }
-// }
-// main :: IO ()
-// 
-// {- Core Size{terms=6 types=1 cos=0 vbinds=0 jbinds=0} -}
-// main =
-//   APP(System.IO.putStrLn
-//     (APP(GHC.Show.show
-//        @Int
-//        GHC.Show.$fShowInt
-//        (APP(Main.fib
-//           (APP(GHC.Types.I# 10#)))))))
-// 
-// main :: IO ()
-// 
-// {- Core Size{terms=2 types=1 cos=0 vbinds=0 jbinds=0} -}
-// main =
-//   APP(GHC.TopHandler.runMainIO
-//     @() Main.main)
-
-
-hask.module { 
-  // hask.dominance_free_scope {
-
-    %constructor_ihash  = hask.make_data_constructor<"I#"> 
-    // This is kind of a lie, we should call it as inbuilt fn or whatever.
-    %constructor_plus = hask.make_data_constructor<"GHC.Num.+"> 
-    %constructor_minus = hask.make_data_constructor<"GHC.Num.-"> 
-    %value_dict_num_int = hask.make_data_constructor<"GHC.Num.$fNumInt">
-
-    // The syntax that I encoded into the parser
-    // %fib :: Int -> Int
-    %fib = hask.toplevel_binding {  
-      hask.lambda (%i) {
-        hask.case  {hask.return(%i)} { alt0 = "default", alt1=0, alt2=1 }
-        { //default
-  
-          // APP(GHC.Num.+
-          //   @Int
-          //   GHC.Num.$fNumInt
-          //   (APP(Main.fib i))
-          //   (APP(Main.fib
-          //      (APP(GHC.Num.-
-          //         @Int
-          //         GHC.Num.$fNumInt
-          //         i
-          //         (APP(GHC.Types.I# 1#)))))))
-  
-  
-          hask.ap({ hask.return (%constructor_plus) }, // GHC.Num.+
-                            { hask.return (%value_dict_num_int) }, // GHC.Num.$fNumInt
-                            { hask.ap({  hask.dominance_free_scope { hask.return (%fib) } },  {hask.return (%i)}) }, //(APP(Main.fib i))
-                            // { hask.ap({ hask.return (%constructor_plus) },  {hask.return (%i)}) }, // FOR TESTING WITHOUT RECURSION!: (APP(Main.fib i))
-                            {   //APP(GHC.Num.- ...
-                                hask.ap({ hask.return (%constructor_minus)}, // (APP(GHC.Num.-
-                                                  { hask.return(%value_dict_num_int) }, //GHC.Num.$fNumInt
-                                                  { hask.return(%i) }, // i
-                                                  { hask.ap({ hask.return(%constructor_ihash)}, { %c0 = constant 0 : i32 hask.make_i32(%c0)}) }  // (APP(GHC.Types.I# 1#)))))))
-  
-                                )
-                            })
+  hask.func @plus {
+  %lambda_0 = hask.lambdaSSA(%i_a12Q) {
+    %lambda_1 = hask.lambdaSSA(%j_a12R) {
+      %case_2 = hask.caseSSA  %i_a12Q
+      [@"MkSimpleInt" -> { ^entry(%wild_00: !hask.untyped, %ival_a12S: !hask.untyped):
+        %case_3 = hask.caseSSA  %j_a12R
+        [@"MkSimpleInt" -> { ^entry(%wild_X5: !hask.untyped, %jval_a12T: !hask.untyped):
+          %app_4 = hask.apSSA(@"+#", %ival_a12S)
+          %app_5 = hask.apSSA(%app_4, %jval_a12T)
+          %app_6 = hask.apSSA(%MkSimpleInt, %app_5)
+          hask.return(%app_6)
         }
-        { // 0 -> 
-            hask.ap(
-                { hask.return (%constructor_ihash) },
-                { %c0 = constant 0 : i32 hask.make_i32 (%c0) }) 
-        }
-        { // 1 -> 
-            hask.ap(
-                { hask.return (%constructor_ihash) },
-                { %c1 = constant 0 : i32 hask.make_i32 (%c1) }) 
-  
-        }
-
+        ]
+        hask.return(%case_3)
       }
-    } //end fib
-  
-
-    %main = hask.toplevel_binding { 
-      hask.ap ({ hask.return (%fib) }, {%c10 = constant 10 : i32 hask.make_i32(%c10)}) 
+      ]
+      hask.return(%case_2)
     }
+    hask.return(%lambda_1)
+  }
+  hask.return(%lambda_0)
+  }
+  hask.func @minus {
+  %lambda_7 = hask.lambdaSSA(%i_a12U) {
+    %lambda_8 = hask.lambdaSSA(%j_a12V) {
+      %case_9 = hask.caseSSA  %i_a12U
+      [@"MkSimpleInt" ->
+      {
+      ^entry(%wild_00: !hask.untyped, %ival_a12W: !hask.untyped):
+        %case_10 = hask.caseSSA  %j_a12V
+        [@"MkSimpleInt" ->
+        {
+        ^entry(%wild_X6: !hask.untyped, %jval_a12X: !hask.untyped):
+          %app_11 = hask.apSSA(@"-#", %ival_a12W)
+          %app_12 = hask.apSSA(%app_11, %jval_a12X)
+          %app_13 = hask.apSSA(%MkSimpleInt, %app_12)
+        hask.return(%app_13)
+        }
+        ]
+      hask.return(%case_10)
+      }
+      ]
+      hask.return(%case_9)
+    }
+    hask.return(%lambda_8)
+  }
+  hask.return(%lambda_7)
+  }
+  hask.func @one {
+  %lit_14 = hask.make_i64(1)
+  %app_15 = hask.apSSA(%MkSimpleInt, %lit_14)
+  hask.return(%app_15)
+  }
+  hask.func @zero {
+  %lit_16 = hask.make_i64(0)
+  %app_17 = hask.apSSA(%MkSimpleInt, %lit_16)
+  hask.return(%app_17)
+  }
+  hask.func @fib {
+  %lambda_18 = hask.lambdaSSA(%i_a12Y) {
+    %case_19 = hask.caseSSA  %i_a12Y
+    [@"MkSimpleInt" ->
+    {
+    ^entry(%wild_00: !hask.untyped, %ds_d1ky: !hask.untyped):
+      %case_20 = hask.caseSSA  %ds_d1ky
+      ["default" ->
+      {
+      ^entry(%ds_X1kH: !hask.untyped):
+        %app_21 = hask.apSSA(@fib, %i_a12Y)
+        %app_22 = hask.apSSA(@plus, %app_21)
+        %app_23 = hask.apSSA(@minus, %i_a12Y)
+        %app_24 = hask.apSSA(%app_23, @one)
+        %app_25 = hask.apSSA(@fib, %app_24)
+        %app_26 = hask.apSSA(%app_22, %app_25)
+      hask.return(%app_26)
+      }
+      ]
+      [0 ->
+      {
+      ^entry(%ds_X1kH: !hask.untyped):
+      hask.return(@zero)
+      }
+      ]
+      [1 ->
+      {
+      ^entry(%ds_X1kH: !hask.untyped):
+      hask.return(@one)
+      }
+      ]
+    hask.return(%case_20)
+    }
+    ]
+    hask.return(%case_19)
+  }
+  hask.return(%lambda_18)
+  }
+}
 
-    // need to add dummy terminator, FFS.
-    // hask.dummy_finish
-    // %cNONE = hask.make_data_constructor<"DUMMY_RETURN_PLEASE_DONT_BE_A_PETULANT_CHILD">
-    // hask.return(%cNONE)
-    hask.dummy_finish
-  // } // end dominance_free_scope
-
-  // hask.dummy_finish
-} // end module
-
-
-
-// ==================== Desugar (after optimization) ====================
-// 2020-07-01 23:19:58.257881266 UTC
+// ==== Haskell source ===
+// {-# LANGUAGE MagicHash #-}
+// {-# LANGUAGE UnboxedTuples #-}
+// module Fib where
+// import GHC.Prim
+// data SimpleInt = MkSimpleInt Int#
 // 
-// Result size of Desugar (after optimization)
-//   = {terms: 39, types: 15, coercions: 0, joins: 0/0}
+// plus :: SimpleInt -> SimpleInt -> SimpleInt
+// plus i j = case i of MkSimpleInt ival -> case j of MkSimpleInt jval -> MkSimpleInt (ival +# jval)
 // 
-// -- RHS size: {terms: 5, types: 0, coercions: 0, joins: 0/0}
-// Main.$trModule :: GHC.Types.Module
-// [LclIdX]
-// Main.$trModule
-//   = GHC.Types.Module
-//       (GHC.Types.TrNameS "main"#) (GHC.Types.TrNameS "Main"#)
 // 
-// Rec {
-// -- RHS size: {terms: 23, types: 6, coercions: 0, joins: 0/0}
-// fib [Occ=LoopBreaker] :: Int -> Int
-// [LclId]
-// fib
-//   = \ (i_a11V :: Int) ->
-//       case i_a11V of { GHC.Types.I# ds_d2PQ ->
-//       case ds_d2PQ of {
-//         __DEFAULT ->
-//           + @ Int
-//             GHC.Num.$fNumInt
-//             (fib i_a11V)
-//             (fib (- @ Int GHC.Num.$fNumInt i_a11V (GHC.Types.I# 1#)));
-//         0# -> GHC.Types.I# 0#;
-//         1# -> GHC.Types.I# 1#
-//       }
-//       }
-// end Rec }
+// minus :: SimpleInt -> SimpleInt -> SimpleInt
+// minus i j = case i of MkSimpleInt ival -> case j of MkSimpleInt jval -> MkSimpleInt (ival -# jval)
+//                             
 // 
-// -- RHS size: {terms: 5, types: 1, coercions: 0, joins: 0/0}
-// main :: IO ()
-// [LclIdX]
-// main = print @ Int GHC.Show.$fShowInt (fib (GHC.Types.I# 10#))
+// one :: SimpleInt; one = MkSimpleInt 1#
+// zero :: SimpleInt; zero = MkSimpleInt 0#
 // 
-// -- RHS size: {terms: 2, types: 1, coercions: 0, joins: 0/0}
-// :Main.main :: IO ()
-// [LclIdX]
-// :Main.main = GHC.TopHandler.runMainIO @ () main
-
-
+// fib :: SimpleInt -> SimpleInt
+// fib i = 
+//     case i of
+//        MkSimpleInt 0# -> zero
+//        MkSimpleInt 1# -> one
+//        n -> plus (fib n) (fib (minus n one))
+// 
+// main :: IO ();
+// main = let x = fib one in return ()

@@ -116,6 +116,28 @@ array-attribute ::= `[` (attribute-value (`,` attribute-value)*)? `]`
 ```
 > An array attribute is an attribute that represents a collection of attribute values.
 
+- FWIW, what threw me off is that this list attribute belongs to standard,
+  and is not a primitive of the attribute vocabulary. Seems disingenous to me.
+
+
+I'm trying to figure how to use custom attributes. On providing this input:
+
+```
+playground.mlir
+module {
+  hask.adt @SimpleInt [#hask.data_constructor<@MkSimpleInt, [@"Int#"]>]
+}
+```
+
+I get the ever-so-helpful error message:
+
+```
+Error can't load file ./playground.mlir
+```
+
+Gee, thanks.
+OK, now I need to find out which part of what I wrote is illegal.
+
 
 
 
