@@ -77,7 +77,10 @@ void HaskDialect::printType(mlir::Type type,
   void HaskDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
     assert(attr);
     if(attr.isa<DataConstructorAttr>()) {
-      p << "data_constructor";
+      DataConstructorAttr d = attr.cast<DataConstructorAttr>();
+      p << "data_constructor<";
+
+      p << ">";
     } else {
       assert(false && "unknown attribute");
     }
@@ -92,8 +95,16 @@ void HaskDialect::printType(mlir::Type type,
 // === DATA CONSTRUCTOR ATTRIBUTE ===
 
   Attribute standalone::parseDataConstructorAttribute(DialectAsmParser &parser, Type type) {
+    if(parser.parseLess()) return Attribute();
+    SymbolRefAttr name;
+    if (parser.parseAttribute<SymbolRefAttr>(name)) return Attribute();
+    ArrayAttr paramTys;
+    if(parser.parseAttribute<ArrayAttr>(paramTys)) return Attribute();
 
-    Attribute a =  DataConstructorAttr::get(parser.getBuilder().getContext());
+    if(parser.parseGreater()) return Attribute();
+
+    Attribute a =  DataConstructorAttr::get(parser.getBuilder().getContext(),
+                                           name, paramTys);
     assert(a && "have valid attribute");
     llvm::errs() << __FUNCTION__  << "\n";
     llvm::errs() << "  attr: " << a << "\n";

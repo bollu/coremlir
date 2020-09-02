@@ -41,7 +41,31 @@ public:
   static UntypedType get(MLIRContext *context) { return Base::get(context); }
 };
 
-class DataConstructorAttr : public mlir::Attribute::AttrBase<DataConstructorAttr, mlir::Attribute, AttributeStorage> {
+struct DataConstructorAttributeStorage : public AttributeStorage {
+  using KeyTy = std::pair<SymbolRefAttr, ArrayAttr>;
+
+  DataConstructorAttributeStorage(KeyTy value) : value(value) {}
+
+  /// Key equality function.
+  bool operator==(const KeyTy &key) const { return key == value; }
+
+  /// Construct a DataConstructorAttributeStorage storage instance.
+  static DataConstructorAttributeStorage *construct(AttributeStorageAllocator &allocator,
+                                          const KeyTy &key) {
+    return nullptr;
+    // return new (allocator.allocate<DataConstructorAttributeStorage>())
+   //        DataConstructorAttributeStorage(allocator.copyInto(key));
+  }
+
+  KeyTy value;
+};
+
+
+class DataConstructorAttr :
+    public mlir::Attribute::AttrBase<DataConstructorAttr,
+                                     mlir::Attribute,
+                                     DataConstructorAttributeStorage> {
+protected:
 public:
   // The usual story, pull stuff from AttrBase.
   using Base::Base;
@@ -53,8 +77,12 @@ public:
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
     return correct;
   }*/
-
-    static DataConstructorAttr get(MLIRContext *context) { return Base::get(context); }
+  static DataConstructorAttr get(MLIRContext *context,
+                                 SymbolRefAttr Name,
+                                 ArrayAttr ArgTys) {
+    std::pair<SymbolRefAttr, ArrayAttr> data(Name, ArgTys);
+    return Base::get(context, data);
+  }
 
 
 //  static UntypedType get(MLIRContext *context) { return Base::get(context); }

@@ -150,6 +150,80 @@ OK, now I need to find out which part of what I wrote is illegal.
      return llvm::is_contained(llvm::makeArrayRef({TypeID::get<Traits>()...}),
 ```
 
+- OK, stupid errors are past. I'm now learning the `Attribute` framework. It seems
+  to hold data in my class, I need to have an `AttributeStorage` member. I'm
+  taking `ArrayAttr` as my prototype. Here's the code, for ease of use:
+  ([Github permalink](https://github.com/llvm/llvm-project/blob/deb99610ab002702f43de79d818c2ccc80371569/mlir/include/mlir/IR/Attributes.h#L187))
+
+```cpp
+/// Array attributes are lists of other attributes.  They are not necessarily
+/// type homogenous given that attributes don't, in general, carry types.
+class ArrayAttr : public Attribute::AttrBase<ArrayAttr, Attribute,
+                                             detail::ArrayAttributeStorage> {
+public:
+  using Base::Base;
+  using ValueType = ArrayRef<Attribute>;
+
+  static ArrayAttr get(ArrayRef<Attribute> value, MLIRContext *context);
+
+  ArrayRef<Attribute> getValue() const;
+  Attribute operator[](unsigned idx) const;
+
+  /// Support range iteration.
+  using iterator = llvm::ArrayRef<Attribute>::iterator;
+  iterator begin() const { return getValue().begin(); }
+  iterator end() const { return getValue().end(); }
+  size_t size() const { return getValue().size(); }
+  bool empty() const { return size() == 0; }
+
+private:
+  /// Class for underlying value iterator support.
+  template <typename AttrTy>
+  class attr_value_iterator final
+      : public llvm::mapped_iterator<ArrayAttr::iterator,
+                                     AttrTy (*)(Attribute)> {
+  public:
+    explicit attr_value_iterator(ArrayAttr::iterator it)
+        : llvm::mapped_iterator<ArrayAttr::iterator, AttrTy (*)(Attribute)>(
+              it, [](Attribute attr) { return attr.cast<AttrTy>(); }) {}
+    AttrTy operator*() const { return (*this->I).template cast<AttrTy>(); }
+  };
+
+public:
+  template <typename AttrTy>
+  iterator_range<attr_value_iterator<AttrTy>> getAsRange() {
+    return llvm::make_range(attr_value_iterator<AttrTy>(begin()),
+                            attr_value_iterator<AttrTy>(end()));
+  }
+  template <typename AttrTy, typename UnderlyingTy = typename AttrTy::ValueType>
+  auto getAsValueRange() {
+    return llvm::map_range(getAsRange<AttrTy>(), [](AttrTy attr) {
+      return static_cast<UnderlyingTy>(attr.getValue());
+    });
+  }
+};
+```
+
+- [Github permalink](https://github.com/llvm/llvm-project/blob/deb99610ab002702f43de79d818c2ccc80371569/mlir/lib/IR/AttributeDetail.h#L49) of storage details
+```cpp
+struct ArrayAttributeStorage : public AttributeStorage {
+  using KeyTy = ArrayRef<Attribute>;
+
+  ArrayAttributeStorage(ArrayRef<Attribute> value) : value(value) {}
+
+  /// Key equality function.
+  bool operator==(const KeyTy &key) const { return key == value; }
+
+  /// Construct a new storage instance.
+  static ArrayAttributeStorage *construct(AttributeStorageAllocator &allocator,
+                                          const KeyTy &key) {
+    return new (allocator.allocate<ArrayAttributeStorage>())
+        ArrayAttributeStorage(allocator.copyInto(key));
+  }
+
+  ArrayRef<Attribute> value;
+};
+```
 
 
 
