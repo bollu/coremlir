@@ -39,7 +39,7 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
   MakeStringOp, HaskFuncOp, ForceOp, CopyOp>();
   addOperations<HaskADTOp>();
   addTypes<UntypedType>();
-  //  addAttributes<>()
+  addAttributes<DataConstructorAttr>();
 }
 
 mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
@@ -81,7 +81,7 @@ void HaskDialect::printType(mlir::Type type,
 // === DATA CONSTRUCTOR ATTRIBUTE ===
 
   Attribute standalone::parseDataConstructorAttribute(DialectAsmParser &parser, Type type) {
-    return Attribute();
+    return DataConstructorAttr::get(parser.getBuilder().getContext());
   };
 
 // === LOWERING ===

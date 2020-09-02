@@ -41,8 +41,13 @@ public:
   static UntypedType get(MLIRContext *context) { return Base::get(context); }
 };
 
-Attribute parseDataConstructorAttribute(DialectAsmParser &parser, Type type);
+class DataConstructorAttr : public mlir::Attribute::AttrBase<DataConstructorAttr, mlir::Attribute, AttributeStorage> {
+  // The usual story, pull stuff from AttrBase.
+  using Base::Base;
+//  static UntypedType get(MLIRContext *context) { return Base::get(context); }
+};
 
+Attribute parseDataConstructorAttribute(DialectAsmParser &parser, Type type);
 
 } // namespace standalone
 } // namespace mlir

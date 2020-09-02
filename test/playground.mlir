@@ -1,3 +1,3 @@
 module {
-  hask.adt @SimpleInt []
+  hask.adt @SimpleInt #hask.data_constructor
 }
