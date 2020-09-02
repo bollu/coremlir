@@ -22,11 +22,11 @@ class HaskDialect : public mlir::Dialect {
 public:
   explicit HaskDialect(mlir::MLIRContext *ctx);
   mlir::Type parseType(mlir::DialectAsmParser &parser) const override;
-  mlir::Attribute parseAttribute(mlir::DialectAsmParser &parser, Type type) const override;
-
   void printType(mlir::Type type,
                  mlir::DialectAsmPrinter &printer) const override;
-
+  mlir::Attribute parseAttribute(mlir::DialectAsmParser &parser, Type type) const override;
+  void printAttribute(Attribute attr,
+                      DialectAsmPrinter &printer) const override;
   static llvm::StringRef getDialectNamespace() { return "hask"; }
 };
 
@@ -42,8 +42,21 @@ public:
 };
 
 class DataConstructorAttr : public mlir::Attribute::AttrBase<DataConstructorAttr, mlir::Attribute, AttributeStorage> {
+public:
   // The usual story, pull stuff from AttrBase.
   using Base::Base;
+
+  /*
+  static bool classof(Attribute attr) {
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    const bool correct = attr.isa<DataConstructorAttr>();
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    return correct;
+  }*/
+
+    static DataConstructorAttr get(MLIRContext *context) { return Base::get(context); }
+
+
 //  static UntypedType get(MLIRContext *context) { return Base::get(context); }
 };
 

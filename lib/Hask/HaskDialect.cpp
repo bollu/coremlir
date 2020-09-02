@@ -51,9 +51,9 @@ mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
 
 
 void HaskDialect::printType(mlir::Type type,
-                           mlir::DialectAsmPrinter &printer) const {
+                           mlir::DialectAsmPrinter &p) const {
   if (type.isa<UntypedType>()) {
-    printer << "untyped";
+    p << "untyped";
   } else {
     assert(false && "unknown type");
   }
@@ -65,12 +65,23 @@ void HaskDialect::printType(mlir::Type type,
 // === ATTRIBUTE HANDLING ===
 // === ATTRIBUTE HANDLING ===
 
+
   mlir::Attribute HaskDialect::parseAttribute(mlir::DialectAsmParser &parser, Type type) const {
     if (succeeded(parser.parseKeyword("data_constructor"))) {
       parseDataConstructorAttribute(parser, type);
     }
     return Attribute();
   };
+
+
+  void HaskDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
+    assert(attr);
+    if(attr.isa<DataConstructorAttr>()) {
+      p << "data_constructor";
+    } else {
+      assert(false && "unknown attribute");
+    }
+  }
 
 
 
@@ -81,7 +92,13 @@ void HaskDialect::printType(mlir::Type type,
 // === DATA CONSTRUCTOR ATTRIBUTE ===
 
   Attribute standalone::parseDataConstructorAttribute(DialectAsmParser &parser, Type type) {
-    return DataConstructorAttr::get(parser.getBuilder().getContext());
+
+    Attribute a =  DataConstructorAttr::get(parser.getBuilder().getContext());
+    assert(a && "have valid attribute");
+    llvm::errs() << __FUNCTION__  << "\n";
+    llvm::errs() << "  attr: " << a << "\n";
+    llvm::errs() << "===\n";
+    return a;
   };
 
 // === LOWERING ===
