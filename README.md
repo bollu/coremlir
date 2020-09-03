@@ -225,6 +225,47 @@ struct ArrayAttributeStorage : public AttributeStorage {
 };
 ```
 
+#### Git log at the end of today:
+
+```
+c7370bf 25 minutes ago Siddharth Bhat (HEAD -> master, origin/master) add legalizer data
+
+ 1 file changed, 18 insertions(+)
+4abfd7a 38 minutes ago Siddharth Bhat It appears my attribute is created correctly. We print:
+
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+3261975 71 minutes ago Siddharth Bhat [WIP] getting there... can now store the data
+
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+f803c15 2 hours ago Siddharth Bhat [WIP] Playing with template errors, trying to figure out how to store attributes
+
+ 4 files changed, 119 insertions(+), 6 deletions(-)
+cc6145a 2 hours ago Siddharth Bhat FUCK ME, I forgot to return x(
+
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+91d4b4e 3 hours ago Siddharth Bhat FFS, do NOT define classof() unless you know what you're doing
+
+ 2 files changed, 36 insertions(+), 6 deletions(-)
+ff05162 3 hours ago Siddharth Bhat [WIP] I am literally unable to add an attribute...
+
+ 3 files changed, 9 insertions(+), 4 deletions(-)
+dc4fec5 4 hours ago Siddharth Bhat [WIP] attr parsing
+
+ 6 files changed, 39 insertions(+), 17 deletions(-)
+df17693 4 hours ago Siddharth Bhat add current status of getting attributes up
+
+ 12 files changed, 235 insertions(+), 272 deletions(-)
+6ba2990 4 hours ago Siddharth Bhat add README documenting that we do in fact have attribute lists.
+
+ 1 file changed, 40 insertions(+)
+4e16ba8 4 hours ago Siddharth Bhat [SIDEQUEST] Fuck this, let's just reboot hask98 from scratch on the weekend
+
+ 4 files changed, 14 insertions(+)
+266201e 10 hours ago Siddharth Bhat add the exploration of data constructors here
+
+ 10 files changed, 2012 insertions(+), 551 deletions(-)
+```
+
 
 
 
