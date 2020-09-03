@@ -4,110 +4,121 @@ module {
   // should it be Attr Attr, with the "list" embedded as an attribute,
   // or should it be Attr [Attr]? Who really knows :(
   // define the algebraic data type
-  hask.adt @SimpleInt [#hask.data_constructor<@MkSimpleInt, [@"Int#"]>]
-  // how do we represent this?
+  hask.adt @SimpleInt [#hask.data_constructor<@MkSimpleInt [@"Int#"]>]
 
+  // plus :: SimpleInt -> SimpleInt -> SimpleInt
+  // plus i j = case i of MkSimpleInt ival -> case j of MkSimpleInt jval -> MkSimpleInt (ival +# jval)
   hask.func @plus {
-  %lambda_0 = hask.lambdaSSA(%i_a12Q) {
-    %lambda_1 = hask.lambdaSSA(%j_a12R) {
-      %case_2 = hask.caseSSA  %i_a12Q
-      [@"MkSimpleInt" -> { ^entry(%wild_00: !hask.untyped, %ival_a12S: !hask.untyped):
-        %case_3 = hask.caseSSA  %j_a12R
-        [@"MkSimpleInt" -> { ^entry(%wild_X5: !hask.untyped, %jval_a12T: !hask.untyped):
-          %app_4 = hask.apSSA(@"+#", %ival_a12S)
-          %app_5 = hask.apSSA(%app_4, %jval_a12T)
-          %app_6 = hask.apSSA(%MkSimpleInt, %app_5)
-          hask.return(%app_6)
-        }
-        ]
-        hask.return(%case_3)
-      }
-      ]
-      hask.return(%case_2)
+    %lami = hask.lambdaSSA(%i) {
+         %lamj = hask.lambdaSSA(%j) {
+              %reti = hask.caseSSA %i 
+                   [@SimpleInt -> { ^entry(%ival: !hask.untyped):
+                      %retj = hask.caseSSA %j 
+                          [@SimpleInt -> { ^entry(%jval: !hask.untyped):
+                                %plus_hash = hask.ref (@"+#")
+                                %i_plus = hask.apSSA(%plus_hash, %ival)
+                                %i_plus_j = hask.apSSA(%i_plus, %jval)
+                                %mk_simple_int = hask.ref (@MkSimpleInt)
+                                %boxed = hask.apSSA(%mk_simple_int, %i_plus_j)
+                                hask.return(%boxed)
+                          }]
+                      hask.return(%retj)
+                   }]
+              hask.return(%reti)
+          }
+          hask.return(%lamj)
     }
-    hask.return(%lambda_1)
+    hask.return(%lami)
   }
-  hask.return(%lambda_0)
-  }
+
+  // minus :: SimpleInt -> SimpleInt -> SimpleInt
+  // minus i j = case i of MkSimpleInt ival -> case j of MkSimpleInt jval -> MkSimpleInt (ival -# jval)
   hask.func @minus {
-  %lambda_7 = hask.lambdaSSA(%i_a12U) {
-    %lambda_8 = hask.lambdaSSA(%j_a12V) {
-      %case_9 = hask.caseSSA  %i_a12U
-      [@"MkSimpleInt" ->
-      {
-      ^entry(%wild_00: !hask.untyped, %ival_a12W: !hask.untyped):
-        %case_10 = hask.caseSSA  %j_a12V
-        [@"MkSimpleInt" ->
-        {
-        ^entry(%wild_X6: !hask.untyped, %jval_a12X: !hask.untyped):
-          %app_11 = hask.apSSA(@"-#", %ival_a12W)
-          %app_12 = hask.apSSA(%app_11, %jval_a12X)
-          %app_13 = hask.apSSA(%MkSimpleInt, %app_12)
-        hask.return(%app_13)
-        }
-        ]
-      hask.return(%case_10)
-      }
-      ]
-      hask.return(%case_9)
+    %lami = hask.lambdaSSA(%i) {
+         %lamj = hask.lambdaSSA(%j) {
+              %reti = hask.caseSSA %i 
+                   [@SimpleInt -> { ^entry(%ival: !hask.untyped):
+                      %retj = hask.caseSSA %j 
+                          [@SimpleInt -> { ^entry(%jval: !hask.untyped):
+                                %plus_hash = hask.ref (@"-#")
+                                %i_plus = hask.apSSA(%plus_hash, %ival)
+                                %i_plus_j = hask.apSSA(%i_plus, %jval)
+                                %mk_simple_int = hask.ref (@MkSimpleInt)
+                                %boxed = hask.apSSA(%mk_simple_int, %i_plus_j)
+                                hask.return(%boxed)
+                          }]
+                      hask.return(%retj)
+                   }]
+              hask.return(%reti)
+          }
+          hask.return(%lamj)
     }
-    hask.return(%lambda_8)
+    hask.return(%lami)
   }
-  hask.return(%lambda_7)
-  }
+
+
+  // one :: SimpleInt; one = MkSimpleInt 1#
   hask.func @one {
-  %lit_14 = hask.make_i64(1)
-  %app_15 = hask.apSSA(%MkSimpleInt, %lit_14)
-  hask.return(%app_15)
+    %mk_simple_int = hask.ref (@MkSimpleInt)
+    %lit_one = hask.make_i64(1)
+    %boxed = hask.apSSA(%mk_simple_int, %lit_one)
+    hask.return(%boxed)
   }
+  
+  // zero :: SimpleInt; zero = MkSimpleInt 0#
   hask.func @zero {
-  %lit_16 = hask.make_i64(0)
-  %app_17 = hask.apSSA(%MkSimpleInt, %lit_16)
-  hask.return(%app_17)
+    %mk_simple_int = hask.ref (@MkSimpleInt)
+    %lit_zero = hask.make_i64(0)
+    %boxed = hask.apSSA(%mk_simple_int, %lit_zero)
+    hask.return(%boxed)
   }
+
+
+  // fib :: SimpleInt -> SimpleInt
+  // fib i = 
+  //     case i of
+  //        MkSimpleInt ihash -> 
+  //            case ihash of 
+  //               0# -> zero
+  //               1# -> one
+  //               _ -> plus (fib i) (fib (minus i one))
   hask.func @fib {
-  %lambda_18 = hask.lambdaSSA(%i_a12Y) {
-    %case_19 = hask.caseSSA  %i_a12Y
-    [@"MkSimpleInt" ->
-    {
-    ^entry(%wild_00: !hask.untyped, %ds_d1ky: !hask.untyped):
-      %case_20 = hask.caseSSA  %ds_d1ky
-      ["default" ->
-      {
-      ^entry(%ds_X1kH: !hask.untyped):
-        %app_21 = hask.apSSA(@fib, %i_a12Y)
-        %app_22 = hask.apSSA(@plus, %app_21)
-        %app_23 = hask.apSSA(@minus, %i_a12Y)
-        %app_24 = hask.apSSA(%app_23, @one)
-        %app_25 = hask.apSSA(@fib, %app_24)
-        %app_26 = hask.apSSA(%app_22, %app_25)
-      hask.return(%app_26)
-      }
-      ]
-      [0 ->
-      {
-      ^entry(%ds_X1kH: !hask.untyped):
-      hask.return(@zero)
-      }
-      ]
-      [1 ->
-      {
-      ^entry(%ds_X1kH: !hask.untyped):
-      hask.return(@one)
-      }
-      ]
-    hask.return(%case_20)
+    %lam = hask.lambdaSSA(%i) {
+        %ret = hask.caseSSA %i 
+               [@MkSimpleInt -> { ^entry(%ihash: !hask.untyped):
+                     %ret = hask.caseSSA %ihash 
+                     [0 -> { ^entry(%_: !hask.untyped): 
+                                %z = hask.ref(@zero)
+                                hask.return (%z)
+                     }]
+                     [1 -> { ^entry(%_: !hask.untyped): 
+                                %o = hask.ref(@one)
+                                hask.return (%o)
+                     }]
+                     [@default -> { ^entry:
+                                     %fib_ref = hask.ref(@fib)
+                                     %fib_i = hask.apSSA(%fib_ref, %i)
+                                     %minus_ref = hask.ref(@minus)
+                                     %i_minus = hask.apSSA(%minus_ref, %i)
+                                     %one_ref = hask.ref(@one)
+                                     %i_minus_one = hask.apSSA(%i_minus, %one_ref)
+                                     %fib_i_minus_one = hask.apSSA(%fib_ref, %i_minus_one)
+                                     %plus_ref = hask.ref(@plus)
+                                     %fib_i_plus = hask.apSSA(%plus_ref, %fib_i)
+                                     %fib_i_plus_fib_i_minus_one = hask.apSSA(%plus_ref, %fib_i_minus_one)
+                                     hask.return (%fib_i_plus_fib_i_minus_one)
+
+                     }]
+                     hask.return(%ret)
+               }]
+        hask.return (%ret)
     }
-    ]
-    hask.return(%case_19)
+    hask.return (%lam)
   }
-  hask.return(%lambda_18)
-  }
+    
 }
 
-// ==== Haskell source ===
-// {-# LANGUAGE MagicHash #-}
-// {-# LANGUAGE UnboxedTuples #-}
+
 // module Fib where
 // import GHC.Prim
 // data SimpleInt = MkSimpleInt Int#
@@ -126,9 +137,11 @@ module {
 // fib :: SimpleInt -> SimpleInt
 // fib i = 
 //     case i of
-//        MkSimpleInt 0# -> zero
-//        MkSimpleInt 1# -> one
+//        MkSimpleInt ihash -> case ihash of 
+//                              0# -> zero
+//                              1# -> one
 //        n -> plus (fib n) (fib (minus n one))
 // 
 // main :: IO ();
 // main = let x = fib one in return ()
+

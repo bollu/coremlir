@@ -8,7 +8,7 @@ module {
   hask.func @fibstrict {
     %lambda = hask.lambdaSSA(%i) {
       %retval = hask.caseSSA  %i
-      ["default" -> { ^entry(%default_random_name: !hask.untyped): // todo: remove this defult
+      ["default" -> { ^entry: // todo: remove this defult
         %fib_rec = hask.ref (@fibstrict)
         %minus_hash = hask.ref (@"-#")
         %i_minus = hask.apSSA(%minus_hash, %i)

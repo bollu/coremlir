@@ -19,6 +19,7 @@ fib:
 	../build/bin/hask-opt ./fib-roundtrip.mlir
 
 fibstrict: 
+	-rm fib-strict-roundtrip.mlir
 	make -C ~/work/mlir/coremlir/build
 	# test round-tripping. Is vital!
 	../build/bin/hask-opt ./fib-strict.mlir -optimize 
