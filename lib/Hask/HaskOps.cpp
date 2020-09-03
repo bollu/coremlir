@@ -893,6 +893,8 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addIllegalDialect<standalone::HaskDialect>();
     target.addLegalOp<MakeDataConstructorOp>();
     target.addLegalOp<HaskRefOp>();
+    target.addLegalOp<HaskADTOp>();
+
     // target.addLegalOp<LambdaSSAOp>();
     // target.addLegalOp<CaseSSAOp>();
     // target.addLegalOp<MakeI64Op>();
@@ -966,6 +968,20 @@ public:
     return success();
   }
 };
+
+class HaskADTOpConversionPattern : public ConversionPattern {
+public:
+  explicit HaskADTOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(HaskADTOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 namespace {
 struct LowerHaskStandardToLLVMPass : public Pass {
     LowerHaskStandardToLLVMPass() : Pass(mlir::TypeID::get<LowerHaskStandardToLLVMPass>()) {};
@@ -987,6 +1003,8 @@ struct LowerHaskStandardToLLVMPass : public Pass {
       mlir::OwningRewritePatternList patterns;
       patterns.insert<MakeDataConstructorOpConversionPattern>(&getContext());
       patterns.insert<HaskRefOpConversionPattern>(&getContext());
+      patterns.insert<HaskADTOpConversionPattern>(&getContext());
+
       mlir::populateStdToLLVMConversionPatterns(typeConverter, patterns);
       if (failed(mlir::applyFullConversion(getOperation(), target, patterns))) {
           llvm::errs() << "===Hask+Std -> LLVM lowering failed===\n";
