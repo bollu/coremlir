@@ -37,8 +37,7 @@ public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.return"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  Value getValue() { return this->getOperation()->getOperand(0); }
-  Value getInput() { return this->getValue(); }
+  Value getInput() { return this->getOperation()->getOperand(0); }
   void print(OpAsmPrinter &p);
 
 };
@@ -117,6 +116,10 @@ public:
   void print(OpAsmPrinter &p);
   llvm::Optional<int> getDefaultAltIndex();
 
+
+  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context);
+
 };
 
 class LambdaSSAOp : public Op<LambdaSSAOp, OpTrait::OneResult> {
@@ -173,6 +176,10 @@ public:
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   Value getScrutinee() { this->getOperation()->getOperand(0); }
   void print(OpAsmPrinter &p);
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    Value scrutinee);
+
+
 };
 
 

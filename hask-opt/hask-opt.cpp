@@ -53,7 +53,8 @@
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
                                                 llvm::cl::init("-"));
-static llvm::cl::opt<bool> enableOptimization("optimize", llvm::cl::desc("Enable optimizations"));
+static llvm::cl::opt<bool> lowerToStandard("lower-std", llvm::cl::desc("Enable lowering to standard"));
+static llvm::cl::opt<bool> lowerToLLVM("lower-llvm", llvm::cl::desc("Enable lowering to LLVM"));
 
 //0 static llvm::cl::opt<std::string>
 //0     outputFilename("o", llvm::cl::desc("Output filename"),
@@ -127,7 +128,7 @@ int main(int argc, char **argv) {
   llvm::errs() << "\n===\n";
 
 
-  if (enableOptimization) {
+  {
     mlir::PassManager pm(&context);
     // Apply any generic pass manager command line options and run the pipeline.
     applyPassManagerCLOptions(pm);
@@ -143,31 +144,33 @@ int main(int argc, char **argv) {
     llvm::errs() << "==canonicalization succeeded!===\n";
   }
 
-  llvm::errs() << "===Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << "===\n";
   module->print(llvm::errs());
   llvm::errs() << "\n===\n";
 
+  {
 
-  if (enableOptimization) {
     mlir::PassManager pm(&context);
     // Apply any generic pass manager command line options and run the pipeline.
     applyPassManagerCLOptions(pm);
     pm.addPass(mlir::createCSEPass());
     llvm::errs() << "===Module: running CSE...===\n";
     if (mlir::failed(pm.run(*module))) {
-      llvm::errs() << "===CSE failed.===\n";
-      return 4;
+        llvm::errs() << "===CSE failed.===\n";
+        return 4;
     }
     llvm::errs() << "===CSE succeeded!===\n";
 
+    llvm::errs() << "===Module===\n";
+    module->print(llvm::errs());
+    llvm::errs() << "\n===\n";
   }
-  llvm::errs() << "===Module " << (enableOptimization ? "(+optimization)" : "(no optimization)") << "===\n";
-  module->print(llvm::errs());
-  llvm::errs() << "\n===\n";
+
+
 
   // Lowering code to standard (?) Do I even need to (?)
   // Can I directly generate LLVM?
 
+  if (!lowerToStandard) { module->print(llvm::outs()); return 0; }
   // lowering code to Standard/SCF
   {
     mlir::PassManager pm(&context);
@@ -190,6 +193,7 @@ int main(int argc, char **argv) {
   }
 
 
+  if (!lowerToLLVM) { module->print(llvm::outs()); return 0; }
   // Lowering code to MLIR-LLVM
   {
 

@@ -101,7 +101,7 @@ ParseResult MakeI64Op::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void MakeI64Op::print(OpAsmPrinter &p) {
-    p << "hask.make_i32(" << getValue() << ")";
+    p << getOperationName() << "(" << getValue() << ")";
 };
 
 // === MakeDataConstructor OP ===
@@ -422,7 +422,7 @@ LambdaSSAOp HaskFuncOp::getLambda() {
     assert(region.getBlocks().size() == 1 && "func has more than one BB");
     Block &entry = region.front();
     HaskReturnOp ret = cast<HaskReturnOp>(entry.getTerminator());
-    Value retval = ret.getValue();
+    Value retval = ret.getInput();
     return cast<LambdaSSAOp>(retval.getDefiningOp());
 }
 
@@ -450,6 +450,13 @@ ParseResult ForceOp::parse(OpAsmParser &parser, OperationState &result) {
 void ForceOp::print(OpAsmPrinter &p) {
     p << "hask.force(" << this->getScrutinee() << ")";
 };
+
+void ForceOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    Value scrutinee) {
+  state.addOperands(scrutinee);
+  state.addTypes(builder.getType<UntypedType>());
+}
+
 
 // === Copy OP ===
 // === Copy OP ===
@@ -506,11 +513,7 @@ ParseResult HaskADTOp::parse(OpAsmParser &parser, OperationState &result) {
 
 void HaskADTOp::print(OpAsmPrinter &p) {
     p << getOperationName();
-    p << "{ ";
-   for (const std::pair<Identifier,Attribute> &it : this->getAttrs()) {
-      p << it.first << ":" << it.second << " ";
-   }
-   p << " }";
+    p << " " << this->getAttr("name") << " " << this->getAttr("constructors");
 };
 
 
@@ -550,11 +553,11 @@ void HaskGlobalOp::print(OpAsmPrinter &p) {
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/mlir/ToyCombine.cpp
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/mlir/Dialect.cpp
-struct RewriteUncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
+struct UncurryApplicationPattern : public mlir::OpRewritePattern<ApSSAOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
   /// them in order of profitability.
-  RewriteUncurryApplication(mlir::MLIRContext *context)
+  UncurryApplicationPattern(mlir::MLIRContext *context)
       : OpRewritePattern<ApSSAOp>(context, /*benefit=*/1) {
       }
 
@@ -640,7 +643,140 @@ struct RewriteUncurryApplication : public mlir::OpRewritePattern<ApSSAOp> {
 
 void ApSSAOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
-  results.insert<RewriteUncurryApplication>(context);
+  results.insert<UncurryApplicationPattern>(context);
+}
+
+
+struct DefaultCaseToForcePattern : public mlir::OpRewritePattern<CaseSSAOp> {
+  DefaultCaseToForcePattern(mlir::MLIRContext *context)
+      : OpRewritePattern<CaseSSAOp>(context, /*benefit=*/1) {
+      }
+
+      
+  // CONVERT
+  // --------
+  // %x = case %scrutinee of 
+  //         default -> { ^entry(%default_name):
+  //                              ...
+  //                              %hask.return(%retval)
+  //                    }
+  // %y = f(%x)
+  //
+  // INTO
+  // ----
+  //
+  // %forced_x = force(%scrutinee)
+  // < replace %default_name with %forced_x>
+  // ... < inlined BB, without %hask.return>
+  // <replace %x with %retval>
+  // %y = f(%retval)
+  mlir::LogicalResult
+  matchAndRewrite(CaseSSAOp caseop,
+                  mlir::PatternRewriter &rewriter) const override {
+    if (caseop.getNumAlts() != 1) { return success(); }
+    // we have only one case, convert to a force.
+
+    Operation *toplevel = caseop.getParentOp();
+    llvm::errs() << "---" << __FUNCTION__ << "---\n";
+    llvm::errs() << "---caseParentBB:--\n" << *caseop.getParentOp() << "\t---\n";
+
+
+    llvm::errs() << "---case:---\n" << caseop;
+    llvm::errs() << "\t---\n";
+
+    Block *caseParentBB = caseop.getOperation()->getBlock();
+    Block &caseRhsBB = caseop.getAltRHS(0).getBlocks().front();
+    assert(caseRhsBB.getTerminator() && "caseRhsBB must have legal terminator");
+
+    HaskReturnOp ret = dyn_cast<HaskReturnOp>(caseRhsBB.getTerminator());
+    assert(ret && "expected to have ret");
+    Value retval = ret.getInput();
+    assert(retval && "expected legal ret value");
+
+    rewriter.setInsertionPoint(caseop);
+    ForceOp forceScrutinee = rewriter.create<ForceOp>(caseop.getLoc(), caseop.getScrutinee());
+
+    Operation *opAfterCase = caseop.getOperation()->getNextNode();
+    rewriter.mergeBlockBefore(&caseRhsBB, opAfterCase, forceScrutinee.getResult());
+
+    rewriter.eraseOp(ret);
+    llvm::errs() << "---retval: "; retval.print(llvm::errs()); llvm::errs() << "---\n";
+    //    rewriter.replaceOp(caseop, retval);
+
+
+    llvm::errs() << "---caseParentOp[after insertion]---\n";
+    caseop.getParentOp()->print(llvm::errs());
+    llvm::errs() << "--\n";
+    llvm::errs() << "---ret: "; ret.getOperation()->print(llvm::errs()); llvm::errs() << "--\n";
+    llvm::errs() << "---retval:"; retval.print(llvm::errs());llvm::errs() << "--\n";
+    rewriter.replaceOp(caseop, retval);
+
+    llvm::errs() << __FUNCTION__ << ": " << __LINE__ << "\n";
+    llvm::errs() << "---caseParentOp[after replacement]---\n";
+    llvm::errs() << *toplevel << "\n";
+//    assert(false);
+
+    return success();
+
+    /*
+
+    llvm::errs() << "---caseParentBB[before]---\n";
+    caseParentBB->print(llvm::errs());
+    llvm::errs() << "--\n";
+    HaskReturnOp caseRhsBBRetOp = dyn_cast<HaskReturnOp>(caseRhsBB.getTerminator());
+
+    llvm::errs() << "---caseRhsBBRetOp---\n";
+    llvm::errs() << caseRhsBBRetOp;
+    llvm::errs() << "---\n";
+    assert(caseRhsBBRetOp && "caseRhsBB return must be HaskReturnOp");
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+
+    rewriter.setInsertionPointAfter(caseop);
+
+    rewriter.setInsertionPoint(caseop);
+    ForceOp forceScrutinee = rewriter.create<ForceOp>(caseop.getLoc(), caseop.getScrutinee());
+    rewriter.setInsertionPointAfter(forceScrutinee);
+
+    assert(caseRhsBB.getTerminator());
+    HaskReturnOp retop = dyn_cast<HaskReturnOp>(caseRhsBB.getTerminator());
+    Value retval = retop.getValue();
+    llvm::errs() << "---retval---\n";
+    retval.print(llvm::errs());
+    llvm::errs() << "---\n";
+
+    // rewriter.eraseOp(rhs.getTerminator());
+
+
+    // llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    // rewriter.mergeBlockBefore(&rhs, caseop, forceScrutinee.getResult());
+    // llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+    // rewriter.replaceOpWithNewOp<ForceOp>(caseop, retval);
+    //1 // rewriter.replaceOp(caseop, rhsRetOp.getValue());
+    //1 llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    //1 rewriter.mergeBlocks(&rhs, caseParentBB, {caseop.getScrutinee()});
+    //1 llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+    //1 llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    //1 caseop.getOperation()->getParentOp()->print(llvm::errs());
+
+    //1 // HaskReturnOp ret = cast<HaskReturnOp>(rhs.getTerminator());
+
+    llvm::errs() << "---caseParentBB[after]---\n";
+    caseParentBB->print(llvm::errs());
+    llvm::errs() << "--\n";
+    rewriter.eraseOp(caseop);
+    assert(false);
+    return success();
+    */
+  }
+};
+
+
+void CaseSSAOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
+  results.insert<DefaultCaseToForcePattern>(context);
 }
 
 // === LOWERING ===
@@ -710,6 +846,9 @@ public:
       auto caseop = cast<CaseSSAOp>(op);
       const Optional<int> default_ix = caseop.getDefaultAltIndex();
 
+      llvm::errs() << "running CaseSSAOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+      llvm::errs() << caseop << "\n";
+
 
       // delete the use of the case.
       // TODO: Change the IR so that a case doesn't have a use.
@@ -745,6 +884,10 @@ public:
                                                 scrutinee_eq_val,
                                                 thenBB, caseop.getScrutinee(),
                                                 elseBB, caseop.getScrutinee());
+
+            llvm::errs() << "---op---\n";
+            llvm::errs() << *thenBB->getParentOp();
+            llvm::errs() << "---^^---\n";
 
             rewriter.mergeBlocks(&caseop.getAltRHS(i).front(), thenBB, caseop.getScrutinee());
             rewriter.setInsertionPointToStart(elseBB);
@@ -879,7 +1022,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     HaskReturnOp ret = cast<HaskReturnOp>(op);
     llvm::errs() << "running HaskReturnOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-    rewriter.replaceOpWithNewOp<mlir::ReturnOp>(ret, ret.getValue());
+    rewriter.replaceOpWithNewOp<mlir::ReturnOp>(ret, ret.getInput());
     return success();
   }
 };

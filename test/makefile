@@ -4,35 +4,30 @@
 
 fib: 
 	make -C ~/work/mlir/coremlir/build
-	../build/bin/hask-opt ./fib.mlir -optimize
-	../build/bin/hask-opt ./fib.mlir -optimize > fib-roundtrip.mlir
+	../build/bin/hask-opt ./fib.mlir 
+	../build/bin/hask-opt ./fib.mlir > fib-roundtrip.mlir
 	../build/bin/hask-opt ./fib-roundtrip.mlir
 
 playground: 
 	make -C ~/work/mlir/coremlir/build
-	../build/bin/hask-opt ./playground.mlir -optimize  | tee playground-roundtrip.mlir
-	(../build/bin/hask-opt playground-roundtrip.mlir \
-		-optimize 1>/dev/null 2>/dev/null) \
-		|| (echo "===ROUNDTRIP FAILED==="; \
-			../build/bin/hask-opt playground-roundtrip.mlir; \
-			echo "===ROUNTRIP FAILED==="; false)
-	rm playground-roundtrip.mlir
+	../build/bin/hask-opt ./playground.mlir 
+	../build/bin/hask-opt ./playground.mlir  > playground-roundtrip.mlir
+	../build/bin/hask-opt ./playground.mlir-roundtrip.mlir
 
 
 fibstrict: 
 	-rm fib-strict-roundtrip.mlir
 	make -C ~/work/mlir/coremlir/build
 	# test round-tripping. Is vital!
-	../build/bin/hask-opt ./fib-strict.mlir -optimize 
-	../build/bin/hask-opt ./fib-strict.mlir -optimize > fib-strict-roundtrip.mlir
-	# ../build/bin/hask-opt ./fib-strict-roundtrip.mlir
-	# check that the optimized version runs
-	../build/bin/hask-opt ./fib-strict-roundtrip.mlir -optimize
+	../build/bin/hask-opt ./fib-strict.mlir
+	../build/bin/hask-opt ./fib-strict.mlir > fib-strict-roundtrip.mlir
+	../build/bin/hask-opt ./fib-strict-roundtrip.mlir
 
 
 test-ops: 
 	make -C ~/work/mlir/coremlir/build
-	../build/bin/hask-opt ./test-ops.mlir | tee test-ops-roundtrip.mlir
+	../build/bin/hask-opt ./test-ops.mlir
+	../build/bin/hask-opt ./test-ops.mlir > tee test-ops-roundtrip.mlir
 	../build/bin/hask-opt ./test-ops-roundtrip.mlir
 
 all : fib fibstrict test-ops 
