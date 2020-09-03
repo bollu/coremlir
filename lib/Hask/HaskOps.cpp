@@ -397,9 +397,8 @@ ParseResult HaskFuncOp::parse(OpAsmParser &parser, OperationState &result) {
         return failure();
     };
 
-     // Parse the optional function body.
     auto *body = result.addRegion();
-    return parser.parseOptionalRegion( *body, {}, ArrayRef<Type>() );
+    return parser.parseRegion( *body, {}, ArrayRef<Type>() );
 };
 
 void HaskFuncOp::print(OpAsmPrinter &p) {
@@ -407,10 +406,9 @@ void HaskFuncOp::print(OpAsmPrinter &p) {
     p.printSymbolName(getFuncName());
     // Print the body if this is not an external function.
     Region &body = this->getRegion();
-    if (!body.empty()) {
-        p.printRegion(body, /*printEntryBlockArgs=*/false,
-                    /*printBlockTerminators=*/true);
-    }
+    assert(!body.empty());
+    p.printRegion(body, /*printEntryBlockArgs=*/false,
+            /*printBlockTerminators=*/true);
 }
 
 llvm::StringRef HaskFuncOp::getFuncName() {
@@ -513,6 +511,36 @@ void HaskADTOp::print(OpAsmPrinter &p) {
       p << it.first << ":" << it.second << " ";
    }
    p << " }";
+};
+
+
+// === GLOBAL OP ===
+// === GLOBAL OP ===
+// === GLOBAL OP ===
+// === GLOBAL OP ===
+// === GLOBAL OP ===
+
+
+ParseResult HaskGlobalOp::parse(OpAsmParser &parser, OperationState &result) {
+    StringAttr nameAttr;
+    if (parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
+                             result.attributes)) {
+        return failure();
+    };
+
+    auto *body = result.addRegion();
+    return parser.parseRegion( *body, {}, ArrayRef<Type>() );
+
+};
+
+
+void HaskGlobalOp::print(OpAsmPrinter &p) {
+    p << getOperationName() << ' ';
+    p.printSymbolName(getName());
+    Region &body = this->getRegion();
+    assert(!body.empty());
+    p.printRegion(body, /*printEntryBlockArgs=*/false,
+            /*printBlockTerminators=*/true);
 };
 
 
@@ -680,8 +708,7 @@ public:
     matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                     ConversionPatternRewriter &rewriter) const override {
       auto caseop = cast<CaseSSAOp>(op);
-      const int default_ix = *caseop.getDefaultAltIndex();
-      assert(caseop.getDefaultAltIndex() && "expected default case");
+      const Optional<int> default_ix = caseop.getDefaultAltIndex();
 
 
       // delete the use of the case.
@@ -695,7 +722,7 @@ public:
         rewriter.setInsertionPoint(caseop);
         // TODO: get block of current caseop?
         for(int i = 0; i < caseop.getNumAlts(); ++i) {
-            if (i == default_ix) { continue; }
+            if (default_ix && i == *default_ix) { continue; }
             mlir::ConstantOp lhsConstant =
                 rewriter.create<mlir::ConstantOp>(rewriter.getUnknownLoc(),
                                                   caseop.getAltLHS(i));
@@ -723,14 +750,14 @@ public:
             rewriter.setInsertionPointToStart(elseBB);
         }
 
-        /*
-        assert(false);
-        rewriter.mergeBlocks(&caseop.getAltRHS(default_ix).front(), elseBB, caseop.getScrutinee());
-        */
-
-        rewriter.mergeBlocks(&caseop.getAltRHS(default_ix).front(),
-                             rewriter.getInsertionBlock(),
-                             caseop.getScrutinee());
+        // we have a default block
+        if (default_ix) {
+            // default block should have ha no parameters!
+            rewriter.mergeBlocks(&caseop.getAltRHS(*default_ix).front(),
+                                 rewriter.getInsertionBlock(), {});
+        } else {
+            rewriter.create<mlir::LLVM::UnreachableOp>(rewriter.getUnknownLoc());
+        }
         rewriter.eraseOp(caseop);
 
 
@@ -884,6 +911,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     HaskToStdTypeConverter converter();
     target.addLegalDialect<mlir::StandardOpsDialect>();
     target.addLegalDialect<mlir::scf::SCFDialect>();
+    target.addLegalOp<mlir::LLVM::UnreachableOp>();
 
     // Why do I need this? Isn't adding StandardOpsDialect enough?
     target.addLegalOp<FuncOp>();
@@ -894,6 +922,8 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<MakeDataConstructorOp>();
     target.addLegalOp<HaskRefOp>();
     target.addLegalOp<HaskADTOp>();
+    target.addLegalOp<LambdaSSAOp>();
+    target.addLegalOp<HaskGlobalOp>();
 
     // target.addLegalOp<LambdaSSAOp>();
     // target.addLegalOp<CaseSSAOp>();

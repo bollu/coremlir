@@ -2,6 +2,12 @@
 # pipelines which involve tee and allow such pipelines to fail.
 .PHONY: fib fibstrict playground
 
+fib: 
+	make -C ~/work/mlir/coremlir/build
+	../build/bin/hask-opt ./fib.mlir -optimize
+	../build/bin/hask-opt ./fib.mlir -optimize > fib-roundtrip.mlir
+	../build/bin/hask-opt ./fib-roundtrip.mlir
+
 playground: 
 	make -C ~/work/mlir/coremlir/build
 	../build/bin/hask-opt ./playground.mlir -optimize  | tee playground-roundtrip.mlir
@@ -12,11 +18,6 @@ playground:
 			echo "===ROUNTRIP FAILED==="; false)
 	rm playground-roundtrip.mlir
 
-fib: 
-	make -C ~/work/mlir/coremlir/build
-	../build/bin/hask-opt ./fib.mlir
-	../build/bin/hask-opt ./fib.mlir > fib-roundtrip.mlir
-	../build/bin/hask-opt ./fib-roundtrip.mlir
 
 fibstrict: 
 	-rm fib-strict-roundtrip.mlir

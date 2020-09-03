@@ -58,7 +58,7 @@ module {
 
 
   // one :: SimpleInt; one = MkSimpleInt 1#
-  hask.func @one {
+  hask.global @one {
     %mk_simple_int = hask.ref (@MkSimpleInt)
     %lit_one = hask.make_i64(1)
     %boxed = hask.apSSA(%mk_simple_int, %lit_one)
@@ -66,7 +66,7 @@ module {
   }
   
   // zero :: SimpleInt; zero = MkSimpleInt 0#
-  hask.func @zero {
+  hask.global @zero {
     %mk_simple_int = hask.ref (@MkSimpleInt)
     %lit_zero = hask.make_i64(0)
     %boxed = hask.apSSA(%mk_simple_int, %lit_zero)

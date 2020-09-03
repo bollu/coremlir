@@ -164,6 +164,7 @@ public:
 
 
 
+
 // replace case x of name { default -> ... } with name = force(x);
 class ForceOp : public Op<ForceOp, OpTrait::OneResult> {
 public:
@@ -196,6 +197,21 @@ public:
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
+
+class HaskGlobalOp : public Op<HaskGlobalOp,
+                OpTrait::ZeroOperands,
+                OpTrait::ZeroResult,
+                OpTrait::OneRegion, // OpTrait::IsIsolatedFromAbove,
+                SymbolOpInterface::Trait> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.global"; };
+  Region &getRegion() { return this->getOperation()->getRegion(0); };
+  void print(OpAsmPrinter &p);
+  llvm::StringRef getGlobalName();
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+};
+
 
 
 // lower hask to standard.
