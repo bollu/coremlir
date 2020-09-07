@@ -50,6 +50,46 @@ but if we assume that `hask.apSSA` must always return a `hask.value`, we
 are screwed. The only way out I can see is to teaach `apSSA` and my
 type system about currying and, well, function types. GG. Let's do this.
 
+Great, so I now have a type system!
+
+```
+hask.force: (box: hask.thunk) -> hask.value
+hask.case<T>: (scrutinee: hask.value) -> T. All the pattern matches have to return the same value.
+hask.ap: (fn: hask.func<A, B>) * (param: A) -> B
+hask.return: (retval: T) -> void
+hask.lambda: (param: A) * (region with return: B) -> hask.func<A, B>
+hask.ref<T>: (refname: Symbol) -> T
+```
+
+##### Raw git log
+
+```
+* a8c43a4 76 seconds ago Siddharth Bhat (HEAD -> master, origin/master) get first cut of type system working
+|
+|  8 files changed, 201 insertions(+), 125 deletions(-)
+* 490c3af 3 hours ago Siddharth Bhat get hask.func to round-trip
+|
+|  4 files changed, 20 insertions(+), 14 deletions(-)
+* ce64e16 4 hours ago Siddharth Bhat get angle bracket based fn type parsing working
+|
+|  2 files changed, 13 insertions(+), 1 deletion(-)
+* 1ce1810 4 hours ago Siddharth Bhat add a HaskFunctionType that's not hooked in anywhere
+|
+|  2 files changed, 39 insertions(+), 1 deletion(-)
+* ad0d367 5 hours ago Siddharth Bhat add appel paper on SSA v/s functional code
+|
+|  1 file changed, 6515 insertions(+)
+* 50a656a 5 hours ago Siddharth Bhat Spring cleaning: rename ops from XSSAOp -> XOp
+|
+|  3 files changed, 44 insertions(+), 44 deletions(-)
+* d4dda1a 6 hours ago Siddharth Bhat need function types. Scott be blessed.
+|
+|  9 files changed, 213 insertions(+), 216 deletions(-)
+* 53bc03c 8 hours ago Siddharth Bhat started migrating to new normalization
+|
+|  8 files changed, 328 insertions(+), 83 deletions(-)
+```
+
 # Wed, Sep 2 2020
 
 
@@ -2711,3 +2751,9 @@ error comes from.
 # Monday, 24 August 2020
 - See under "Newest to Oldest". I changed the organization strategy to keep the 
   newest log at the top.
+
+
+# Command to generate cute git log
+
+```
+git log --pretty='%C(yellow)%h %C(cyan)%ad %Cgreen%an%C(cyan)%d %Creset%s' --date=relative --date-order --graph --shortstat

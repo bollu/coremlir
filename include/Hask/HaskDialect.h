@@ -90,6 +90,22 @@ public:
       std::pair<ArrayRef<Type>, ArrayRef<Type>> data(argTy, resultTy);
       return Base::get(context, data);
   }
+  std::pair<Type, std::vector<Type>> uncurry() {
+      std::vector<Type> paramtys;
+      Type retty;
+      HaskFnType cur = *this;
+      while(1) {
+          paramtys.push_back(*cur.getInputType().data());
+          if (cur.getResultType().data()->isa<HaskFnType>()) {
+              cur = cur.getResultType().data()->cast<HaskFnType>();
+          } else {
+              retty = *cur.getResultType().data();
+              break;
+          }
+      }
+      return {retty, paramtys};
+  }
+
   ArrayRef<Type> getInputType() { return this->getImpl()->getInput(); }
   ArrayRef<Type> getResultType() { return this->getImpl()->getResult(); }
 };

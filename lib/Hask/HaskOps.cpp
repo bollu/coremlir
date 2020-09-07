@@ -69,8 +69,8 @@ ParseResult HaskReturnOp::parse(OpAsmParser &parser, OperationState &result) {
         return failure();
     }
 
-    if (!(type.isa<ValueType>() || type.isa<ThunkType>())) {
-        return parser.emitError(in.location, "expected value or thunk type");
+    if (!(type.isa<ValueType>() || type.isa<ThunkType>() || type.isa<HaskFnType>())) {
+        return parser.emitError(in.location, "expected value, thunk, or function type");
     }
     parser.resolveOperand(in, type, result.operands);
     return success();
@@ -142,11 +142,11 @@ void DeclareDataConstructorOp::print(OpAsmPrinter &p) {
     p.printSymbolName(getDataConstructorName());
 };
 
-// === APSSA OP ===
-// === APSSA OP ===
-// === APSSA OP ===
-// === APSSA OP ===
-// === APSSA OP ===
+// === APOP OP ===
+// === APOP OP ===
+// === APOP OP ===
+// === APOP OP ===
+// === APOP OP ===
 
 ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
     // OpAsmParser::OperandType operand_fn;
@@ -154,24 +154,42 @@ ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
     SmallVector<Value, 4> results;
     // (<fn-arg>
     if (parser.parseLParen()) { return failure(); }
+    if (parser.parseOperand(op_fn)) { return failure(); }
 
-    if(parser.parseOperand(op_fn) ||
-           parser.resolveOperand(op_fn, parser.getBuilder().getType<ValueType>(),
-                                 result.operands)) {
-      return failure();
+    // : type
+    HaskFnType fnty;
+    if (parser.parseColonType<HaskFnType>(fnty)) { return failure(); }
+    if(parser.resolveOperand(op_fn, fnty, result.operands)) {
+        return failure();
     }
 
+    std::vector<Type> paramtys; Type retty;
+    std::tie(retty, paramtys) = fnty.uncurry();
+
+    llvm::errs() << result.operands[0] << ": (";
+    for(int i = 0; i < paramtys.size() ; ++i) {
+        llvm::errs() << i << "=" << paramtys[i]  << " ";
+    }
+    llvm::errs() << ") -> " << retty << "\n";
+
     // ["," <arg>]
+    int i = 0;
     while(succeeded(parser.parseOptionalComma())) {
         OpAsmParser::OperandType op;
         if (parser.parseOperand(op)) return failure();
-        if(parser.resolveOperand(op, parser.getBuilder().getType<ValueType>(), result.operands)) return failure();
+        if (i > paramtys.size()) {
+            InFlightDiagnostic diag = parser.emitError(parser.getCurrentLocation());
+            diag << "expected |" << paramtys.size() << "| parameters based on |" << fnty << "|";
+            return diag;
+        }
+        if(parser.resolveOperand(op, paramtys[i], result.operands)) return failure();
+        i++;
     }
 
     //)
     if (parser.parseRParen()) return failure();
 
-    result.addTypes(parser.getBuilder().getType<ValueType>());
+    result.addTypes(fnty.getResultType());
     return success();
 };
 
@@ -190,9 +208,23 @@ void ApOp::print(OpAsmPrinter &p) {
 
 void ApOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value fn, SmallVectorImpl<Value> &params) {
+
+    // hack! we need to construct the type properly.
     state.addOperands(fn);
+    assert(fn.getType().isa<HaskFnType>());
+    HaskFnType fnty = fn.getType().cast<HaskFnType>();
+
+    std::vector<Type> paramtys; Type retty;
+    std::tie(retty, paramtys) = fnty.uncurry();
+
+    assert(paramtys.size() == params.size());
+
+    for(int i = 0; i < params.size(); ++i) {
+        assert(paramtys[i] == params[i].getType());
+    }
+
     state.addOperands(params);
-    state.addTypes(builder.getType<ValueType>());
+    state.addTypes(retty);
 };
 
 
@@ -294,7 +326,8 @@ ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
 
     HaskReturnOp ret = cast<HaskReturnOp>(r->getBlocks().front().getTerminator());
     Value retval = ret.getInput();
-    result.addTypes(retval.getType());
+
+    result.addTypes(parser.getBuilder().getType<HaskFnType>(argType, retval.getType()));
     return success();
 }
 
@@ -322,11 +355,19 @@ void LambdaOp::print(OpAsmPrinter &p) {
 ParseResult HaskRefOp::parse(OpAsmParser &parser,
                                     OperationState &result) {
     StringAttr nameAttr;
+    // ( <arg> ) : <type>
+    Type ty;
     if(parser.parseLParen() ||
-            parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
-                result.attributes) ||
-            parser.parseRParen()) { return failure(); }
-    result.addTypes(parser.getBuilder().getType<ValueType>());
+        parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(), result.attributes) ||
+        parser.parseRParen() ||
+        parser.parseColonType(ty)) { return failure(); }
+
+    // TODO: extract this out as a separate function or something.
+    if (!(ty.isa<ValueType>() || ty.isa<ThunkType>() || ty.isa<HaskFnType>())) {
+        return parser.emitError(parser.getCurrentLocation(), "expected value, thunk, or function type");
+    }
+    
+    result.addTypes(ty);
     return success();
 }
 
@@ -580,10 +621,10 @@ struct UncurryApplicationPattern : public mlir::OpRewritePattern<ApOp> {
   /// argument is the orchestrator of the sequence of rewrites. It is expected
   /// to interact with it to perform any changes to the IR from here.
   /// rewrite:
-  ///   %f2 = apSSA(%f1, v1) // ap1
-  ///   %out = apSSA(%f2, v2) // ap2
+  ///   %f2 = APOP(%f1, v1) // ap1
+  ///   %out = APOP(%f2, v2) // ap2
   /// into:
-  ///   %out = apSSA(%f1, v1, v2) 
+  ///   %out = APOP(%f1, v1, v2) 
   /// ie rewrite:
   mlir::LogicalResult
   matchAndRewrite(ApOp ap2,
@@ -936,7 +977,7 @@ public:
         }
     } // end ap(HaskRefOp(...), ...)
 
-    else { assert(false && "unhandled ApSSA type"); }
+    else { assert(false && "unhandled apOp type"); }
     return failure();
   } // end matchAndRewrite
 };
