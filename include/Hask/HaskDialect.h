@@ -54,6 +54,44 @@ public:
   static ValueType get(MLIRContext *context) { return Base::get(context); }
 };
 
+/// Function Type Storage and Uniquing.
+struct FunctionTypeStorage : public TypeStorage {
+  FunctionTypeStorage(ArrayRef<Type> input, ArrayRef<Type> const result)
+      : input(input), result(result) {};
+
+  /// The hash key used for uniquing.
+  using KeyTy = std::pair<ArrayRef<Type>, ArrayRef<Type>>;
+  bool operator==(const KeyTy &key) const {
+    return key == KeyTy(getInput(), getResult());
+  }
+
+  /// Construction.
+  static FunctionTypeStorage *construct(TypeStorageAllocator &allocator,
+                                        const KeyTy &key) {
+    return new (allocator.allocate<FunctionTypeStorage>())
+        FunctionTypeStorage(allocator.copyInto(key.first), 
+                allocator.copyInto(key.second));
+  }
+
+  ArrayRef<Type> getInput() const { return input; }
+  ArrayRef<Type> getResult() const { return result; }
+  ArrayRef<Type> const input;
+  ArrayRef<Type> const result;
+};
+
+//https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/include/mlir/IR/Types.h#L239
+//https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/lib/IR/Types.cpp#L36
+class HaskFunctionType : 
+    public mlir::Type::TypeBase<HaskFunctionType, mlir::Type, FunctionTypeStorage> {
+public:
+  using Base::Base;
+  static HaskFunctionType get(MLIRContext *context, 
+          ArrayRef<Type> argTy, ArrayRef<Type> resultTy) { 
+      std::pair<ArrayRef<Type>, ArrayRef<Type>> data(argTy, resultTy);
+      return Base::get(context, data);
+  }
+};
+
 struct DataConstructorAttributeStorage : public AttributeStorage {
   using KeyTy = std::pair<ArrayRef<SymbolRefAttr>, ArrayRef<ArrayAttr>>;
 
