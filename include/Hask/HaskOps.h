@@ -75,12 +75,12 @@ class DeclareDataConstructorOp : public Op<DeclareDataConstructorOp, OpTrait::Ze
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.declare_data_constructor"; };
-  llvm::StringRef getDataConstructorName(); 
+  llvm::StringRef getDataConstructorName();
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
 
-class ApSSAOp : public Op<ApSSAOp, OpTrait::OneResult, MemoryEffectOpInterface::Trait> {
+class ApOp : public Op<ApOp, OpTrait::OneResult, MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.apSSA"; };
@@ -104,7 +104,7 @@ public:
 
 };
 
-class CaseSSAOp : public Op<CaseSSAOp, OpTrait::OneResult> {
+class CaseOp : public Op<CaseOp, OpTrait::OneResult> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.caseSSA"; };
@@ -123,7 +123,7 @@ public:
 
 };
 
-class LambdaSSAOp : public Op<LambdaSSAOp, OpTrait::OneResult> {
+class LambdaOp : public Op<LambdaOp, OpTrait::OneResult> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.lambdaSSA"; };
@@ -163,7 +163,7 @@ public:
   Region &getRegion() { return this->getOperation()->getRegion(0); };
   void print(OpAsmPrinter &p);
   llvm::StringRef getFuncName();
-  LambdaSSAOp getLambda();
+  LambdaOp getLambda();
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
 };
 

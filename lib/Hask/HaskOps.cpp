@@ -148,7 +148,7 @@ void DeclareDataConstructorOp::print(OpAsmPrinter &p) {
 // === APSSA OP ===
 // === APSSA OP ===
 
-ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
+ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
     // OpAsmParser::OperandType operand_fn;
     OpAsmParser::OperandType op_fn;
     SmallVector<Value, 4> results;
@@ -177,7 +177,7 @@ ParseResult ApSSAOp::parse(OpAsmParser &parser, OperationState &result) {
 
 
 
-void ApSSAOp::print(OpAsmPrinter &p) {
+void ApOp::print(OpAsmPrinter &p) {
     p << getOperationName() << "(";
 
     // TODO: propose actually strongly typing this?This is just sick.
@@ -188,7 +188,7 @@ void ApSSAOp::print(OpAsmPrinter &p) {
     p << ")";
 };
 
-void ApSSAOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+void ApOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value fn, SmallVectorImpl<Value> &params) {
     state.addOperands(fn);
     state.addOperands(params);
@@ -201,7 +201,7 @@ void ApSSAOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 // === CASESSA OP ===
 // === CASESSA OP ===
 // === CASESSA OP ===
-ParseResult CaseSSAOp::parse(OpAsmParser &parser, OperationState &result) {
+ParseResult CaseOp::parse(OpAsmParser &parser, OperationState &result) {
     OpAsmParser::OperandType scrutinee;
 
     if(parser.parseOperand(scrutinee)) return failure();
@@ -244,8 +244,8 @@ ParseResult CaseSSAOp::parse(OpAsmParser &parser, OperationState &result) {
 
 };
 
-void CaseSSAOp::print(OpAsmPrinter &p) {
-    p << "hask.caseSSA ";
+void CaseOp::print(OpAsmPrinter &p) {
+    p << getOperationName();
     // p << "[ " << this->getOperation()->getNumOperands() << " | " << this->getNumAlts() << "] ";
     // p << this->getOperation()->getOperand(0);
     p <<  this->getScrutinee();
@@ -257,7 +257,7 @@ void CaseSSAOp::print(OpAsmPrinter &p) {
     }
 };
 
-llvm::Optional<int> CaseSSAOp::getDefaultAltIndex() {
+llvm::Optional<int> CaseOp::getDefaultAltIndex() {
     for(int i = 0; i < getNumAlts(); ++i) {
         Attribute ai = this->getAltLHS(i);
          StringAttr sai = ai.dyn_cast<StringAttr>();
@@ -272,7 +272,7 @@ llvm::Optional<int> CaseSSAOp::getDefaultAltIndex() {
 // === LAMBDASSA OP ===
 // === LAMBDASSA OP ===
 
-ParseResult LambdaSSAOp::parse(OpAsmParser &parser, OperationState &result) {
+ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
 
     if (parser.parseLParen()) { return failure(); }
     OpAsmParser::OperandType arg;
@@ -298,7 +298,7 @@ ParseResult LambdaSSAOp::parse(OpAsmParser &parser, OperationState &result) {
     return success();
 }
 
-void LambdaSSAOp::print(OpAsmPrinter &p) {
+void LambdaOp::print(OpAsmPrinter &p) {
     p << "hask.lambdaSSA";
     p << "(";
         for(int i = 0; i < this->getNumInputs(); ++i) {
@@ -400,14 +400,14 @@ llvm::StringRef HaskFuncOp::getFuncName() {
 }
 
 
-LambdaSSAOp HaskFuncOp::getLambda() {
+LambdaOp HaskFuncOp::getLambda() {
     Region &region = this->getRegion();
     // TODO: put this in a `verify` block.
     assert(region.getBlocks().size() == 1 && "func has more than one BB");
     Block &entry = region.front();
     HaskReturnOp ret = cast<HaskReturnOp>(entry.getTerminator());
     Value retval = ret.getInput();
-    return cast<LambdaSSAOp>(retval.getDefiningOp());
+    return cast<LambdaOp>(retval.getDefiningOp());
 }
 
 // === FORCE OP ===
@@ -568,12 +568,12 @@ void HaskConstructOp::print(OpAsmPrinter &p) {
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/mlir/ToyCombine.cpp
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/mlir/Dialect.cpp
-struct UncurryApplicationPattern : public mlir::OpRewritePattern<ApSSAOp> {
+struct UncurryApplicationPattern : public mlir::OpRewritePattern<ApOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
   /// them in order of profitability.
   UncurryApplicationPattern(mlir::MLIRContext *context)
-      : OpRewritePattern<ApSSAOp>(context, /*benefit=*/1) {
+      : OpRewritePattern<ApOp>(context, /*benefit=*/1) {
       }
 
   /// This method is attempting to match a pattern and rewrite it. The rewriter
@@ -586,13 +586,13 @@ struct UncurryApplicationPattern : public mlir::OpRewritePattern<ApSSAOp> {
   ///   %out = apSSA(%f1, v1, v2) 
   /// ie rewrite:
   mlir::LogicalResult
-  matchAndRewrite(ApSSAOp ap2,
+  matchAndRewrite(ApOp ap2,
                   mlir::PatternRewriter &rewriter) const override {
 
 
     Value f2 = ap2.getFn();
     if (!f2) { return failure(); }
-    ApSSAOp ap1 = f2.getDefiningOp<ApSSAOp>();
+    ApOp ap1 = f2.getDefiningOp<ApOp>();
     if (!ap1) {  return failure(); }
 
     SmallVector<Value, 4> args;
@@ -617,9 +617,9 @@ struct UncurryApplicationPattern : public mlir::OpRewritePattern<ApSSAOp> {
     llvm::errs() << "]\n";
     Value calledVal = ap1.getFn();
     llvm::errs() << "-calledVal: " << calledVal << "\n";
-    // ApSSAOp replacement = rewriter.create<ApSSAOp>(ap2.getLoc(), calledVal, args);
+    // ApOp replacement = rewriter.create<ApOp>(ap2.getLoc(), calledVal, args);
     // llvm::errs() << "-replacement: " << replacement << "|" << __LINE__ << "\n";
-    rewriter.replaceOpWithNewOp<ApSSAOp>(ap2, calledVal, args);
+    rewriter.replaceOpWithNewOp<ApOp>(ap2, calledVal, args);
     llvm::errs() << "\n====\n";
 
     /*
@@ -629,7 +629,7 @@ struct UncurryApplicationPattern : public mlir::OpRewritePattern<ApSSAOp> {
         return failure();
     }
 
-    ApSSAOp fn_b_op = fn_b.getDefiningOp<ApSSAOp>();
+    ApOp fn_b_op = fn_b.getDefiningOp<ApOp>();
     if (!fn_b_op) { 
         llvm::errs() << "no match: |" << out << "|\n";
         return failure();
@@ -646,25 +646,25 @@ struct UncurryApplicationPattern : public mlir::OpRewritePattern<ApSSAOp> {
     }
 
     if (Value fncall = fn_b_op.getFn()) {
-        rewriter.replaceOpWithNewOp<ApSSAOp>(out, fncall, args);
+        rewriter.replaceOpWithNewOp<ApOp>(out, fncall, args);
     } else {
         assert(fn_b_op.fnSymbolName() && "we must have symbol if we don't have Value");
-        rewriter.replaceOpWithNewOp<ApSSAOp>(out, fn_b_op.fnSymbolName(), args);
+        rewriter.replaceOpWithNewOp<ApOp>(out, fn_b_op.fnSymbolName(), args);
     }
     */
     return success();
   }
 };
 
-void ApSSAOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+void ApOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
   results.insert<UncurryApplicationPattern>(context);
 }
 
 
-struct DefaultCaseToForcePattern : public mlir::OpRewritePattern<CaseSSAOp> {
+struct DefaultCaseToForcePattern : public mlir::OpRewritePattern<CaseOp> {
   DefaultCaseToForcePattern(mlir::MLIRContext *context)
-      : OpRewritePattern<CaseSSAOp>(context, /*benefit=*/1) {
+      : OpRewritePattern<CaseOp>(context, /*benefit=*/1) {
       }
 
       
@@ -686,7 +686,7 @@ struct DefaultCaseToForcePattern : public mlir::OpRewritePattern<CaseSSAOp> {
   // <replace %x with %retval>
   // %y = f(%retval)
   mlir::LogicalResult
-  matchAndRewrite(CaseSSAOp caseop,
+  matchAndRewrite(CaseOp caseop,
                   mlir::PatternRewriter &rewriter) const override {
     if (caseop.getNumAlts() != 1) { return success(); }
     // we have only one case, convert to a force.
@@ -737,7 +737,7 @@ struct DefaultCaseToForcePattern : public mlir::OpRewritePattern<CaseSSAOp> {
 };
 
 
-void CaseSSAOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+void CaseOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
   results.insert<DefaultCaseToForcePattern>(context);
 }
@@ -760,12 +760,12 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
 
-    // Now lower the [LambdaSSAOp + HaskFuncOp together]
-    // TODO: deal with free floating lambads. This LambdaSSAOp is going to
+    // Now lower the [LambdaOp + HaskFuncOp together]
+    // TODO: deal with free floating lambads. This LambdaOp is going to
     // become a top-level function. Other lambdas will become toplevel functions with synthetic names.
     llvm::errs() << "running HaskFuncOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
     auto fn = cast<HaskFuncOp>(op);
-    LambdaSSAOp lam = fn.getLambda();
+    LambdaOp lam = fn.getLambda();
 
     /*
     SmallVector<NamedAttribute, 4> attrs;
@@ -801,12 +801,12 @@ public:
 class CaseSSAOpConversionPattern : public ConversionPattern {
 public:
     explicit CaseSSAOpConversionPattern(MLIRContext *context)
-            : ConversionPattern(standalone::CaseSSAOp::getOperationName(), 1, context) { }
+            : ConversionPattern(standalone::CaseOp::getOperationName(), 1, context) { }
 
     LogicalResult
     matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                     ConversionPatternRewriter &rewriter) const override {
-      auto caseop = cast<CaseSSAOp>(op);
+      auto caseop = cast<CaseOp>(op);
       const Optional<int> default_ix = caseop.getDefaultAltIndex();
 
       llvm::errs() << "running CaseSSAOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
@@ -874,12 +874,12 @@ public:
 class LambdaSSAOpConversionPattern : public ConversionPattern {
 public:
   explicit LambdaSSAOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(standalone::LambdaSSAOp::getOperationName(), 1, context) {}
+      : ConversionPattern(standalone::LambdaOp::getOperationName(), 1, context) {}
 
   LogicalResult 
       matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    auto lam = cast<LambdaSSAOp>(op);
+    auto lam = cast<LambdaOp>(op);
     assert(lam);
     llvm::errs() << "running LambdaSSAOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
 
@@ -898,13 +898,13 @@ void unifyOpTypeWithType(Value src, Type dstty) {
 class ApSSAConversionPattern : public ConversionPattern {
 public:
   explicit ApSSAConversionPattern(MLIRContext *context)
-      : ConversionPattern(ApSSAOp::getOperationName(), 1, context) {}
+      : ConversionPattern(ApOp::getOperationName(), 1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     llvm::errs() << "running ApSSAConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-    ApSSAOp ap = cast<ApSSAOp>(op);
+    ApOp ap = cast<ApOp>(op);
     if (HaskRefOp ref = (ap.getFn().getDefiningOp<HaskRefOp>())) {
         if (ref.getRef() == "-#") {
             assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
@@ -1024,13 +1024,13 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<DeclareDataConstructorOp>();
     target.addLegalOp<HaskRefOp>();
     target.addLegalOp<HaskADTOp>();
-    target.addLegalOp<LambdaSSAOp>();
+    target.addLegalOp<LambdaOp>();
     target.addLegalOp<HaskGlobalOp>();
 
-    // target.addLegalOp<LambdaSSAOp>();
-    // target.addLegalOp<CaseSSAOp>();
+    // target.addLegalOp<LambdaOp>();
+    // target.addLegalOp<CaseOp>();
     // target.addLegalOp<MakeI64Op>();
-    // target.addLegalOp<ApSSAOp>();
+    // target.addLegalOp<ApOp>();
     // target.addLegalOp<ForceOp>();
     // target.addLegalOp<HaskReturnOp>();
     OwningRewritePatternList patterns;
