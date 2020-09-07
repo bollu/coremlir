@@ -48,6 +48,18 @@ mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
     return ThunkType::get(parser.getBuilder().getContext());
   } else if(succeeded(parser.parseOptionalKeyword("value"))) {
     return ValueType::get(parser.getBuilder().getContext());
+  } else if (succeeded(parser.parseOptionalKeyword("func"))) {
+      Type param, res;
+      if (parser.parseLess() ||
+          parser.parseType(param) || parser.parseComma() || 
+          parser.parseType(res) || parser.parseGreater()) {
+          parser.emitError(parser.getCurrentLocation(),
+                                  "unable to parse function type");
+          return Type();
+      }
+
+      return HaskFunctionType::get(parser.getBuilder().getContext(),
+                                   param, res);
   } else {
       assert(false && "unknown type");
   }
