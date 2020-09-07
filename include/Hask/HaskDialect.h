@@ -33,12 +33,23 @@ public:
 class UntypedType : public mlir::Type::TypeBase<UntypedType, mlir::Type,
                                                TypeStorage> {
 public:
-  /// Inherit some necessary constructors from 'TypeBase'.
   using Base::Base;
-
-  /// This static method is used to support type inquiry through isa, cast,
-  /// and dyn_cast.
   static UntypedType get(MLIRContext *context) { return Base::get(context); }
+};
+
+
+class ThunkType : public mlir::Type::TypeBase<ThunkType, mlir::Type,
+                                               TypeStorage> {
+public:
+  using Base::Base;
+  static ThunkType get(MLIRContext *context) { return Base::get(context); }
+};
+
+class ValueType : public mlir::Type::TypeBase<ValueType, mlir::Type,
+                                               TypeStorage> {
+public:
+  using Base::Base;
+  static ValueType get(MLIRContext *context) { return Base::get(context); }
 };
 
 struct DataConstructorAttributeStorage : public AttributeStorage {

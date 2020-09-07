@@ -31,7 +31,6 @@ namespace standalone {
 #define GET_OP_CLASSES
 #include "Hask/HaskOps.h.inc"
 
-
 class HaskReturnOp : public Op<HaskReturnOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
 public:
   using Op::Op;
@@ -67,10 +66,10 @@ public:
 
 
 
-class MakeDataConstructorOp : public Op<MakeDataConstructorOp, OpTrait::ZeroResult> {
+class DeclareDataConstructorOp : public Op<DeclareDataConstructorOp, OpTrait::ZeroResult> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "hask.make_data_constructor"; };
+  static StringRef getOperationName() { return "hask.declare_data_constructor"; };
   llvm::StringRef getDataConstructorName(); 
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
@@ -205,6 +204,7 @@ public:
   void print(OpAsmPrinter &p);
 };
 
+// do I need this? unclear.
 class HaskGlobalOp : public Op<HaskGlobalOp,
                 OpTrait::ZeroOperands,
                 OpTrait::ZeroResult,
@@ -214,9 +214,26 @@ public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.global"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
-  void print(OpAsmPrinter &p);
   llvm::StringRef getGlobalName();
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  void print(OpAsmPrinter &p);
+};
+
+
+class HaskConstructOp : public Op<HaskConstructOp,
+                OpTrait::OneResult,
+                OpTrait::ZeroRegion,
+                SymbolOpInterface::Trait> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.construct"; };
+  StringRef getDataConstructorName() { 
+    return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
+  }
+  int getNumOperands() { this->getOperation()->getNumOperands(); }
+  Value getOperand(int i) { return this->getOperation()->getOperand(i); }
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  void print(OpAsmPrinter &p);
 };
 
 

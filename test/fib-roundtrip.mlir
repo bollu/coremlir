@@ -10,7 +10,7 @@ module {
         %4 = hask.ref(@"+#")
         %5 = hask.apSSA(%4, %2, %3)
         %6 = hask.ref(@MkSimpleInt)
-        %7 = hask.apSSA(%6, %5)
+        %7 = hask.construct(@MkSimpleInt, %5)
         hask.return(%7)
       }
       hask.return(%1)
@@ -59,13 +59,14 @@ module {
       }]
  [@default ->  {
         %3 = hask.ref(@fib)
-        %4 = hask.ref(@minus)
-        %5 = hask.ref(@one)
-        %6 = hask.apSSA(%4, %arg0, %5)
-        %7 = hask.apSSA(%3, %6)
-        %8 = hask.ref(@plus)
-        %9 = hask.apSSA(%8, %7)
-        hask.return(%9)
+        %4 = hask.apSSA(%3, %arg0)
+        %5 = hask.ref(@minus)
+        %6 = hask.ref(@one)
+        %7 = hask.apSSA(%5, %arg0, %6)
+        %8 = hask.apSSA(%3, %7)
+        %9 = hask.ref(@plus)
+        %10 = hask.apSSA(%9, %4, %8)
+        hask.return(%10)
       }]
 
       hask.return(%2)

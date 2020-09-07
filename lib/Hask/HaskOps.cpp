@@ -110,7 +110,7 @@ void MakeI64Op::print(OpAsmPrinter &p) {
 // === MakeDataConstructor OP ===
 // === MakeDataConstructor OP ===
 
-ParseResult MakeDataConstructorOp::parse(OpAsmParser &parser, OperationState &result) {
+ParseResult DeclareDataConstructorOp::parse(OpAsmParser &parser, OperationState &result) {
     // parser.parseAttribute(, parser.getBuilder().getStringAttr )
     // if(parser.parseLess()) return failure();
 
@@ -127,11 +127,11 @@ ParseResult MakeDataConstructorOp::parse(OpAsmParser &parser, OperationState &re
     return success();
 };
 
-llvm::StringRef MakeDataConstructorOp::getDataConstructorName() {
+llvm::StringRef DeclareDataConstructorOp::getDataConstructorName() {
     return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
 }
 
-void MakeDataConstructorOp::print(OpAsmPrinter &p) {
+void DeclareDataConstructorOp::print(OpAsmPrinter &p) {
     p << getOperationName() << " ";
     p.printSymbolName(getDataConstructorName());
 };
@@ -546,6 +546,66 @@ void HaskGlobalOp::print(OpAsmPrinter &p) {
             /*printBlockTerminators=*/true);
 };
 
+// === MK-CONSTRUCTOR OP ===
+// === MK-CONSTRUCTOR OP ===
+// === MK-CONSTRUCTOR OP ===
+// === MK-CONSTRUCTOR OP ===
+// === MK-CONSTRUCTOR OP ===
+
+
+
+// do I even need this? I'm not sure. Don't think so?
+ParseResult HaskConstructOp::parse(OpAsmParser &parser, OperationState &result) {
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    if (parser.parseLParen()) {
+        return failure();
+    }
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+
+    // get constructor name.
+    StringAttr nameAttr;
+    if (parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
+                result.attributes)) { return failure(); }
+
+    if (succeeded(parser.parseOptionalRParen())) { 
+        result.addTypes(parser.getBuilder().getType<UntypedType>());
+        return success();
+    }
+    if(parser.parseComma()) { return failure(); }
+
+    while(1) {
+        llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+        OpAsmParser::OperandType param;
+        if(parser.parseOperand(param)) { return failure(); }
+        llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+        if(parser.resolveOperand(param, 
+                    parser.getBuilder().getType<UntypedType>(), 
+                    result.operands)) { return failure(); }
+
+        llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+        // either we need a close right paren, or a comma.
+        if (succeeded(parser.parseOptionalRParen())) { 
+            result.addTypes(parser.getBuilder().getType<UntypedType>());
+            return success();
+
+        }
+        if(parser.parseComma()) { return failure(); }
+    }
+}
+
+void HaskConstructOp::print(OpAsmPrinter &p) {
+    p << this->getOperationName();
+    p << "("; 
+    p.printSymbolName(this->getDataConstructorName());
+    if (this->getNumOperands() > 0) { p << ", "; }
+    for(int i = 0; i < this->getNumOperands(); ++i) {
+        p << this->getOperand(i);
+        if (i +1 < this->getNumOperands()) { p << ", "; }
+    }
+    p << ")";
+}
+
 
 // ==REWRITES==
 
@@ -718,58 +778,6 @@ struct DefaultCaseToForcePattern : public mlir::OpRewritePattern<CaseSSAOp> {
 
     return success();
 
-    /*
-
-    llvm::errs() << "---caseParentBB[before]---\n";
-    caseParentBB->print(llvm::errs());
-    llvm::errs() << "--\n";
-    HaskReturnOp caseRhsBBRetOp = dyn_cast<HaskReturnOp>(caseRhsBB.getTerminator());
-
-    llvm::errs() << "---caseRhsBBRetOp---\n";
-    llvm::errs() << caseRhsBBRetOp;
-    llvm::errs() << "---\n";
-    assert(caseRhsBBRetOp && "caseRhsBB return must be HaskReturnOp");
-    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-
-
-    rewriter.setInsertionPointAfter(caseop);
-
-    rewriter.setInsertionPoint(caseop);
-    ForceOp forceScrutinee = rewriter.create<ForceOp>(caseop.getLoc(), caseop.getScrutinee());
-    rewriter.setInsertionPointAfter(forceScrutinee);
-
-    assert(caseRhsBB.getTerminator());
-    HaskReturnOp retop = dyn_cast<HaskReturnOp>(caseRhsBB.getTerminator());
-    Value retval = retop.getValue();
-    llvm::errs() << "---retval---\n";
-    retval.print(llvm::errs());
-    llvm::errs() << "---\n";
-
-    // rewriter.eraseOp(rhs.getTerminator());
-
-
-    // llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-    // rewriter.mergeBlockBefore(&rhs, caseop, forceScrutinee.getResult());
-    // llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-
-    // rewriter.replaceOpWithNewOp<ForceOp>(caseop, retval);
-    //1 // rewriter.replaceOp(caseop, rhsRetOp.getValue());
-    //1 llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-    //1 rewriter.mergeBlocks(&rhs, caseParentBB, {caseop.getScrutinee()});
-    //1 llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-
-    //1 llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-    //1 caseop.getOperation()->getParentOp()->print(llvm::errs());
-
-    //1 // HaskReturnOp ret = cast<HaskReturnOp>(rhs.getTerminator());
-
-    llvm::errs() << "---caseParentBB[after]---\n";
-    caseParentBB->print(llvm::errs());
-    llvm::errs() << "--\n";
-    rewriter.eraseOp(caseop);
-    assert(false);
-    return success();
-    */
   }
 };
 
@@ -1062,7 +1070,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<ModuleTerminatorOp>();
 
     target.addIllegalDialect<standalone::HaskDialect>();
-    target.addLegalOp<MakeDataConstructorOp>();
+    target.addLegalOp<DeclareDataConstructorOp>();
     target.addLegalOp<HaskRefOp>();
     target.addLegalOp<HaskADTOp>();
     target.addLegalOp<LambdaSSAOp>();
@@ -1116,7 +1124,7 @@ std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass() {
 class MakeDataConstructorOpConversionPattern : public ConversionPattern {
 public:
   explicit MakeDataConstructorOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(MakeDataConstructorOp::getOperationName(), 1, context) {}
+      : ConversionPattern(DeclareDataConstructorOp::getOperationName(), 1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,

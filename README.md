@@ -5,6 +5,34 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Monday, Sep 7 2020
+
+- I am not sure if I need a new operation called as `haskConstruct(<dataConstructor>, <params>)`. Intuitively,
+  I ought not have such a thing, because of indirection:
+
+```
+data X = MkX Int
+f :: Int -> X; f = MkX 
+o :: Int; o = 1
+x :: X; x = f o
+```
+- we will see an `apSSA(f, o)` with no sight of the `haskConstruct` call.
+  However, perhaps we should normalize `apSSA(f, o)` into `haskConstruct(@MkX, 1)`,
+  because this will allow us to analyze the idea of a 'constructor application'
+  separately from a 'function application'. So we should have a normalization
+  rule from:
+
+```
+ %cons = hask.ref(@Constructor)
+ %result = hask.apSSA(%cons, %v1, ..., %vn)
+```
+
+into:
+
+```
+ %result = hask.construct(@Constructor, %v1, ..., %vn)
+```
+
 # Wed, Sep 2 2020
 
 

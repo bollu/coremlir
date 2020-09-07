@@ -34,11 +34,11 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
 #include "Hask/HaskOps.cpp.inc"
   >();
  addOperations<HaskReturnOp, MakeI64Op,
-  MakeDataConstructorOp,
+  DeclareDataConstructorOp,
   ApSSAOp, CaseSSAOp, HaskRefOp, LambdaSSAOp,
-  MakeStringOp, HaskFuncOp, ForceOp, CopyOp, HaskGlobalOp>();
-  addOperations<HaskADTOp>();
-  addTypes<UntypedType>();
+  MakeStringOp, HaskFuncOp, ForceOp, CopyOp, HaskGlobalOp, HaskADTOp,
+  HaskConstructOp>();
+  addTypes<UntypedType,ThunkType, ValueType>();
   addAttributes<DataConstructorAttr>();
 }
 
