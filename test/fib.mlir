@@ -9,7 +9,7 @@ module {
   // plus :: SimpleInt -> SimpleInt -> SimpleInt
   // plus i j = case i of MkSimpleInt ival -> case j of MkSimpleInt jval -> MkSimpleInt (ival +# jval)
   hask.func @plus {
-    %lami = hask.lambdaSSA(%i : !hask.func<!hask.thunk, !hask.thunk>) {
+    %lami = hask.lambdaSSA(%i : !hask.thunk) {
          %lamj = hask.lambdaSSA(%j: !hask.thunk) {
               %icons = hask.force(%i)
               %reti = hask.caseSSA %icons 

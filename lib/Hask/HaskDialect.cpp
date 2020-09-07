@@ -39,7 +39,7 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
   MakeStringOp, HaskFuncOp, ForceOp, HaskGlobalOp, HaskADTOp,
   HaskConstructOp>();
   //addTypes<UntypedType>();
-  addTypes<ThunkType, ValueType,HaskFunctionType>();
+  addTypes<ThunkType, ValueType, HaskFnType>();
   addAttributes<DataConstructorAttr>();
 }
 
@@ -58,8 +58,7 @@ mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
           return Type();
       }
 
-      return HaskFunctionType::get(parser.getBuilder().getContext(),
-                                   param, res);
+      return HaskFnType::get(parser.getBuilder().getContext(), param, res);
   } else {
       assert(false && "unknown type");
   }
@@ -71,6 +70,11 @@ void HaskDialect::printType(mlir::Type type,
                            mlir::DialectAsmPrinter &p) const {
   if (type.isa<ThunkType>()) { p << "thunk"; }
   else if (type.isa<ValueType>()) { p << "value"; }
+  else if (type.isa<HaskFnType>()) {
+      HaskFnType fnty = type.cast<HaskFnType>();
+      p << "fn<" << *fnty.getInputType().data() << ", " <<
+                *fnty.getResultType().data() << ">";
+  }
   else { assert(false && "unknown type"); }
 }
 

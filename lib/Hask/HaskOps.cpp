@@ -282,8 +282,8 @@ ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
     Type argType;
     if (parser.parseType(argType)) { return failure(); }
 
-    if (!(argType.isa<ThunkType>() || argType.isa<ValueType>())) {
-        return parser.emitError(arg.location, "argument must be either ValueType or ThunkType.");
+    if (!(argType.isa<ThunkType>() || argType.isa<ValueType>() || argType.isa<HaskFnType>())) {
+        return parser.emitError(arg.location, "argument must either ValueType, ThunkType, or HaskFnType");
     }
     if (parser.parseRParen()) { return failure(); }
 

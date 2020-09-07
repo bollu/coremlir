@@ -55,8 +55,8 @@ public:
 };
 
 /// Function Type Storage and Uniquing.
-struct FunctionTypeStorage : public TypeStorage {
-  FunctionTypeStorage(ArrayRef<Type> input, ArrayRef<Type> const result)
+struct HaskFnTypeStorage : public TypeStorage {
+  HaskFnTypeStorage(ArrayRef<Type> input, ArrayRef<Type> const result)
       : input(input), result(result) {};
 
   /// The hash key used for uniquing.
@@ -66,10 +66,10 @@ struct FunctionTypeStorage : public TypeStorage {
   }
 
   /// Construction.
-  static FunctionTypeStorage *construct(TypeStorageAllocator &allocator,
+  static HaskFnTypeStorage *construct(TypeStorageAllocator &allocator,
                                         const KeyTy &key) {
-    return new (allocator.allocate<FunctionTypeStorage>())
-        FunctionTypeStorage(allocator.copyInto(key.first), 
+    return new (allocator.allocate<HaskFnTypeStorage>())
+        HaskFnTypeStorage(allocator.copyInto(key.first), 
                 allocator.copyInto(key.second));
   }
 
@@ -81,15 +81,17 @@ struct FunctionTypeStorage : public TypeStorage {
 
 //https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/include/mlir/IR/Types.h#L239
 //https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/lib/IR/Types.cpp#L36
-class HaskFunctionType : 
-    public mlir::Type::TypeBase<HaskFunctionType, mlir::Type, FunctionTypeStorage> {
+class HaskFnType : 
+    public mlir::Type::TypeBase<HaskFnType, mlir::Type, HaskFnTypeStorage> {
 public:
   using Base::Base;
-  static HaskFunctionType get(MLIRContext *context, 
+  static HaskFnType get(MLIRContext *context, 
           ArrayRef<Type> argTy, ArrayRef<Type> resultTy) { 
       std::pair<ArrayRef<Type>, ArrayRef<Type>> data(argTy, resultTy);
       return Base::get(context, data);
   }
+  ArrayRef<Type> getInputType() { return this->getImpl()->getInput(); }
+  ArrayRef<Type> getResultType() { return this->getImpl()->getResult(); }
 };
 
 struct DataConstructorAttributeStorage : public AttributeStorage {
