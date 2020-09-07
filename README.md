@@ -33,6 +33,23 @@ into:
  %result = hask.construct(@Constructor, %v1, ..., %vn)
 ```
 
+- It is very unclear what the type of `lambda`, `ap` ought to be. For now,
+  let's say it's all `!hask.value`. This will break once we mix strict and
+  non-strict.
+
+- This is correct code:
+                                        
+```
+%mk_simple_int = hask.ref (@MkSimpleInt)
+// what do now?
+%boxed = hask.apSSA(%mk_simple_int, %i_sub_j)
+hask.return(%boxed) :!hask.thunk
+```
+
+but if we assume that `hask.apSSA` must always return a `hask.value`, we
+are screwed. The only way out I can see is to teaach `apSSA` and my
+type system about currying and, well, function types. GG. Let's do this.
+
 # Wed, Sep 2 2020
 
 

@@ -8,13 +8,6 @@ fib:
 	../build/bin/hask-opt ./fib.mlir > fib-roundtrip.mlir
 	../build/bin/hask-opt ./fib-roundtrip.mlir
 
-playground: 
-	make -C ~/work/mlir/coremlir/build
-	../build/bin/hask-opt ./playground.mlir 
-	../build/bin/hask-opt ./playground.mlir  > playground-roundtrip.mlir
-	../build/bin/hask-opt ./playground.mlir-roundtrip.mlir
-
-
 fibstrict: 
 	-rm fib-strict-roundtrip.mlir
 	make -C ~/work/mlir/coremlir/build
@@ -22,6 +15,15 @@ fibstrict:
 	../build/bin/hask-opt ./fib-strict.mlir
 	../build/bin/hask-opt ./fib-strict.mlir > fib-strict-roundtrip.mlir
 	../build/bin/hask-opt ./fib-strict-roundtrip.mlir
+
+
+playground: 
+	make -C ~/work/mlir/coremlir/build
+	../build/bin/hask-opt ./playground.mlir 
+	../build/bin/hask-opt ./playground.mlir  > playground-roundtrip.mlir
+	../build/bin/hask-opt ./playground.mlir-roundtrip.mlir
+
+
 
 
 test-ops: 

@@ -31,12 +31,17 @@ namespace standalone {
 #define GET_OP_CLASSES
 #include "Hask/HaskOps.h.inc"
 
-class HaskReturnOp : public Op<HaskReturnOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor, OpTrait::IsTerminator> {
+class HaskReturnOp : public Op<HaskReturnOp,
+        OpTrait::ZeroResult,
+        OpTrait::ZeroSuccessor,
+        OpTrait::IsTerminator,
+        OpTrait::OneOperand> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.return"; };
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
   Value getInput() { return this->getOperation()->getOperand(0); }
+  Type getType() { return this->getInput().getType(); }
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 
 };
@@ -79,27 +84,24 @@ class ApSSAOp : public Op<ApSSAOp, OpTrait::OneResult, MemoryEffectOpInterface::
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.apSSA"; };
+  Value getFn() { return this->getOperation()->getOperand(0); };
+  int getNumFnArguments() { return this->getOperation()->getNumOperands()-1;};
+  Value getFnArgument(int i) { return this->getOperation()->getOperand(i + 1); };
+
+  SmallVector<Value, 4> getFnArguments() {
+        SmallVector<Value, 4> args;
+        for(int i = 0; i < getNumFnArguments(); ++i) { args.push_back(getFnArgument(i)); }
+        return args;
+  }
+  void getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>> &effects) {}
+
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    Value fn, SmallVectorImpl<Value> &params);
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  // void print(OpAsmPrinter &p);
-  /*
-  Value getFn() { return getOperation()->getOperand(0); }
-  int getNumFnArguments() { return getOperation()->getNumOperands()-1; }
-  Value getFnArgument(int i) { return getOperation()->getOperand(1+i); }
-  */
-  // return true if the fn is symbolic.
-  Value getFn();
-  int getNumFnArguments();
-  Value getFnArgument(int i);
-  SmallVector<Value, 4> getFnArguments();
   void print(OpAsmPrinter &p);
   static void getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context);
 
-  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                    Value fn, SmallVectorImpl<Value> &params);
-
-  // no side effects
-  void getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>> &effects) {}
 };
 
 class CaseSSAOp : public Op<CaseSSAOp, OpTrait::OneResult> {
@@ -125,26 +127,27 @@ class LambdaSSAOp : public Op<LambdaSSAOp, OpTrait::OneResult> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.lambdaSSA"; };
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  void print(OpAsmPrinter &p);
   Region &getBody() { assert(this->getOperation()->getNumRegions() == 1);  return this->getOperation()->getRegion(0);  }
   Block::BlockArgListType inputRange() { this->getBody().begin()->getArguments();   }
   int getNumInputs() { this->getBody().begin()->getNumArguments(); }
   mlir::BlockArgument getInput(int i) { assert(i < getNumInputs()); return this->getBody().begin()->getArgument(i); }
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  void print(OpAsmPrinter &p);
 
 };
 
 
-class HaskRefOp : public Op<HaskRefOp, OpTrait::OneResult> {
+class HaskRefOp : public Op<HaskRefOp, OpTrait::OneResult, OpTrait::ZeroOperands> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.ref"; };
-  void print(OpAsmPrinter &p);
-  llvm::StringRef getRef();
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  // build a single region.
-
+  llvm::StringRef getRef() {
+    return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
+  }
   static void build(OpBuilder &odsBuilder, OperationState &odsState, Type resultTy);
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  void print(OpAsmPrinter &p);
+
 };
 
 class HaskFuncOp : public Op<HaskFuncOp,
@@ -181,19 +184,6 @@ public:
 
 };
 
-
-// replace y = case x of name { default -> ...; return val } with
-//  name = force(x);
-//  ...
-//  y = copy(val)
-class CopyOp : public Op<CopyOp, OpTrait::OneResult> {
-public:
-  using Op::Op;
-  static StringRef getOperationName() { return "hask.copy"; };
-  static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  Value getScrutinee() { this->getOperation()->getOperand(0); }
-  void print(OpAsmPrinter &p);
-};
 
 
 class HaskADTOp : public Op<HaskADTOp, OpTrait::ZeroResult, OpTrait::ZeroOperands> {

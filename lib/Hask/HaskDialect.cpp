@@ -36,15 +36,20 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
  addOperations<HaskReturnOp, MakeI64Op,
   DeclareDataConstructorOp,
   ApSSAOp, CaseSSAOp, HaskRefOp, LambdaSSAOp,
-  MakeStringOp, HaskFuncOp, ForceOp, CopyOp, HaskGlobalOp, HaskADTOp,
+  MakeStringOp, HaskFuncOp, ForceOp, HaskGlobalOp, HaskADTOp,
   HaskConstructOp>();
-  addTypes<UntypedType,ThunkType, ValueType>();
+  //addTypes<UntypedType>();
+ addTypes<ThunkType, ValueType>();
   addAttributes<DataConstructorAttr>();
 }
 
 mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
-  if(succeeded(parser.parseKeyword("untyped"))) {
-    return UntypedType::get(parser.getBuilder().getContext());
+  if(succeeded(parser.parseOptionalKeyword("thunk"))) {
+    return ThunkType::get(parser.getBuilder().getContext());
+  } else if(succeeded(parser.parseOptionalKeyword("value"))) {
+    return ValueType::get(parser.getBuilder().getContext());
+  } else {
+      assert(false && "unknown type");
   }
   return Type();
 }
@@ -52,11 +57,9 @@ mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
 
 void HaskDialect::printType(mlir::Type type,
                            mlir::DialectAsmPrinter &p) const {
-  if (type.isa<UntypedType>()) {
-    p << "untyped";
-  } else {
-    assert(false && "unknown type");
-  }
+  if (type.isa<ThunkType>()) { p << "thunk"; }
+  else if (type.isa<ValueType>()) { p << "value"; }
+  else { assert(false && "unknown type"); }
 }
 
 // === ATTRIBUTE HANDLING ===
@@ -66,25 +69,25 @@ void HaskDialect::printType(mlir::Type type,
 // === ATTRIBUTE HANDLING ===
 
 
-  mlir::Attribute HaskDialect::parseAttribute(mlir::DialectAsmParser &parser, Type type) const {
-    if (succeeded(parser.parseKeyword("data_constructor"))) {
-      return parseDataConstructorAttribute(parser, type);
-    }
+mlir::Attribute HaskDialect::parseAttribute(mlir::DialectAsmParser &parser, Type type) const {
+    if (succeeded(parser.parseOptionalKeyword("data_constructor"))) {
+        return parseDataConstructorAttribute(parser, type);
+    } else { assert(false && "unable to parse attribute"); }
     return Attribute();
-  };
+};
 
 
-  void HaskDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
+void HaskDialect::printAttribute(Attribute attr, DialectAsmPrinter &p) const {
     assert(attr);
     if(attr.isa<DataConstructorAttr>()) {
-      DataConstructorAttr d = attr.cast<DataConstructorAttr>();
-      p << "data_constructor<";
-      p << *d.getName().data()  << " " << *d.getArgTys().data();
-      p << ">";
+        DataConstructorAttr d = attr.cast<DataConstructorAttr>();
+        p << "data_constructor<";
+        p << *d.getName().data()  << " " << *d.getArgTys().data();
+        p << ">";
     } else {
-      assert(false && "unknown attribute");
+        assert(false && "unknown attribute");
     }
-  }
+}
 
 
 
@@ -94,7 +97,7 @@ void HaskDialect::printType(mlir::Type type,
 // === DATA CONSTRUCTOR ATTRIBUTE ===
 // === DATA CONSTRUCTOR ATTRIBUTE ===
 
-  Attribute standalone::parseDataConstructorAttribute(DialectAsmParser &parser, Type type) {
+Attribute standalone::parseDataConstructorAttribute(DialectAsmParser &parser, Type type) {
     if(parser.parseLess()) return Attribute();
     SymbolRefAttr name;
     if (parser.parseAttribute<SymbolRefAttr>(name)) return Attribute();
@@ -104,13 +107,13 @@ void HaskDialect::printType(mlir::Type type,
     if(parser.parseGreater()) return Attribute();
 
     Attribute a =  DataConstructorAttr::get(parser.getBuilder().getContext(),
-                                           name, paramTys);
+            name, paramTys);
     assert(a && "have valid attribute");
     llvm::errs() << __FUNCTION__  << "\n";
     llvm::errs() << "  attr: " << a << "\n";
     llvm::errs() << "===\n";
     return a;
-  };
+};
 
 // === LOWERING ===
 

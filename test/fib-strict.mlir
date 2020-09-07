@@ -6,7 +6,7 @@ module {
   // hask.make_data_constructor @"()"
 
   hask.func @fibstrict {
-    %lambda = hask.lambdaSSA(%i) {
+    %lambda = hask.lambdaSSA(%i: !hask.value) {
       %retval = hask.caseSSA  %i
       ["default" -> { ^entry: // todo: remove this defult
         %fib_rec = hask.ref (@fibstrict)
@@ -15,20 +15,18 @@ module {
         %lit_one = hask.make_i64(1)
         %i_minus_one = hask.apSSA(%i_minus, %lit_one)
         %fib_i_minus_one = hask.apSSA(%fib_rec, %i_minus_one)
-        %force_fib_i_minus_one = hask.force (%fib_i_minus_one) // todo: this is extraneous!
-        %fib_i = hask.apSSA(%fib_rec, %i)
-        %force_fib_i = hask.force (%fib_i) // todo: this is extraneous!
+        %fib_i = hask.apSSA(%fib_rec, %i) // what is the type?
         %plus_hash = hask.ref(@"+#")
-        %plus_force_fib_i = hask.apSSA(%plus_hash, %force_fib_i)
-        %fib_i_plus_fib_i_minus_one = hask.apSSA(%plus_force_fib_i, %force_fib_i_minus_one)
-        hask.return(%fib_i_plus_fib_i_minus_one) }]
-      [0 -> { ^entry(%default_random_name: !hask.untyped):
-        hask.return(%i) }]
-      [1 -> { ^entry(%default_random_name: !hask.untyped):
-        hask.return(%i) }]
-      hask.return(%retval)
+        %plus_force_fib_i = hask.apSSA(%plus_hash, %fib_i)
+        %fib_i_plus_fib_i_minus_one = hask.apSSA(%fib_i, %fib_i_minus_one)
+        hask.return(%fib_i_plus_fib_i_minus_one):!hask.value }]
+      [0 -> { ^entry(%default_random_name: !hask.value):
+        hask.return(%i):!hask.value }]
+      [1 -> { ^entry(%default_random_name: !hask.value):
+        hask.return(%i):!hask.value }]
+      hask.return(%retval) : !hask.value
     }
-    hask.return(%lambda)
+    hask.return(%lambda) : !hask.value
   }
 }
 

@@ -30,12 +30,14 @@ public:
   static llvm::StringRef getDialectNamespace() { return "hask"; }
 };
 
+/*
 class UntypedType : public mlir::Type::TypeBase<UntypedType, mlir::Type,
                                                TypeStorage> {
 public:
   using Base::Base;
   static UntypedType get(MLIRContext *context) { return Base::get(context); }
 };
+*/
 
 
 class ThunkType : public mlir::Type::TypeBase<ThunkType, mlir::Type,
