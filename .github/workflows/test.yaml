@@ -31,7 +31,7 @@ jobs:
           mkdir build && cd build && cmake -GNinja ../llvm-project -DCMAKE_BUILD_TYPE=RelWithDebInfo  -DDLLVM_TARGETS_TO_BUILD=X86  -DCMAKE_INSTALL_PREFIX=$HOME/.local/ && ninja install && cd ../
           export PATH=$HOME/.local/bin:$PATH
           export LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH
-      - name: run tests: hask-opt
+      - name: test hask-opt
         run: |
           # TODO: run FileCheck, not the stupid makefile
           cd test && make all && ../
