@@ -7,22 +7,19 @@ on: [push]
 
 jobs:
   build:
-    # Job name is Greeting
-    name: Build
+    name: Build-Thesis
     # This job runs on Linux
-    runs: 
-      using: docker
-      image: Dockerfile
+    runs-on: ubuntu-latest
     steps:
       - name: setup git repo
         uses: actions/checkout@v1
-        # - name: Install texlive
-        #   run: |
-        #     sudo apt-get install texlive-publishers \
-        #                          texlive-latex-recommended \
-        #                          texlive-latex-extra \
-        #                          texlive-fonts-recommended \
-        #                          texlive-fonts-extra
+      - name: Install texlive
+        run: |
+          sudo apt-get install texlive-publishers \
+                               texlive-latex-recommended \
+                               texlive-latex-extra \
+                               texlive-fonts-recommended \
+                               texlive-fonts-extra
       - name: Build paper
         run: |
           cd thesis
@@ -34,13 +31,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
+          tag_name: thesis-release-${{ github.ref }}
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: false
 
-      - name: Upload Release Asset
-        id: upload-release-asset 
+      - name: Upload Thesis
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
