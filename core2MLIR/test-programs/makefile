@@ -13,7 +13,7 @@ fib: clean install
 	cp dump/tomlir-fib.pass-0001.mlir .
 	cp dump/tomlir-fib.pass-0000.mlir .
 	make -C ../../build/
-	../../build/bin/hask-opt tomlir-fib.pass-0000.mlir -optimize
+	../../build/bin/hask-opt tomlir-fib.pass-0000.mlir
 
 fibstrict: clean install
 	ghc -O0 -dverbose-core2core -ddump-prep -ddump-ds -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fibstrict.hs -o fibstrict.out
