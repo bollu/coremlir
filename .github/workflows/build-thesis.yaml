@@ -3,9 +3,10 @@
 # https://github.com/actions/upload-artifact
 name: Build thesis
 # This workflow is triggered on pushes to the repository.
-on: [push]
-paths:
-  - 'thesis/*'
+on:
+  push:
+    paths:
+      - 'thesis/*'
 
 
 jobs:
