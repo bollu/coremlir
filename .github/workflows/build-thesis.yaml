@@ -10,17 +10,19 @@ jobs:
     # Job name is Greeting
     name: Build
     # This job runs on Linux
-    runs-on: ubuntu-latest
+    runs: 
+      using: docker
+      image: Dockerfile
     steps:
       - name: setup git repo
         uses: actions/checkout@v1
-      - name: Install texlive
-        run: |
-          sudo apt-get install texlive-publishers \
-                               texlive-latex-recommended \
-                               texlive-latex-extra \
-                               texlive-fonts-recommended \
-                               texlive-fonts-extra
+        # - name: Install texlive
+        #   run: |
+        #     sudo apt-get install texlive-publishers \
+        #                          texlive-latex-recommended \
+        #                          texlive-latex-extra \
+        #                          texlive-fonts-recommended \
+        #                          texlive-fonts-extra
       - name: Build paper
         run: |
           cd thesis

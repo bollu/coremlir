@@ -2,6 +2,8 @@
 
 Convert GHC Core to MLIR.
 
+- [Link to latest build of my master thesis](https://github.com/bollu/coremlir/releases/download/refs%2Fheads%2Fmaster/thesis.pdf)
+
 
 # Log:  [newest] to [oldest]
 
