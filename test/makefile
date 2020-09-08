@@ -32,3 +32,6 @@ test-ops:
 	../build/bin/hask-opt ./test-ops-roundtrip.mlir
 
 all : fib fibstrict test-ops 
+
+
+
