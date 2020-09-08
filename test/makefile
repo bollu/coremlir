@@ -2,7 +2,6 @@
 # pipelines which involve tee and allow such pipelines to fail.
 .PHONY: fib fibstrict playground
 
-
 fibstrict: 
 	-rm fib-strict-roundtrip.mlir
 	make -C ~/work/mlir/coremlir/build
