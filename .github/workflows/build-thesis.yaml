@@ -1,0 +1,49 @@
+# https://github.com/dante-ev/latex-action/blob/master/action.yml
+# https://github.com/andycasey/paper-maker/blob/master/action.yml
+# https://github.com/actions/upload-artifact
+name: Build thesis
+# This workflow is triggered on pushes to the repository.
+on: [push]
+
+jobs:
+  build:
+    # Job name is Greeting
+    name: Build
+    # This job runs on Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: setup git repo
+        uses: actions/checkout@v1
+      - name: Install texlive
+        run: |
+          sudo apt-get install texlive-publishers \
+                               texlive-latex-recommended \
+                               texlive-latex-extra \
+                               texlive-fonts-recommended \
+                               texlive-fonts-extra
+      - name: Build paper
+        run: |
+          cd thesis
+          pdflatex thesis.tex -pdf --shell-escape -latexoption=-file-line-error -latexoption=-interaction=nonstopmode
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: ./thesis/thesis.pdf
+          asset_name: thesis.pdf
+          asset_content_type: application/pdf
