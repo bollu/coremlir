@@ -12,6 +12,7 @@ on:
       - 'CMakeLists.txt'
       - 'hask98/*'
       - 'test/*'
+      - '.github/*'
 
 jobs:
   build:
