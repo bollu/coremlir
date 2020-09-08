@@ -50,9 +50,9 @@ jobs:
           asset_name: thesis.pdf
           asset_content_type: application/pdf
 
-     - name: Upload thesis.pdf
+      - name: Upload thesis.pdf
         uses: actions/upload-artifact@v2
         with:
-          name: thesis.pdf
-          path: thesis/thesis.pdf
+           name: thesis.pdf
+           path: thesis/thesis.pdf
 
