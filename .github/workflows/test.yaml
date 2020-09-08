@@ -28,7 +28,7 @@ jobs:
       - name: build and clone MLIR
         run: |
           git clone --depth 1 https://github.com/llvm/llvm-project.git
-          echo ${git rev-parse --head}
+          cd llvm-project && echo $(git rev-parse --head) && cd ../
           mkdir build && cd build && cmake -GNinja ../llvm-project -DCMAKE_BUILD_TYPE=RelWithDebInfo  -DDLLVM_TARGETS_TO_BUILD=X86  -DCMAKE_INSTALL_PREFIX=$HOME/.local/ && ninja install && cd ../
           export PATH=$HOME/.local/bin:$PATH
           export LD_LIBRARY_PATH=$HOME/.local/lib:$LD_LIBRARY_PATH
