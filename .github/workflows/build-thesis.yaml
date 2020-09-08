@@ -4,8 +4,8 @@
 name: Build thesis
 # This workflow is triggered on pushes to the repository.
 on: [push]
-   paths:
-   - 'thesis/*'
+paths:
+  - 'thesis/*'
 
 
 jobs:
