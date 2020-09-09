@@ -7,7 +7,7 @@ k-lazy:
 	../build/bin/hask-opt ./k-lazy.mlir
 	../build/bin/hask-opt ./k-lazy.mlir > k-lazy-roundtrip.mlir
 	../build/bin/hask-opt ./k-lazy-roundtrip.mlir
-	../build/bin/hask-opt ./k-lazy.mlir -lower-std
+	../build/bin/hask-opt ./k-lazy.mlir -lower-std -lower-llvm
 
 fib: 
 	make -C ~/work/mlir/coremlir/build
