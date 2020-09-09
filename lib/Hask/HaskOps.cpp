@@ -151,7 +151,6 @@ void DeclareDataConstructorOp::print(OpAsmPrinter &p) {
 ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
     // OpAsmParser::OperandType operand_fn;
     OpAsmParser::OperandType op_fn;
-    SmallVector<Value, 4> results;
     // (<fn-arg>
     if (parser.parseLParen()) { return failure(); }
     if (parser.parseOperand(op_fn)) { return failure(); }
@@ -173,23 +172,25 @@ ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
     llvm::errs() << ") -> " << retty << "\n";
 
     // ["," <arg>]
-    int i = 0;
+    int nargs = 0;
     while(succeeded(parser.parseOptionalComma())) {
         OpAsmParser::OperandType op;
         if (parser.parseOperand(op)) return failure();
-        if (i > paramtys.size()) {
+        if (nargs > paramtys.size()) {
             InFlightDiagnostic diag = parser.emitError(parser.getCurrentLocation());
             diag << "expected |" << paramtys.size() << "| parameters based on |" << fnty << "|";
             return diag;
         }
-        if(parser.resolveOperand(op, paramtys[i], result.operands)) return failure();
-        i++;
+        if(parser.resolveOperand(op, paramtys[nargs], result.operands)) {
+            return failure();
+        }
+        nargs++;
     }
 
     //)
     if (parser.parseRParen()) return failure();
 
-    result.addTypes(fnty.getResultType());
+    result.addTypes(fnty.stripNArguments(nargs));
     return success();
 };
 
@@ -197,11 +198,10 @@ ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
 
 void ApOp::print(OpAsmPrinter &p) {
     p << getOperationName() << "(";
+    p << this->getFn() << " :" << this->getFn().getType();
 
-    // TODO: propose actually strongly typing this?This is just sick.
-    for(int i = 0; i < this->getOperation()->getNumOperands(); ++i) {
-        if (i > 0) { p << ", "; }
-        p.printOperand(this->getOperation()->getOperand(i));
+    for(int i = 0; i  < this->getNumFnArguments(); ++i) {
+         p << ", " << this->getFnArgument(i); 
     }
     p << ")";
 };
@@ -217,14 +217,15 @@ void ApOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
     std::vector<Type> paramtys; Type retty;
     std::tie(retty, paramtys) = fnty.uncurry();
 
-    assert(paramtys.size() == params.size());
+
+    assert(params.size() <= paramtys.size());
 
     for(int i = 0; i < params.size(); ++i) {
         assert(paramtys[i] == params[i].getType());
     }
 
     state.addOperands(params);
-    state.addTypes(retty);
+    state.addTypes(fnty.stripNArguments(params.size()));
 };
 
 
@@ -277,7 +278,7 @@ ParseResult CaseOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void CaseOp::print(OpAsmPrinter &p) {
-    p << getOperationName();
+    p << getOperationName() << " ";
     // p << "[ " << this->getOperation()->getNumOperands() << " | " << this->getNumAlts() << "] ";
     // p << this->getOperation()->getOperand(0);
     p <<  this->getScrutinee();
@@ -307,27 +308,46 @@ llvm::Optional<int> CaseOp::getDefaultAltIndex() {
 ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
 
     if (parser.parseLParen()) { return failure(); }
-    OpAsmParser::OperandType arg;
-    if (parser.parseRegionArgument(arg)) { return failure(); };
 
-    if (parser.parseColon()) { return failure(); }
-    Type argType;
-    if (parser.parseType(argType)) { return failure(); }
+    SmallVector<OpAsmParser::OperandType, 4> args;
+    SmallVector<Type, 4> argTys;
+    if (succeeded(parser.parseOptionalRParen())) {
+        // we have no params.
+    } else {
+        while(1) {
+            OpAsmParser::OperandType arg;
+            if (parser.parseRegionArgument(arg)) { return failure(); };
+            args.push_back(arg);
 
-    if (!(argType.isa<ThunkType>() || argType.isa<ValueType>() || argType.isa<HaskFnType>())) {
-        return parser.emitError(arg.location, "argument must either ValueType, ThunkType, or HaskFnType");
+            if (parser.parseColon()) { return failure(); }
+            Type argType;
+            if (parser.parseType(argType)) { return failure(); }
+            argTys.push_back(argType);
+
+            if (!(argType.isa<ThunkType>() || argType.isa<ValueType>() || argType.isa<HaskFnType>())) {
+                return parser.emitError(arg.location, "argument must either ValueType, ThunkType, or HaskFnType");
+            }
+
+            if (succeeded(parser.parseOptionalRParen())) { break; }
+            else if (parser.parseComma()) { return failure(); }
+        }
     }
-    if (parser.parseRParen()) { return failure(); }
 
 
 
     Region *r = result.addRegion();
-    if(parser.parseRegion(*r, {arg}, {argType})) return failure();
+    if(parser.parseRegion(*r, {args}, {argTys})) return failure();
 
     HaskReturnOp ret = cast<HaskReturnOp>(r->getBlocks().front().getTerminator());
     Value retval = ret.getInput();
 
-    result.addTypes(parser.getBuilder().getType<HaskFnType>(argType, retval.getType()));
+    // build type (a1 -> (a2 -> ... -> (an -> res)...))
+    Type finalty = retval.getType();
+    for(int i = argTys.size() - 1; i >= 0; i--) {
+        finalty = parser.getBuilder().getType<HaskFnType>(argTys[i], finalty);
+    }
+    result.addTypes(finalty);
+
     return success();
 }
 
@@ -375,7 +395,7 @@ ParseResult HaskRefOp::parse(OpAsmParser &parser,
 void HaskRefOp::print(OpAsmPrinter &p) {
     p << getOperationName() << "(";
     p.printSymbolName(this->getRef());
-    p << ")";
+    p << ")" << " : " << this->getResult().getType();
 };
 
 
@@ -1026,6 +1046,11 @@ public:
     return success();
   }
 };
+
+// === LowerHaskToLLVMPass ===
+// === LowerHaskToLLVMPass ===
+// === LowerHaskToLLVMPass ===
+
 
 // === LowerHaskToStandardPass === 
 // === LowerHaskToStandardPass === 

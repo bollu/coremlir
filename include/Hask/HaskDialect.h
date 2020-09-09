@@ -106,6 +106,16 @@ public:
       return {retty, paramtys};
   }
 
+  // get the type after N applications
+  Type stripNArguments(int n) {
+      Type outty = *this;
+      for(int i = 0; i < n; ++i) { 
+          HaskFnType fn = outty.cast<HaskFnType>();
+          outty = *fn.getResultType().data();
+      }
+      return outty;
+  }
+
   ArrayRef<Type> getInputType() { return this->getImpl()->getInput(); }
   ArrayRef<Type> getResultType() { return this->getImpl()->getResult(); }
 };

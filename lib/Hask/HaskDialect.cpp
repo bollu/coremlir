@@ -48,7 +48,7 @@ mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
     return ThunkType::get(parser.getBuilder().getContext());
   } else if(succeeded(parser.parseOptionalKeyword("value"))) {
     return ValueType::get(parser.getBuilder().getContext());
-  } else if (succeeded(parser.parseOptionalKeyword("func"))) {
+  } else if (succeeded(parser.parseOptionalKeyword("fn"))) {
       Type param, res;
       if (parser.parseLess() ||
           parser.parseType(param) || parser.parseComma() || 

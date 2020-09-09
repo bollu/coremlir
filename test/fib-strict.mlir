@@ -9,16 +9,16 @@ module {
     %lambda = hask.lambdaSSA(%i: !hask.value) {
       %retval = hask.caseSSA  %i
       ["default" -> { ^entry: // todo: remove this defult
-        %fib_rec = hask.ref (@fibstrict):!hask.func<!hask.value, !hask.value>
-        %minus_hash = hask.ref (@"-#"): !hask.func<!hask.value, !hask.func<!hask.value, !hask.value>>
-        %i_minus = hask.apSSA(%minus_hash: !hask.func<!hask.value, !hask.func<!hask.value, !hask.value>>, %i)
+        %fib_rec = hask.ref (@fibstrict):!hask.fn<!hask.value, !hask.value>
+        %minus_hash = hask.ref (@"-#"): !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.value>>
+        %i_minus = hask.apSSA(%minus_hash: !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.value>>, %i)
         %lit_one = hask.make_i64(1)
-        %i_minus_one = hask.apSSA(%i_minus: !hask.func<!hask.value, !hask.value>, %lit_one)
-        %fib_i_minus_one = hask.apSSA(%fib_rec: !hask.func<!hask.value, !hask.value>, %i_minus_one)
-        %fib_i = hask.apSSA(%fib_rec: !hask.func<!hask.value, !hask.value>, %i) // what is the type?
-        %plus_hash = hask.ref(@"+#"):!hask.func<!hask.value, !hask.func<!hask.value, !hask.value>>
-        %plus_fib_i = hask.apSSA(%plus_hash: !hask.func<!hask.value, !hask.func<!hask.value, !hask.value>>, %fib_i)
-        %fib_i_plus_fib_i_minus_one = hask.apSSA(%plus_fib_i : !hask.func<!hask.value, !hask.value> , %fib_i_minus_one)
+        %i_minus_one = hask.apSSA(%i_minus: !hask.fn<!hask.value, !hask.value>, %lit_one)
+        %fib_i_minus_one = hask.apSSA(%fib_rec: !hask.fn<!hask.value, !hask.value>, %i_minus_one)
+        %fib_i = hask.apSSA(%fib_rec: !hask.fn<!hask.value, !hask.value>, %i) // what is the type?
+        %plus_hash = hask.ref(@"+#"):!hask.fn<!hask.value, !hask.fn<!hask.value, !hask.value>>
+        %plus_fib_i = hask.apSSA(%plus_hash: !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.value>>, %fib_i)
+        %fib_i_plus_fib_i_minus_one = hask.apSSA(%plus_fib_i : !hask.fn<!hask.value, !hask.value> , %fib_i_minus_one)
         hask.return(%fib_i_plus_fib_i_minus_one):!hask.value }]
       [0 -> { ^entry(%default_random_name: !hask.value):
         hask.return(%i):!hask.value }]
@@ -26,7 +26,7 @@ module {
         hask.return(%i):!hask.value }]
       hask.return(%retval) : !hask.value
     }
-    hask.return(%lambda) : !hask.func<!hask.value, !hask.value>
+    hask.return(%lambda) : !hask.fn<!hask.value, !hask.value>
   }
 }
 
