@@ -1118,6 +1118,61 @@ public:
   }
 };
 
+static FlatSymbolRefAttr getOrInsertMalloc(PatternRewriter &rewriter,
+                                           ModuleOp module) {
+  if (module.lookupSymbol<LLVM::LLVMFuncOp>("malloc")) {
+      return SymbolRefAttr::get("malloc", rewriter.getContext());
+  }
+
+  auto llvmI32Ty = LLVM::LLVMType::getInt32Ty(rewriter.getContext());
+  auto llvmI8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+  auto llvmFnType = LLVM::LLVMType::getFunctionTy(llvmI8PtrTy, llvmI32Ty,
+                                                  /*isVarArg=*/false);
+
+  // Insert the printf function into the body of the parent module.
+  PatternRewriter::InsertionGuard insertGuard(rewriter);
+  rewriter.setInsertionPointToStart(module.getBody());
+  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType);
+  return SymbolRefAttr::get("malloc", rewriter.getContext());
+}
+
+class HaskConstructOpConversionPattern: public ConversionPattern {
+public:
+  explicit HaskConstructOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(HaskConstructOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    HaskConstructOp ref = cast<HaskConstructOp>(op);
+    llvm::errs() << "running HaskConstructOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+
+    using namespace mlir::LLVM;
+
+    FlatSymbolRefAttr malloc = getOrInsertMalloc(rewriter, op->getParentOfType<ModuleOp>());
+
+    // allocate some huge amount because we can't be arsed to calculate the correct ammount.
+    static const int HUGE = 4200;
+    mlir::LLVM::ConstantOp mallocSz = rewriter.create<mlir::LLVM::ConstantOp>(op->getLoc(),
+                                            LLVMType::getInt32Ty(rewriter.getContext()),
+                                            rewriter.getI32IntegerAttr(HUGE));
+
+    SmallVector<Value, 4> llvmFnArgs = {mallocSz};
+
+    mlir::LLVM::CallOp mallocMem = rewriter.create<mlir::LLVM::CallOp>(op->getLoc(),
+                                        LLVMType::getInt8PtrTy(rewriter.getContext()),
+                                        malloc,
+                                        llvmFnArgs);
+
+    rewriter.replaceOpWithNewOp<mlir::LLVM::PtrToIntOp>(op,
+            LLVMType::getInt64Ty(rewriter.getContext()),
+            ValueRange((Value &)mallocMem));
+    // need to call malloc
+
+    return success();
+  }
+};
+
 // === LowerHaskToLLVMPass ===
 // === LowerHaskToLLVMPass ===
 // === LowerHaskToLLVMPass ===
@@ -1166,7 +1221,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     // target.addLegalOp<HaskReturnOp>();
     target.addLegalOp<CaseOp>();
 //    target.addLegalOp<ApOp>();
-    target.addLegalOp<HaskConstructOp>();
+//    target.addLegalOp<HaskConstructOp>();
     target.addLegalOp<ForceOp>();
 
     OwningRewritePatternList patterns;
@@ -1175,9 +1230,10 @@ void LowerHaskToStandardPass::runOnOperation() {
     // patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
     patterns.insert<ApSSAConversionPattern>(&getContext());
     // patterns.insert<MakeI64OpConversionPattern>(&getContext());
-    // patterns.insert<ForceOpConversionPattern>(&getContext()); 
+    // patterns.insert<ForceOpConversionPattern>(&getContext());
     patterns.insert<HaskReturnOpConversionPattern>(&getContext());
     patterns.insert<HaskRefOpConversionPattern>(&getContext());
+    patterns.insert<HaskConstructOpConversionPattern>(&getContext());
 
     //llvm::errs() << "===Enabling Debugging...===\n";
     //::llvm::DebugFlag = true;
