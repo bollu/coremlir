@@ -7,6 +7,190 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Tuesday, Sep 8 2020
+
+### Naive compilation
+
+Consider how we wish to lower
+
+```
+f :: Int -> Int -> Int
+f = plus x y
+```
+
+we lower this to:
+
+```
+fn @f = lambda (%x) {
+  return lambda (%y) {
+    %plus_ref = ref(@plus)
+    %x_plus = ap(%plus_ref, %x)
+    %x_plus_y = ap(%x_plus, %y)
+    return %x_plus_y
+
+  }
+}
+
+global @g {
+  %f = ref(@f)
+  %one = ref(@one)
+  %two = ref(@two)
+  %fx = ap(%f, %one)
+  %fxy = ap(fx, %two)
+  %fxy_val = force(%fxy) //value is forced here
+  case %fxy_val {
+    ...
+  }
+}
+```
+
+Let's compile this:
+
+```
+f: 
+  x = pop(); y = pop();
+  push(y); push(x); enter(plus)
+
+g: 
+  push(two); push(one);
+  enter(f);
+  // assumes control flow returns here: this is another "?". Compiling naively
+  // like this may not work, because stack space is too small is the STG wisdom.
+  fxy_val = pop();
+  case(fxy_val, ... )
+```
+
+#### Partial application
+
+Now consider a slightly different program:
+
+```
+fn @f = lambda (%x) {
+  return lambda (%y) {
+    %plus_ref = ref(@plus)
+    %x_plus = ap(%plus_ref, %x)
+    %x_plus_y = ap(%x_plus, %y)
+    return %x_plus_y
+
+  }
+}
+
+
+fn @h = lambda (%x) {
+  %f = ref(@f)
+  %fortytwo = ref(@fortytwo)
+  %fx = ap(%f, %x)
+  %fx42 = ap(%x, %x, %fortytwo) // this is a value, not a thunk (?)
+  return %fx42
+}
+
+global @g2 {
+  %h = ref(@h)
+  %one = ref(@one)
+  %hone = ap(%h, %one)
+  %honeval = force(%hone) //value is forced here
+  case %honeval {
+    ...
+  }
+}
+```
+
+How do we compile this? 
+```
+f: 
+  x = pop(); y = pop();
+  push(y); push(x); enter(plus)
+
+h:
+  x = pop()
+  push(fortytwo)
+  push(x)
+  enter(f)
+
+g2:
+  push(one)
+  enter(h)
+  honeval = pop()
+  case(honeval, ... )
+```
+
+#### Strictness
+
+Consider we wish to call `+#`. The difference is that such a function does not
+need? want? a 'force' call [in theory]. So, naively, we would want:
+
+```
+fn @fstrict = lambda (%x) {
+  return lambda (%y) {
+    %plus#_ref = ref(@plus#)
+    %x_plus# = ap(%plus#_ref, %x)
+    %x_plus#_y = ap(%x_plus#, %y) <- VALUE COMPUTED HERE
+    return %x_plus_y
+
+  }
+}
+```
+
+
+ie, the value is 'computed' at the step of
+
+```
+%x_plus#_y = ap(%x_plus#, %y) <- VALUE COMPUTED HERE
+```
+
+and does not in fact wait for a `force`. In theory, we should compile such a thing
+as:
+
+```
+f:
+  x = pop(); y = pop();
+  z = x + y;
+  push(z) 
+```
+
+However, this is nonsensical. Before, we knew *when* to generate a sequence of
+`pop`s: whenever there was a `force`. Now, however, this is not the case. Consider
+the code:
+
+```
+fn @h = lambda (%x) {
+  %plus# = ref(@plus#)
+  %fortytwo = ref(@fortytwo)
+  %fx = ap(%plus#, %x)
+  %fx42 = ap(%x, %x, %fortytwo) // this is a value, not a thunk (?)
+  return %fx42
+}
+
+global @g2 {
+  %h = ref(@h)
+  %one = ref(@one)
+  %hone = ap(%h, %one) // <- should the value be computed here? automatically?
+  %honeval = force(%hone) // <- or should the value be computed here?
+  case %honeval {
+    ...
+  }
+```
+
+If we say that the value should be computed at
+
+```
+%hone = ap(%h, %one)
+```
+
+then how would we discover such a thing? How do we know that `h` calls `@plus#`?
+It's impossible. So we can only compile the code in such a way that
+
+```
+%honeval = force(%hone) // <- or should the value be computed here?
+```
+
+must return the right value. But this forces us to eschew strict
+semantics everywhere, even for seemingly 'strict' operations like
+addition of integers? It's unclear to me what this means, and why there's a
+difference between STG and our implementation.
+
+
+
 # Monday, Sep 7 2020
 
 - I am not sure if I need a new operation called as `haskConstruct(<dataConstructor>, <params>)`. Intuitively,
