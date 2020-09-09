@@ -190,6 +190,9 @@ ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
     //)
     if (parser.parseRParen()) return failure();
 
+    // ensure fully saturated calls
+    assert(nargs == paramtys.size());
+
     result.addTypes(fnty.stripNArguments(nargs));
     return success();
 };
@@ -219,10 +222,13 @@ void ApOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 
 
     assert(params.size() <= paramtys.size());
+    // ensure fully saturated calls
+    assert(params.size() == paramtys.size());
 
     for(int i = 0; i < params.size(); ++i) {
         assert(paramtys[i] == params[i].getType());
     }
+
 
     state.addOperands(params);
     state.addTypes(fnty.stripNArguments(params.size()));
@@ -719,7 +725,7 @@ struct UncurryApplicationPattern : public mlir::OpRewritePattern<ApOp> {
 
 void ApOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
-  results.insert<UncurryApplicationPattern>(context);
+  // results.insert<UncurryApplicationPattern>(context);
 }
 
 
@@ -800,7 +806,7 @@ struct DefaultCaseToForcePattern : public mlir::OpRewritePattern<CaseOp> {
 
 void CaseOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
-  results.insert<DefaultCaseToForcePattern>(context);
+  // results.insert<DefaultCaseToForcePattern>(context);
 }
 
 // === LOWERING ===
