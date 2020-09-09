@@ -2,6 +2,12 @@
 # pipelines which involve tee and allow such pipelines to fail.
 .PHONY: fib fibstrict playground
 
+k-lazy: 
+	make -C ~/work/mlir/coremlir/build
+	../build/bin/hask-opt ./k-lazy.mlir
+	../build/bin/hask-opt ./k-lazy.mlir > k-lazy-roundtrip.mlir
+	../build/bin/hask-opt ./k-lazy-roundtrip.mlir
+
 fib: 
 	make -C ~/work/mlir/coremlir/build
 	../build/bin/hask-opt ./fib.mlir 
@@ -25,11 +31,10 @@ playground:
 
 
 
-
 test-ops: 
 	make -C ~/work/mlir/coremlir/build
 	../build/bin/hask-opt ./test-ops.mlir
-	../build/bin/hask-opt ./test-ops.mlir > tee test-ops-roundtrip.mlir
+	../build/bin/hask-opt ./test-ops.mlir > test-ops-roundtrip.mlir
 	../build/bin/hask-opt ./test-ops-roundtrip.mlir
 
 all : fib fibstrict test-ops 
