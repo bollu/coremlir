@@ -1222,7 +1222,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<CaseOp>();
 //    target.addLegalOp<ApOp>();
 //    target.addLegalOp<HaskConstructOp>();
-    target.addLegalOp<ForceOp>();
+//    target.addLegalOp<ForceOp>();
 
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
@@ -1230,10 +1230,10 @@ void LowerHaskToStandardPass::runOnOperation() {
     // patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
     patterns.insert<ApSSAConversionPattern>(&getContext());
     // patterns.insert<MakeI64OpConversionPattern>(&getContext());
-    // patterns.insert<ForceOpConversionPattern>(&getContext());
     patterns.insert<HaskReturnOpConversionPattern>(&getContext());
     patterns.insert<HaskRefOpConversionPattern>(&getContext());
     patterns.insert<HaskConstructOpConversionPattern>(&getContext());
+    patterns.insert<ForceOpConversionPattern>(&getContext());
 
     //llvm::errs() << "===Enabling Debugging...===\n";
     //::llvm::DebugFlag = true;
