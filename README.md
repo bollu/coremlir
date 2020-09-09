@@ -190,6 +190,88 @@ addition of integers? It's unclear to me what this means, and why there's a
 difference between STG and our implementation.
 
 
+#### Compiling lambdas
+
+Inside STG, a `lambda` is not an *expression*. We can only have bindings at particular
+*binding sites*. These binding sites create ("lambdas" closures). For this week,
+we can assume that none of our lambdas have any free variables, so we don't
+need to implement closure capturing immediately. That will come next week ;)
+
+
+#### How do we compile constructors?
+
+```
+hask.func @minus {
+%lami = hask.lambdaSSA(%i: !hask.thunk) {
+     %lamj = hask.lambdaSSA(%j :!hask.thunk) {
+          %icons = hask.force(%i)
+          %reti = hask.caseSSA %icons 
+               [@SimpleInt -> { ^entry(%ival: !hask.value):
+                  %jcons = hask.force(%j)
+                  %retj = hask.caseSSA %jcons 
+                      [@SimpleInt -> { ^entry(%jval: !hask.value):
+                            %minus_hash = hask.ref (@"-#") : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>
+                            %i_sub = hask.apSSA(%minus_hash : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>, %ival)
+                            %i_sub_j_thunk = hask.apSSA(%i_sub : !hask.fn<!hask.value, !hask.thunk>, %jval)
+                            %i_sub_j = hask.force(%i_sub_j_thunk)
+                            %mk_simple_int = hask.ref (@MkSimpleInt) :!hask.fn<!hask.value, !hask.thunk>
+                            %boxed = hask.apSSA(%mk_simple_int:!hask.fn<!hask.value, !hask.thunk>, %i_sub_j)
+                            hask.return(%boxed) :!hask.thunk
+                      }]
+                  hask.return(%retj) :!hask.thunk
+               }]
+          hask.return(%reti):!hask.thunk
+      }
+      hask.return(%lamj): !hask.fn<!hask.thunk, !hask.thunk>
+}
+hask.return(%lami): !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
+}
+```
+
+Note that this is problematic: nowhere do we 'force' the call to `mk_simple_int`.
+So why should such a call be compiled?
+
+The only way out that I can see is to actually do the damn thing that
+STG does, and always ask for saturated function calls. That way, when
+we see an `ap`, we know that it should compile to a `push-enter`. Otherwise,
+we seem to get into thorny issues of 'when do we force an `ap`?
+
+
+All of this seems to force us into considering saturated function calls.
+
+
+#### What does GRIN do?
+
+GRIN compiles each partial application as a separate function.
+
+True to the GRIN philosophy, also function objects are represented by node
+values. Just like the G-machine and most other combinator-based abstract ma-
+chines, function objects in GRIN programs exist in the form of curried applica-
+tions of functions with too few arguments. Consider again the function upto of
+our running example, which takes two arguments. We represent the function ob-
+ject of upto by a node Pupto_2 , and an application of upto to one argument by
+a node Pupto_1 e . The naming convention we use is that prefix `P` indicates
+a partial application, and `_2` etc. is the number of missing arguments.
+In analogy with the generic eval procedure, programs which use higher or-
+der functions must also have a generic apply procedure, which must cover pos-
+sible function nodes that might appear in the program. An example is shown
+in Figure. apply returns the value of a function value (node) applied to one
+additional argument. Generally, apply just returns the next version of the func-
+tion node with one more argument present, except when the final argument is
+supplied: then the call of the procedure takes place.
+
+
+GRIN does not provide a way to do a function application of a variable in
+a lazy context directly, e.g., build a representation of f x where f is a variable,
+instead a closure must be wrapped around it; this is the purpose of the ap2
+procedure.
+
+
+#### What do we do?
+
+It would have been lovely to have an IR that can automatically deal with partial
+applications. For now, I'm switching to having saturated function calls.
+
 
 # Monday, Sep 7 2020
 
