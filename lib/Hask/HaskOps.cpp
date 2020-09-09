@@ -866,12 +866,12 @@ public:
 
 
     Region &lamBody = lam.getBody();
-    rewriter.cloneRegionBefore(llvmfn.getRegion(), &lamBody.getBlocks().front());
-    /*
+    Block *llvmfnEntry = llvmfn.addEntryBlock();
+    Block &lamEntry = lamBody.getBlocks().front();
+
     llvm::errs() << "converting lambda:\n";
     llvm::errs() << *lamBody.getParentOp() << "\n";
     rewriter.mergeBlocks(&lamBody.getBlocks().front(), llvmfnEntry, llvmfnEntry->getArguments());
-    */
 
     rewriter.eraseOp(op);
     // llvm::errs() << *module << "\n";
@@ -1079,6 +1079,51 @@ public:
   }
 };
 
+mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
+    using namespace mlir::LLVM;
+
+    llvm::errs() << __FUNCTION__ << "(" << t << ")\n";
+    if (t.isa<ValueType>() || t.isa<ThunkType>()) {
+        return LLVMType::getInt64Ty(context);
+    } else if (auto fnty = t.dyn_cast<HaskFnType>()) {
+        Type retty;
+        std::vector<Type> argTys;
+        std::tie(retty, argTys) = fnty.uncurry();
+
+        // recall that functions can occur in negative position:
+        // (a -> a) -> a
+        // should become (int -> int) -> int
+        std::vector<LLVMType> llvmArgTys;
+        for(Type arg : argTys) { llvmArgTys.push_back(haskToLLVMType(context, arg)); }
+        return LLVMType::getFunctionTy(haskToLLVMType(context, retty),
+                                       llvmArgTys, /*isVaridic=*/false);
+    } else {
+        assert(false && "unknown haskell type");
+    }
+};
+
+class HaskRefOpConversionPattern: public ConversionPattern {
+public:
+  explicit HaskRefOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(HaskRefOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    HaskRefOp ref = cast<HaskRefOp>(op);
+    llvm::errs() << "running HaskRefOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    using namespace mlir::LLVM;
+
+    llvm::errs() << "-ref: " << ref.getRef() << "\n";
+    LLVMType llvmty = haskToLLVMType(rewriter.getContext(), ref.getResult().getType());
+    llvm::errs() << "-llvm type: " << llvmty << "\n";
+    rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(op,
+            llvmty.getPointerTo(),
+            ref.getRef());
+    return success();
+  }
+};
+
 // === LowerHaskToLLVMPass ===
 // === LowerHaskToLLVMPass ===
 // === LowerHaskToLLVMPass ===
@@ -1120,7 +1165,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<mlir::ModuleTerminatorOp>();
 
     target.addIllegalDialect<standalone::HaskDialect>();
-    target.addLegalOp<HaskRefOp>();
+    // target.addLegalOp<HaskRefOp>();
     target.addLegalOp<HaskADTOp>();
     target.addLegalOp<LambdaOp>();
     target.addLegalOp<HaskGlobalOp>();
@@ -1138,6 +1183,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     // patterns.insert<MakeI64OpConversionPattern>(&getContext());
     // patterns.insert<ForceOpConversionPattern>(&getContext()); 
     patterns.insert<HaskReturnOpConversionPattern>(&getContext());
+    patterns.insert<HaskRefOpConversionPattern>(&getContext());
 
     //llvm::errs() << "===Enabling Debugging...===\n";
     //::llvm::DebugFlag = true;
@@ -1154,7 +1200,7 @@ void LowerHaskToStandardPass::runOnOperation() {
         llvm::errs() << "\n===\n";
     }
 
-  ::llvm::DebugFlag = false;
+//  ::llvm::DebugFlag = false;
   return;
 
 }
@@ -1189,20 +1235,6 @@ public:
 */
 
 
-// this is run in a second phase, so we refs only
-// after we are done processing data constructors.
-class HaskRefOpConversionPattern : public ConversionPattern {
-public:
-  explicit HaskRefOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(HaskRefOp::getOperationName(), 1, context) {}
-
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-      rewriter.eraseOp(op);
-    return success();
-  }
-};
 
 class HaskADTOpConversionPattern : public ConversionPattern {
 public:
@@ -1237,7 +1269,6 @@ struct LowerHaskStandardToLLVMPass : public Pass {
       mlir::LLVMTypeConverter typeConverter(&getContext());
       mlir::OwningRewritePatternList patterns;
       // patterns.insert<MakeDataConstructorOpConversionPattern>(&getContext());
-      patterns.insert<HaskRefOpConversionPattern>(&getContext());
       patterns.insert<HaskADTOpConversionPattern>(&getContext());
 
       mlir::populateStdToLLVMConversionPatterns(typeConverter, patterns);
