@@ -864,12 +864,14 @@ public:
             LLVMFunctionType::get(LLVMType::getInt64Ty(rewriter.getContext()), fnArgTys));
 
 
-    Block * llvmfnEntry = llvmfn.addEntryBlock();
-    Region &lamBody = lam.getBody();
 
+    Region &lamBody = lam.getBody();
+    rewriter.cloneRegionBefore(llvmfn.getRegion(), &lamBody.getBlocks().front());
+    /*
     llvm::errs() << "converting lambda:\n";
     llvm::errs() << *lamBody.getParentOp() << "\n";
     rewriter.mergeBlocks(&lamBody.getBlocks().front(), llvmfnEntry, llvmfnEntry->getArguments());
+    */
 
     rewriter.eraseOp(op);
     // llvm::errs() << *module << "\n";
