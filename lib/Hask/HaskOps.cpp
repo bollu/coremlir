@@ -648,6 +648,12 @@ void HaskConstructOp::print(OpAsmPrinter &p) {
 
 
 // ==REWRITES==
+// ==REWRITES==
+// ==REWRITES==
+// ==REWRITES==
+// ==REWRITES==
+// ==REWRITES==
+
 
 // =SATURATE AP= 
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/mlir/ToyCombine.cpp
@@ -829,11 +835,42 @@ void CaseOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 
 // === LOWERING ===
 // === LOWERING ===
+// === LOWERING ===
+// === LOWERING ===
+// === LOWERING ===
+// === LOWERING ===
+// === LOWERING ===
+
 
 class HaskToLLVMTypeConverter : public mlir::TypeConverter {
     using TypeConverter::TypeConverter;
 
 };
+
+
+mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
+    using namespace mlir::LLVM;
+
+    llvm::errs() << __FUNCTION__ << "(" << t << ")\n";
+    if (t.isa<ValueType>() || t.isa<ThunkType>()) {
+        return LLVMType::getInt64Ty(context);
+    } else if (auto fnty = t.dyn_cast<HaskFnType>()) {
+        Type retty;
+        std::vector<Type> argTys;
+        std::tie(retty, argTys) = fnty.uncurry();
+
+        // recall that functions can occur in negative position:
+        // (a -> a) -> a
+        // should become (int -> int) -> int
+        std::vector<LLVMType> llvmArgTys;
+        for(Type arg : argTys) { llvmArgTys.push_back(haskToLLVMType(context, arg)); }
+        return LLVMType::getFunctionTy(haskToLLVMType(context, retty),
+                                       llvmArgTys, /*isVaridic=*/false);
+    } else {
+        assert(false && "unknown haskell type");
+    }
+};
+
 
 // http://localhost:8000/structanonymous__namespace_02ConvertStandardToLLVM_8cpp_03_1_1FuncOpConversion.html#a9043f45e0e37eb828942ff867c4fe38d
 class HaskFuncOpConversionPattern : public ConversionPattern {
@@ -989,49 +1026,29 @@ void unifyOpTypeWithType(Value src, Type dstty) {
 
 class ApSSAConversionPattern : public ConversionPattern {
 public:
-  explicit ApSSAConversionPattern(MLIRContext *context)
-      : ConversionPattern(ApOp::getOperationName(), 1, context) {}
+    explicit ApSSAConversionPattern(MLIRContext *context)
+            : ConversionPattern(ApOp::getOperationName(), 1, context) {}
 
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    llvm::errs() << "running ApSSAConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-    ApOp ap = cast<ApOp>(op);
-    if (HaskRefOp ref = (ap.getFn().getDefiningOp<HaskRefOp>())) {
-        if (ref.getRef() == "-#") {
-            assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
-            rewriter.replaceOpWithNewOp<SubIOp>(ap, rewriter.getI64Type(), ap.getFnArgument(0), ap.getFnArgument(1));
+    LogicalResult
+    matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                    ConversionPatternRewriter &rewriter) const override {
+        using namespace mlir::LLVM;
+        llvm::errs() << "running ApSSAConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+        ApOp ap = cast<ApOp>(op);
 
-            for(int i = 0; i < 2; ++i) {
-                unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI64Type());
-            }
+        LLVMType llvmRetty = haskToLLVMType(rewriter.getContext(), ap.getResult().getType());
 
-            return success();
+        SmallVector<Value, 4> llvmFnArgs;
+        llvmFnArgs.push_back(ap.getFn());
+        for (int i = 0; i < ap.getNumFnArguments(); ++i) {
+            llvmFnArgs.push_back(ap.getFnArgument(i));
         }
-        else if (ref.getRef() == "+#") {
-            assert(ap.getNumFnArguments() == 2 && "expected fully saturated function call!");
-            rewriter.replaceOpWithNewOp<AddIOp>(ap, rewriter.getI64Type(), ap.getFnArgument(0), ap.getFnArgument(1));
-            for(int i = 0; i < 2; ++i) {
-                unifyOpTypeWithType(ap.getFnArgument(i), rewriter.getI64Type());
-            }
-            return success();
-        }
-        else {
-            llvm::StringRef fnName = ref.getRef();
-            llvm::errs() << "function symbol name: |" << fnName << "|\n";
-            // HACK: hardcoding type
-            const Type retty = rewriter.getI64Type();
-            rewriter.replaceOpWithNewOp<CallOp>(ap,
-                    fnName, retty, ap.getFnArguments());
 
-            return success();
-        }
-    } // end ap(HaskRefOp(...), ...)
-
-    else { assert(false && "unhandled apOp type"); }
-    return failure();
-  } // end matchAndRewrite
+        rewriter.replaceOpWithNewOp<mlir::LLVM::CallOp>(op, llvmRetty, llvmFnArgs);
+        return success();
+    }
 };
+
 
 class MakeI64OpConversionPattern : public ConversionPattern {
 public:
@@ -1077,29 +1094,6 @@ public:
     rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(ret, ret.getInput());
     return success();
   }
-};
-
-mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
-    using namespace mlir::LLVM;
-
-    llvm::errs() << __FUNCTION__ << "(" << t << ")\n";
-    if (t.isa<ValueType>() || t.isa<ThunkType>()) {
-        return LLVMType::getInt64Ty(context);
-    } else if (auto fnty = t.dyn_cast<HaskFnType>()) {
-        Type retty;
-        std::vector<Type> argTys;
-        std::tie(retty, argTys) = fnty.uncurry();
-
-        // recall that functions can occur in negative position:
-        // (a -> a) -> a
-        // should become (int -> int) -> int
-        std::vector<LLVMType> llvmArgTys;
-        for(Type arg : argTys) { llvmArgTys.push_back(haskToLLVMType(context, arg)); }
-        return LLVMType::getFunctionTy(haskToLLVMType(context, retty),
-                                       llvmArgTys, /*isVaridic=*/false);
-    } else {
-        assert(false && "unknown haskell type");
-    }
 };
 
 class HaskRefOpConversionPattern: public ConversionPattern {
@@ -1171,7 +1165,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<HaskGlobalOp>();
     // target.addLegalOp<HaskReturnOp>();
     target.addLegalOp<CaseOp>();
-    target.addLegalOp<ApOp>();
+//    target.addLegalOp<ApOp>();
     target.addLegalOp<HaskConstructOp>();
     target.addLegalOp<ForceOp>();
 
@@ -1179,7 +1173,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
     // patterns.insert<CaseSSAOpConversionPattern>(&getContext());
     // patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
-    // patterns.insert<ApSSAConversionPattern>(&getContext());
+    patterns.insert<ApSSAConversionPattern>(&getContext());
     // patterns.insert<MakeI64OpConversionPattern>(&getContext());
     // patterns.insert<ForceOpConversionPattern>(&getContext()); 
     patterns.insert<HaskReturnOpConversionPattern>(&getContext());
