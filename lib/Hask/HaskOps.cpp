@@ -116,6 +116,7 @@ void MakeI64Op::print(OpAsmPrinter &p) {
 // === MakeDataConstructor OP ===
 // === MakeDataConstructor OP ===
 
+/*
 ParseResult DeclareDataConstructorOp::parse(OpAsmParser &parser, OperationState &result) {
     // parser.parseAttribute(, parser.getBuilder().getStringAttr )
     // if(parser.parseLess()) return failure();
@@ -141,6 +142,8 @@ void DeclareDataConstructorOp::print(OpAsmPrinter &p) {
     p << getOperationName() << " ";
     p.printSymbolName(getDataConstructorName());
 };
+
+*/
 
 // === APOP OP ===
 // === APOP OP ===
@@ -403,6 +406,21 @@ void HaskRefOp::print(OpAsmPrinter &p) {
     p.printSymbolName(this->getRef());
     p << ")" << " : " << this->getResult().getType();
 };
+
+
+LogicalResult HaskRefOp::verify() {
+    ModuleOp mod = this->getOperation()->getParentOfType<mlir::ModuleOp>();
+    HaskFuncOp fn = mod.lookupSymbol<HaskFuncOp>(this->getRef());
+    LambdaOp lam = fn.getLambda();
+    // how do I attach an error message?
+    if (lam.getType() != this->getResult().getType()) {
+        llvm::errs() << "mismatch of types at ref.\n-Found from function" <<
+            " " << fn.getLoc() << " " << "name:" << this->getRef() << " [" << lam.getType() << "]\n"
+            "-Declared at ref as [" << this->getLoc() << " " <<  *this << "]\n";
+        return failure();
+    }
+    return success();
+}
 
 
 // === MakeString OP ===
@@ -812,7 +830,7 @@ void CaseOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 // === LOWERING ===
 // === LOWERING ===
 
-class HaskToStdTypeConverter : public mlir::TypeConverter {
+class HaskToLLVMTypeConverter : public mlir::TypeConverter {
     using TypeConverter::TypeConverter;
 
 };
@@ -826,7 +844,9 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
+    using namespace mlir::LLVM;
 
+    Operation *module = op->getParentOp();
     // Now lower the [LambdaOp + HaskFuncOp together]
     // TODO: deal with free floating lambads. This LambdaOp is going to
     // become a top-level function. Other lambdas will become toplevel functions with synthetic names.
@@ -834,33 +854,36 @@ public:
     auto fn = cast<HaskFuncOp>(op);
     LambdaOp lam = fn.getLambda();
 
+    SmallVector<LLVM::LLVMType, 4> fnArgTys;
+    for(int i = 0; i < lam.getNumInputs(); ++i) {
+        fnArgTys.push_back(LLVMType::getInt64Ty(rewriter.getContext()));
+    }
+
+    LLVMFuncOp llvmfn = rewriter.create<LLVMFuncOp>(fn.getLoc(), 
+            fn.getFuncName().str(),
+            LLVMFunctionType::get(LLVMType::getInt64Ty(rewriter.getContext()), fnArgTys));
+
+
+    Block * llvmfnEntry = llvmfn.addEntryBlock();
+    Region &lamBody = lam.getBody();
+
+    llvm::errs() << "converting lambda:\n";
+    llvm::errs() << *lamBody.getParentOp() << "\n";
+    rewriter.mergeBlocks(&lamBody.getBlocks().front(), llvmfnEntry, llvmfnEntry->getArguments());
+
+    rewriter.eraseOp(op);
+    // llvm::errs() << *module << "\n";
+    // assert(false);
+    // assert(false);
+
     /*
-    SmallVector<NamedAttribute, 4> attrs;
-    // TODO: HACK! types are hardcoded :)
-    rewriter.setInsertionPointAfter(fn);
-    llvm::errs() << "- stdFunc: " << stdFunc << "\n";
-    llvm::errs() << "- fn.getParentOp():\n\n" << *fn.getParentOp() << "\n";
-
-    rewriter.inlineRegionBefore(lam.getBody(), stdFunc.getBody(), stdFunc.end());
-    llvm::errs() << "- stdFunc: " << stdFunc << "\n";
-    // llvm::errs() << "- fn.getParentOp():\n\n" << *fn.getParentOp() << "\n";
-
-    // TODO: Tell the rewriter to convert the region signature.
-    // rewriter.applySignatureConversion(&newFuncOp.getBody(), result);
-    */
     FuncOp stdFunc = ::mlir::FuncOp::create(fn.getLoc(),
             fn.getFuncName().str(),
-            FunctionType::get({rewriter.getI64Type()}, {rewriter.getI64Type()}, rewriter.getContext()));
+            FunctionType::get({}, {rewriter.getI64Type()}, rewriter.getContext()));
     rewriter.inlineRegionBefore(lam.getBody(), stdFunc.getBody(), stdFunc.end());
-
-    // Block &funcEntry = stdFunc.getBody().getBlocks().front();
-    // funcEntry.args_begin()->setType(rewriter.getType<UntypedType>());
     rewriter.insert(stdFunc);
+    */
 
-    llvm::errs() << "- stdFunc: " << stdFunc << "\n";
-    rewriter.eraseOp(fn);
-
-    // llvm::errs() << "- stdFunc.getParentOp()\n: " << *stdFunc.getParentOp() << "\n";
     return success();
   }
 };
@@ -1048,7 +1071,8 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     HaskReturnOp ret = cast<HaskReturnOp>(op);
     llvm::errs() << "running HaskReturnOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-    rewriter.replaceOpWithNewOp<mlir::ReturnOp>(ret, ret.getInput());
+    using namespace mlir::LLVM;
+    rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(ret, ret.getInput());
     return success();
   }
 };
@@ -1082,48 +1106,51 @@ struct LowerHaskToStandardPass
 void LowerHaskToStandardPass::runOnOperation() {
     ConversionTarget target(getContext());
     // do I not need a pointer to the dialect? I am so confused :(
-    HaskToStdTypeConverter converter();
+    HaskToLLVMTypeConverter converter();
     target.addLegalDialect<mlir::StandardOpsDialect>();
+    target.addLegalDialect<mlir::LLVM::LLVMDialect>();
     target.addLegalDialect<mlir::scf::SCFDialect>();
     target.addLegalOp<mlir::LLVM::UnreachableOp>();
 
     // Why do I need this? Isn't adding StandardOpsDialect enough?
-    target.addLegalOp<FuncOp>();
-    target.addLegalOp<ModuleOp>();
-    target.addLegalOp<ModuleTerminatorOp>();
+    target.addLegalOp<mlir::FuncOp>();
+    target.addLegalOp<mlir::ModuleOp>();
+    target.addLegalOp<mlir::ModuleTerminatorOp>();
 
     target.addIllegalDialect<standalone::HaskDialect>();
-    target.addLegalOp<DeclareDataConstructorOp>();
     target.addLegalOp<HaskRefOp>();
     target.addLegalOp<HaskADTOp>();
     target.addLegalOp<LambdaOp>();
     target.addLegalOp<HaskGlobalOp>();
-
-    // target.addLegalOp<LambdaOp>();
-    // target.addLegalOp<CaseOp>();
-    // target.addLegalOp<MakeI64Op>();
-    // target.addLegalOp<ApOp>();
-    // target.addLegalOp<ForceOp>();
     // target.addLegalOp<HaskReturnOp>();
+    target.addLegalOp<CaseOp>();
+    target.addLegalOp<ApOp>();
+    target.addLegalOp<HaskConstructOp>();
+    target.addLegalOp<ForceOp>();
+
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
-    patterns.insert<CaseSSAOpConversionPattern>(&getContext());
-    patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
-    patterns.insert<ApSSAConversionPattern>(&getContext());
-    patterns.insert<MakeI64OpConversionPattern>(&getContext());
-    patterns.insert<ForceOpConversionPattern>(&getContext()); 
+    // patterns.insert<CaseSSAOpConversionPattern>(&getContext());
+    // patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
+    // patterns.insert<ApSSAConversionPattern>(&getContext());
+    // patterns.insert<MakeI64OpConversionPattern>(&getContext());
+    // patterns.insert<ForceOpConversionPattern>(&getContext()); 
     patterns.insert<HaskReturnOpConversionPattern>(&getContext());
 
-    llvm::errs() << "===Enabling Debugging...===\n";
-    ::llvm::DebugFlag = true;
+    //llvm::errs() << "===Enabling Debugging...===\n";
+    //::llvm::DebugFlag = true;
 
-  
-  if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
-      llvm::errs() << "===Hask -> Std lowering failed===\n";
-      getOperation()->print(llvm::errs());
-      llvm::errs() << "\n===\n";
-      signalPassFailure();
-  }
+
+    if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
+        llvm::errs() << "===Partial conversion failed===\n";
+        getOperation()->print(llvm::errs());
+        llvm::errs() << "\n===\n";
+        signalPassFailure();
+    } else {
+        llvm::errs() << "===Partial conversion succeeded===\n";
+        getOperation()->print(llvm::errs());
+        llvm::errs() << "\n===\n";
+    }
 
   ::llvm::DebugFlag = false;
   return;
@@ -1144,6 +1171,7 @@ std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass() {
 
 // this is run in a second phase, so we delete data constructors only
 // after we are done processing data constructors.
+/*
 class MakeDataConstructorOpConversionPattern : public ConversionPattern {
 public:
   explicit MakeDataConstructorOpConversionPattern(MLIRContext *context)
@@ -1156,6 +1184,7 @@ public:
     return success();
   }
 };
+*/
 
 
 // this is run in a second phase, so we refs only
@@ -1205,7 +1234,7 @@ struct LowerHaskStandardToLLVMPass : public Pass {
       target.addIllegalDialect<HaskDialect>();
       mlir::LLVMTypeConverter typeConverter(&getContext());
       mlir::OwningRewritePatternList patterns;
-      patterns.insert<MakeDataConstructorOpConversionPattern>(&getContext());
+      // patterns.insert<MakeDataConstructorOpConversionPattern>(&getContext());
       patterns.insert<HaskRefOpConversionPattern>(&getContext());
       patterns.insert<HaskADTOpConversionPattern>(&getContext());
 

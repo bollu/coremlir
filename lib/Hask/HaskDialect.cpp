@@ -34,7 +34,7 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
 #include "Hask/HaskOps.cpp.inc"
   >();
  addOperations<HaskReturnOp, MakeI64Op,
-  DeclareDataConstructorOp,
+  // DeclareDataConstructorOp,
   ApOp, CaseOp, HaskRefOp, LambdaOp,
   MakeStringOp, HaskFuncOp, ForceOp, HaskGlobalOp, HaskADTOp,
   HaskConstructOp>();

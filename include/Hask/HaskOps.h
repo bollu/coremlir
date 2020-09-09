@@ -71,6 +71,7 @@ public:
 
 
 
+/*
 class DeclareDataConstructorOp : public Op<DeclareDataConstructorOp, OpTrait::ZeroResult> {
 public:
   using Op::Op;
@@ -79,6 +80,7 @@ public:
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
+*/
 
 class ApOp : public Op<ApOp, OpTrait::OneResult, MemoryEffectOpInterface::Trait> {
 public:
@@ -147,6 +149,7 @@ public:
   static void build(OpBuilder &odsBuilder, OperationState &odsState, Type resultTy);
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
+  LogicalResult verify();
 
 };
 
