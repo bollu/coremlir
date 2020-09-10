@@ -20,6 +20,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/IR/IRBuilder.h"
+ #include "llvm/IR/Mangler.h"
 
 
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
@@ -91,6 +92,15 @@ static llvm::cl::opt<bool> jit("jit", llvm::cl::desc("Enable lowering to LLVM"))
 //0                  llvm::cl::init(false));
 //0 
 
+
+extern "C" {
+    void  __attribute__((used))  *mkClosure_capture0_args2(void *a, void *b) {
+        void **data = (void**)malloc(sizeof(void *)*2);
+        data[0] = a;
+        data[1] = b;
+        return data;
+    }
+}
 
 namespace Example {
     using namespace llvm;
@@ -281,14 +291,57 @@ int main(int argc, char **argv) {
 
   llvm::errs() << "===Executing MLIR-LLVM in JIT===\n";
   // Now we create the JIT.
-  auto J = Example::ExitOnErr(llvm::orc::LLJITBuilder().create());
+  llvm::orc::LLJITBuilder JITbuilder;
 
+  llvm::errs() << "main:  " << __LINE__ << "\n";
+  Example::ExitOnErr(JITbuilder.prepareForConstruction());
+
+  llvm::errs() << "main:  " << __LINE__ << "\n";
+  std::unique_ptr<llvm::orc::LLJIT> J = Example::ExitOnErr(JITbuilder.create());
+
+  llvm::errs() << "main:  " << __LINE__ << "\n";
+  llvm::orc::JITDylib *JD = J->getExecutionSession().getJITDylibByName("main");
+
+  llvm::errs() << "main:  " << __LINE__ << "\n";
+    assert(JD);
+  llvm::errs() << "main:  " << __LINE__ << "\n";
+
+  llvm::JITTargetAddress putsAddr = llvm::pointerToJITTargetAddress(&puts);
+  llvm::errs() << "main:  " << __LINE__ << "\n";
+
+  llvm::orc::MangleAndInterner Mangle(J->getExecutionSession(), J->getDataLayout());
+
+    llvm::errs() << "main:  " << __LINE__ << "\n";
+
+    llvm::DenseMap<llvm::orc::SymbolStringPtr, llvm::JITEvaluatedSymbol> name2symbol;
+
+    llvm::errs() << "main:  " << __LINE__ << "\n";
+    name2symbol.insert({Mangle("puts"), llvm::JITEvaluatedSymbol(putsAddr, llvm::JITSymbolFlags::Callable)});
+
+    llvm::errs() << "main:  " << __LINE__ << "\n";
+    Example::ExitOnErr(JD->define(llvm::orc::absoluteSymbols(name2symbol)));
+//  llvm::orc::absoluteSymbols({
+//    { sspool.intern("puts"), llvm::pointerToJITTargetAddress(&puts)},
+//    { sspool.intern("mkClosure_capture0_args2"), llvm::pointerToJITTargetAddress(&mkClosure_capture0_args2)}
+//  }));
+
+
+
+    llvm::errs() << "main:  " << __LINE__ << "\n";
   Example::ExitOnErr(J->addIRModule(llvm::orc::ThreadSafeModule(std::move(llvmModule), std::move(llvmContext))));
+
+
+    llvm::errs() << "main:  " << __LINE__ << "\n";
+  // https://llvm.org/docs/ORCv2.html#how-to-add-process-and-library-symbols-to-the-jitdylibs
+
+
 
   // Look up the JIT'd function, cast it to a function pointer, then call it.
   auto mainfnSym = Example::ExitOnErr(J->lookup("main"));
   void* (*mainfn)(void*) = (void* (*)(void*))mainfnSym.getAddress();
 
+
+    llvm::errs() << "main:  " << __LINE__ << "\n";
   void* result = mainfn(NULL);
   llvm::outs() << "add1(nullptr) = " << (size_t)result << "\n";
 
