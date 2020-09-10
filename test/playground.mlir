@@ -16,11 +16,11 @@ module {
     hask.return(%lambda) : !hask.fn<!hask.thunk, !hask.thunk>
   }
 
-  hask.func @main {
-    %lambda = hask.lambdaSSA(%_: !hask.thunk) {
-      %x = hask.construct(@X)
-      hask.return(%x): !hask.thunk
-    }
-    hask.return(%lambda):!hask.fn<!hask.thunk, !hask.thunk>
-  }
+  // hask.func @main {
+  //   %lambda = hask.lambdaSSA(%_: !hask.thunk) {
+  //     %x = hask.construct(@X)
+  //     hask.return(%x): !hask.thunk
+  //   }
+  //   hask.return(%lambda):!hask.fn<!hask.thunk, !hask.thunk>
+  // }
 }

@@ -10,8 +10,6 @@
 #include "Hask/HaskDialect.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/StandardTypes.h"
-
-// includes
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -19,6 +17,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
+#include <sstream>
 
 // Standard dialect
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -841,6 +840,58 @@ void CaseOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 // === LOWERING ===
 // === LOWERING ===
 
+Value transmuteToVoidPtr(Value v, ConversionPatternRewriter &rewriter, Location loc) {
+    llvm::errs() << "v: " << v << " |ty: " << v.getType() << "\n";
+    if(v.getType().isa<LLVM::LLVMType>()) {
+        LLVM::LLVMType vty = v.getType().cast<LLVM::LLVMType>();
+        if (vty.isPointerTy()) {
+            return rewriter.create<LLVM::BitcastOp>(loc,
+                                                    LLVM::LLVMType::getInt8PtrTy(rewriter.getContext()),
+                                                    ValueRange(v));
+        } else if (vty.isIntegerTy()) {
+
+            return rewriter.create<LLVM::IntToPtrOp>(loc,
+                                                     LLVM::LLVMType::getInt8PtrTy(rewriter.getContext()), v);
+        } else {
+            assert(false && "unable to transmute into void pointer");
+        }
+    } else {
+        assert(v.getType().isa<HaskFnType>() ||
+        v.getType().isa<ValueType>() ||
+        v.getType().isa<ThunkType>());
+        if (v.getType().isa<HaskFnType>()) {
+            return rewriter.create<LLVM::BitcastOp>(loc,
+                LLVM::LLVMType::getInt8PtrTy(rewriter.getContext()),
+                v);
+        } else {
+            return rewriter.create<LLVM::IntToPtrOp>(loc,
+                                                     LLVM::LLVMType::getInt8PtrTy(rewriter.getContext()), v);
+
+        }
+    }
+
+}
+
+// Value transmuteFromVoidPtr(Value v, LLVM::LLVMType desired,  ConversionPatternRewriter &rewriter) {
+//     assert(vty.isPointerTy());
+//     LLVM::LLVMType vty = v.getType().cast<LLVM::LLVMType>();
+// 
+//     if (desired.isPointerTy()) {
+//         return rewriter.create<LLVM::BitcastOp>(
+//                 LLVM::LLVMType::getInt8PtrTy(rewriter.getContext()), v);
+//     } else if (vty.isIntegerTy()) {
+// 
+//         return rewriter.create<LLVM::IntToPtrOp>(
+//                 LLVM::LLVMType::getInt8PtrTy(rewriter.getContext()), v);
+//     }
+//     else {
+//         assert(false && "unable to transmute into void pointer");
+//     }
+// 
+// }
+
+
+
 
 class HaskToLLVMTypeConverter : public mlir::TypeConverter {
     using TypeConverter::TypeConverter;
@@ -1024,27 +1075,79 @@ void unifyOpTypeWithType(Value src, Type dstty) {
     assert(false && "unable to unify types!");
 }
 
-class ApSSAConversionPattern : public ConversionPattern {
+static FlatSymbolRefAttr getOrInsertMkClosure(PatternRewriter &rewriter,
+        ModuleOp module, int n) {
+    
+    const std::string name = "mkClosure_capture0_args" + std::to_string(n);
+    if (module.lookupSymbol<LLVM::LLVMFuncOp>(name)) {
+        return SymbolRefAttr::get(name, rewriter.getContext());
+    }
+
+    auto I8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+    llvm::SmallVector<LLVM::LLVMType, 4> argTys(n+1, I8PtrTy);
+    auto llvmFnType = LLVM::LLVMType::getFunctionTy(I8PtrTy, argTys,
+            /*isVarArg=*/false);
+
+    // Insert the printf function into the body of the parent module.
+    PatternRewriter::InsertionGuard insertGuard(rewriter);
+    rewriter.setInsertionPointToStart(module.getBody());
+    rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), name, llvmFnType);
+    return SymbolRefAttr::get(name, rewriter.getContext());
+}
+
+class ApOpConversionPattern : public ConversionPattern {
 public:
-    explicit ApSSAConversionPattern(MLIRContext *context)
+    explicit ApOpConversionPattern(MLIRContext *context)
             : ConversionPattern(ApOp::getOperationName(), 1, context) {}
 
     LogicalResult
-    matchAndRewrite(Operation *op, ArrayRef<Value> operands,
-                    ConversionPatternRewriter &rewriter) const override {
+        matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                ConversionPatternRewriter &rewriter) const override {
         using namespace mlir::LLVM;
         llvm::errs() << "running ApSSAConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
         ApOp ap = cast<ApOp>(op);
+        ModuleOp module = ap.getParentOfType<ModuleOp>();
 
-        LLVMType llvmRetty = haskToLLVMType(rewriter.getContext(), ap.getResult().getType());
+        llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+        LLVMType kparamty = haskToLLVMType(rewriter.getContext(), ap.getResult().getType());
+        llvm::errs() << "kparamty: " << kparamty << "\n";
 
+        // Wow, in what order does the conversion happen? I have no idea.
+        llvm::errs() << "parentOp: " << *ap.getParentOp() << "\n";
+        // LLVMFuncOp parent = ap.getParentOfType<LLVMFuncOp>();
+        // assert(parent && "found lambda parent");
+        // LLVMType kretty = parent.getType().cast<LLVMFunctionType>().getReturnType();
+        // llvm::errs() << "kretty: " << kretty << "\n";
+
+        // LLVMType kFnTy = LLVM::LLVMType::getFunctionTy(kretty, kparamty,
+        //         /*isVarArg=*/false);
+        // llvm::errs() << "kFnTy: " << kFnTy << "\n";
+        // // I deserve to be shot for this. This is not even deterministic!
+        // // I'm not even sure how to get deterministic names inside MLIR Which is multi threaded.
+        // // What information uniquely identifies an `ap`? it's parameters? but we want names that are unique
+        // // across functions. So hash(fn name + hash(params))? this is crazy.
+        // // K = kontinuation.
+        // std::string kname = "ap_" + std::to_string(rand());
+        // // Insert the printf function into the body of the parent module.
+        // PatternRewriter::InsertionGuard insertGuard(rewriter);
+        // rewriter.setInsertionPointToStart(module.getBody());
+        // LLVMFuncOp apK = rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), kname, kFnTy);
+        // SymbolRefAttr kfn =  SymbolRefAttr::get(kname, rewriter.getContext());
+        // Block *entry = apK.addEntryBlock();
+        // rewriter.setInsertionPoint(entry, entry->end());
+
+        rewriter.setInsertionPointAfter(ap);
         SmallVector<Value, 4> llvmFnArgs;
-        llvmFnArgs.push_back(ap.getFn());
+        llvmFnArgs.push_back(transmuteToVoidPtr(ap.getFn(), rewriter, ap.getLoc()));
         for (int i = 0; i < ap.getNumFnArguments(); ++i) {
-            llvmFnArgs.push_back(ap.getFnArgument(i));
+            llvmFnArgs.push_back(transmuteToVoidPtr(ap.getFnArgument(i), rewriter, ap.getLoc()));
         }
 
-        rewriter.replaceOpWithNewOp<mlir::LLVM::CallOp>(op, llvmRetty, llvmFnArgs);
+        FlatSymbolRefAttr mkclosure = getOrInsertMkClosure(rewriter, module, ap.getNumFnArguments());
+        rewriter.replaceOpWithNewOp<LLVM::CallOp>(op,
+                LLVMType::getInt8PtrTy(rewriter.getContext()),
+                mkclosure,
+                llvmFnArgs);
         return success();
     }
 };
@@ -1065,6 +1168,26 @@ public:
   }
 };
 
+static FlatSymbolRefAttr getOrInsertEvalClosure(PatternRewriter &rewriter,
+        ModuleOp module) {
+    const std::string name = "evalClosure";
+    if (module.lookupSymbol<LLVM::LLVMFuncOp>(name)) {
+        return SymbolRefAttr::get(name, rewriter.getContext());
+    }
+
+    auto VoidPtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+    auto VoidTy = LLVM::LLVMType::getVoidTy(rewriter.getContext());
+    auto llvmFnType = LLVM::LLVMType::getFunctionTy(VoidPtrTy, VoidPtrTy,
+            /*isVarArg=*/false);
+
+    // Insert the printf function into the body of the parent module.
+    PatternRewriter::InsertionGuard insertGuard(rewriter);
+    rewriter.setInsertionPointToStart(module.getBody());
+    rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), name, llvmFnType);
+    return SymbolRefAttr::get(name, rewriter.getContext());
+}
+
+
 class ForceOpConversionPattern : public ConversionPattern {
 public:
   explicit ForceOpConversionPattern(MLIRContext *context)
@@ -1075,7 +1198,14 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     ForceOp force = cast<ForceOp>(op);
     llvm::errs() << "running ForceOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
-    rewriter.replaceOp(op, force.getScrutinee());
+    using namespace mlir::LLVM;
+    // assert(force.getScrutinee().getType().isa<LLVMFunctionType>());
+    // LLVMFunctionType scrutty = force.getScrutinee().getType().cast<LLVMFunctionType>();
+
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(op,
+            LLVMType::getVoidTy(rewriter.getContext()),
+            getOrInsertEvalClosure(rewriter, force.getParentOfType<ModuleOp>()),
+            force.getScrutinee());
     return success();
   }
 };
@@ -1095,6 +1225,7 @@ public:
     return success();
   }
 };
+
 
 class HaskRefOpConversionPattern: public ConversionPattern {
 public:
@@ -1231,12 +1362,12 @@ void LowerHaskToStandardPass::runOnOperation() {
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
     // patterns.insert<CaseSSAOpConversionPattern>(&getContext());
     // patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
-    patterns.insert<ApSSAConversionPattern>(&getContext());
     // patterns.insert<MakeI64OpConversionPattern>(&getContext());
     patterns.insert<HaskReturnOpConversionPattern>(&getContext());
     patterns.insert<HaskRefOpConversionPattern>(&getContext());
     patterns.insert<HaskConstructOpConversionPattern>(&getContext());
     patterns.insert<ForceOpConversionPattern>(&getContext());
+    patterns.insert<ApOpConversionPattern>(&getContext());
 
     //llvm::errs() << "===Enabling Debugging...===\n";
     //::llvm::DebugFlag = true;
@@ -1314,7 +1445,6 @@ struct LowerHaskStandardToLLVMPass : public Pass {
     }
 
     void runOnOperation() {
-
       mlir::ConversionTarget target(getContext());
       target.addLegalDialect<mlir::LLVM::LLVMDialect>();
       target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp>();
@@ -1336,7 +1466,6 @@ struct LowerHaskStandardToLLVMPass : public Pass {
 
 };
 } // end anonymous namespace.
-
 
 std::unique_ptr<mlir::Pass> createLowerHaskStandardToLLVMPass() {
   return std::make_unique<LowerHaskStandardToLLVMPass>();

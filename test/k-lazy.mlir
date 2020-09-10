@@ -11,8 +11,12 @@ module {
   hask.func @loop {
     %lambda = hask.lambdaSSA(%a: !hask.thunk) {
       %loop = hask.ref(@loop) : !hask.fn<!hask.thunk, !hask.thunk>
-      %out = hask.apSSA(%loop : !hask.fn<!hask.thunk, !hask.thunk>, %a)
-      hask.return(%out) : !hask.thunk
+      %out_t = hask.apSSA(%loop : !hask.fn<!hask.thunk, !hask.thunk>, %a)
+      // HACK! This will emit an `evalClosure` though it is nowhere 
+      // reachable from hask.return (%out_t).
+      // We need to rework the type system...
+      %out_v = hask.force(%out_t)
+      hask.return(%out_t) : !hask.thunk
     }
     hask.return(%lambda) : !hask.fn<!hask.thunk, !hask.thunk>
   }

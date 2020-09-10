@@ -15,11 +15,4 @@ module {
     }
     hask.return(%0) : !hask.fn<!hask.thunk, !hask.thunk>
   }
-  hask.func @main {
-    %0 = hask.lambdaSSA(%arg0:!hask.thunk) {
-      %1 = hask.construct(@X)
-      hask.return(%1) : !hask.thunk
-    }
-    hask.return(%0) : !hask.fn<!hask.thunk, !hask.thunk>
-  }
 }
