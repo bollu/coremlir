@@ -7,6 +7,129 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Wednesday, Sep 9 2020
+
+##### `k-lazy`: MLIR
+
+```
+module {
+  // k x y = x
+  hask.func @k {
+    %lambda = hask.lambdaSSA(%x: !hask.thunk, %y: !hask.thunk) {
+      hask.return(%x) : !hask.thunk
+    }
+    hask.return(%lambda) :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
+  }
+
+  // loop a = loop a
+  hask.func @loop {
+    %lambda = hask.lambdaSSA(%a: !hask.thunk) {
+      %loop = hask.ref(@loop) : !hask.fn<!hask.thunk, !hask.thunk>
+      %out_t = hask.apSSA(%loop : !hask.fn<!hask.thunk, !hask.thunk>, %a)
+      // HACK! This will emit an `evalClosure` though it is nowhere 
+      // reachable from hask.return (%out_t).
+      // We need to rework the type system...
+      %out_v = hask.force(%out_t)
+      hask.return(%out_t) : !hask.thunk
+    }
+    hask.return(%lambda) : !hask.fn<!hask.thunk, !hask.thunk>
+  }
+
+  hask.adt @X [#hask.data_constructor<@MkX []>]
+
+  // k (x:X) (y:(loop X)) = x
+  // main = 
+  //     let y = loop x -- builds a closure.
+  //     in k x y
+  hask.func @main {
+    %lambda = hask.lambdaSSA(%_: !hask.thunk) {
+      %x = hask.construct(@X)
+      %k = hask.ref(@k) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
+      %loop = hask.ref(@loop) :  !hask.fn<!hask.thunk, !hask.thunk>
+      %y = hask.apSSA(%loop : !hask.fn<!hask.thunk, !hask.thunk>, %x)
+      %out_t = hask.apSSA(%k: !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %x, %y)
+      %out = hask.force(%out_t)
+      hask.return(%out) : !hask.value
+    }
+    hask.return(%lambda) :!hask.fn<!hask.thunk, !hask.value>
+  }
+}
+```
+
+#### `k-lazy`: LLVM
+
+```
+declare i8* @malloc(i64)
+declare void @free(i8*)
+declare i8* @mkClosure_capture0_args2(i8*, i8*, i8*)
+declare i8* @malloc__(i32)
+declare i8* @evalClosure(i8*)
+declare i8* @mkClosure_capture0_args1(i8*, i8*)
+
+define i64 @k(i64 %0, i64 %1) !dbg !3 {
+  ret i64 %0, !dbg !7
+}
+
+define i64 @loop(i64 %0) !dbg !9 {
+  %2 = inttoptr i64 %0 to i8*, !dbg !10
+  %3 = call i8* @mkClosure_capture0_args1(i8* bitcast (i64 (i64)* @loop to i8*), i8* %2), !dbg !10
+  %4 = call i8* @evalClosure(i8* %3), !dbg !12
+  ret i8* %3, !dbg !13
+}
+
+define i64 @main(i64 %0) !dbg !14 {
+  %2 = call i8* @malloc__(i32 4200), !dbg !15
+  %3 = ptrtoint i8* %2 to i64, !dbg !15
+  %4 = inttoptr i64 %3 to i8*, !dbg !17
+  %5 = call i8* @mkClosure_capture0_args1(i8* bitcast (i64 (i64)* @loop to i8*), i8* %4), !dbg !17
+  %6 = inttoptr i64 %3 to i8*, !dbg !18
+  %7 = call i8* @mkClosure_capture0_args2(i8* bitcast (i64 (i64, i64)* @k to i8*), i8* %6, i8* %5), !dbg !18
+  %8 = call i8* @evalClosure(i8* %7), !dbg !19
+  ret i8* %8, !dbg !20
+}
+```
+
+- I can reduce the `inttoptr`/`ptrtoint` noise by assuming everything will
+  always be `i8*`.
+
+- I need to write some code that prints the final answer. Then I can have
+  testing with `FileCheck`. Can steal from `simplexhc-cpp`.
+
+- What's annoying is that we're back to making closures and having saturated
+  function applications. I was hoping I could avoid both, but no dice.
+
+- Also, our type system is broken. Note the definition of `loop`:
+
+```
+  // loop a = loop a
+  hask.func @loop {
+    %lambda = hask.lambdaSSA(%a: !hask.thunk) {
+      %loop = hask.ref(@loop) : !hask.fn<!hask.thunk, !hask.thunk>
+      %out_t = hask.apSSA(%loop : !hask.fn<!hask.thunk, !hask.thunk>, %a)
+      // HACK! This will emit an `evalClosure` though it is nowhere 
+      // reachable from hask.return (%out_t).
+      // We need to rework the type system...
+      %out_v = hask.force(%out_t)
+      hask.return(%out_t) : !hask.thunk
+    }
+    hask.return(%lambda) : !hask.fn<!hask.thunk, !hask.thunk>
+  }
+```
+
+I want to be able to return `%out_v` but I cannot. The *actual* types
+that I have are:
+
+- Stuff that is on the heap, which is created by `mkConstructor` [constructors]
+  and `apSSA` [closures]
+- Stuff that we get 'after forcing', which is going to be either
+  constructors or raw values. This is because every time we force, we evaluate
+  upto WHNF: the outermost thing must be either a constructor or a raw
+  value.
+- We are also lucky: in the above example, we don't actually capture
+  any variables. If we were capturing things, then we would have had
+  to work harder when building closures :(
+
+
 # Tuesday, Sep 8 2020
 
 ### Naive compilation
