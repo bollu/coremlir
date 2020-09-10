@@ -91,22 +91,22 @@ static llvm::cl::opt<bool> jit("jit",
 // 0
 
 extern "C" {
-void* __attribute__((used)) mkClosure_capture0_args2(void *fn, void *a, void *b) {
+void *__attribute__((used))
+mkClosure_capture0_args2(void *fn, void *a, void *b) {
   void **data = (void **)malloc(sizeof(void *) * 2);
   data[0] = a;
   data[1] = b;
   return data;
 }
 
-void* __attribute__((used)) mkClosure_capture0_args1(void *fn, void *a) {
+void *__attribute__((used)) mkClosure_capture0_args1(void *fn, void *a) {
   void **data = (void **)malloc(sizeof(void *) * 1);
   data[0] = a;
   return data;
 }
-void * __attribute__((used))evalClosure(void *closure) {
+void *__attribute__((used)) evalClosure(void *closure){
 
 };
-
 
 } // end extern C
 
@@ -330,14 +330,23 @@ int main(int argc, char **argv) {
        llvm::JITEvaluatedSymbol(putsAddr, llvm::JITSymbolFlags::Callable)});
   name2symbol.insert(
       {Mangle("mkClosure_capture0_args2"),
-       llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&mkClosure_capture0_args2), llvm::JITSymbolFlags::Callable)});
+       llvm::JITEvaluatedSymbol(
+           llvm::pointerToJITTargetAddress(&mkClosure_capture0_args2),
+           llvm::JITSymbolFlags::Callable)});
   name2symbol.insert(
       {Mangle("mkClosure_capture0_args1"),
-       llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&mkClosure_capture0_args1), llvm::JITSymbolFlags::Callable)});
-    name2symbol.insert(
-      {Mangle("evalClosure"),
-       llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&evalClosure), llvm::JITSymbolFlags::Callable)});
+       llvm::JITEvaluatedSymbol(
+           llvm::pointerToJITTargetAddress(&mkClosure_capture0_args1),
+           llvm::JITSymbolFlags::Callable)});
+  name2symbol.insert(
+      {Mangle("malloc"),
+       llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&malloc),
+                                llvm::JITSymbolFlags::Callable)});
 
+  name2symbol.insert(
+      {Mangle("evalClosure"),
+       llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&evalClosure),
+                                llvm::JITSymbolFlags::Callable)});
   llvm::errs() << "main:  " << __LINE__ << "\n";
   Example::ExitOnErr(JD->define(llvm::orc::absoluteSymbols(name2symbol)));
   //  llvm::orc::absoluteSymbols({
