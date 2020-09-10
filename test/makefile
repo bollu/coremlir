@@ -28,7 +28,8 @@ playground:
 	make -C ~/work/mlir/coremlir/build
 	../build/bin/hask-opt ./playground.mlir 
 	../build/bin/hask-opt ./playground.mlir  > playground-roundtrip.mlir
-	../build/bin/hask-opt ./playground.mlir-roundtrip.mlir
+	../build/bin/hask-opt ./playground-roundtrip.mlir
+	../build/bin/hask-opt ./playground.mlir -lower-std -lower-llvm
 
 
 

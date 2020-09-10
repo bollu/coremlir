@@ -1120,8 +1120,8 @@ public:
 
 static FlatSymbolRefAttr getOrInsertMalloc(PatternRewriter &rewriter,
                                            ModuleOp module) {
-  if (module.lookupSymbol<LLVM::LLVMFuncOp>("malloc")) {
-      return SymbolRefAttr::get("malloc", rewriter.getContext());
+  if (module.lookupSymbol<LLVM::LLVMFuncOp>("malloc__")) {
+      return SymbolRefAttr::get("malloc__", rewriter.getContext());
   }
 
   auto llvmI32Ty = LLVM::LLVMType::getInt32Ty(rewriter.getContext());
@@ -1132,8 +1132,8 @@ static FlatSymbolRefAttr getOrInsertMalloc(PatternRewriter &rewriter,
   // Insert the printf function into the body of the parent module.
   PatternRewriter::InsertionGuard insertGuard(rewriter);
   rewriter.setInsertionPointToStart(module.getBody());
-  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType);
-  return SymbolRefAttr::get("malloc", rewriter.getContext());
+  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc__", llvmFnType);
+  return SymbolRefAttr::get("malloc__", rewriter.getContext());
 }
 
 class HaskConstructOpConversionPattern: public ConversionPattern {
@@ -1149,7 +1149,10 @@ public:
 
     using namespace mlir::LLVM;
 
+
     FlatSymbolRefAttr malloc = getOrInsertMalloc(rewriter, op->getParentOfType<ModuleOp>());
+    // FlatSymbolRefAttr malloc = SymbolRefAttr::get("malloc__", rewriter.getContext());
+
 
     // allocate some huge amount because we can't be arsed to calculate the correct ammount.
     static const int HUGE = 4200;
@@ -1159,6 +1162,7 @@ public:
 
     SmallVector<Value, 4> llvmFnArgs = {mallocSz};
 
+
     mlir::LLVM::CallOp mallocMem = rewriter.create<mlir::LLVM::CallOp>(op->getLoc(),
                                         LLVMType::getInt8PtrTy(rewriter.getContext()),
                                         malloc,
@@ -1167,7 +1171,6 @@ public:
     rewriter.replaceOpWithNewOp<mlir::LLVM::PtrToIntOp>(op,
             LLVMType::getInt64Ty(rewriter.getContext()),
             ValueRange((Value &)mallocMem));
-    // need to call malloc
 
     return success();
   }

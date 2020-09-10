@@ -20,6 +20,9 @@ module {
   hask.adt @X [#hask.data_constructor<@MkX []>]
 
   // k (x:X) (y:(loop X)) = x
+  // main = 
+  //     let y = loop x -- builds a closure.
+  //     in k x y
   hask.func @main {
     %lambda = hask.lambdaSSA(%_: !hask.thunk) {
       %x = hask.construct(@X)
