@@ -14,14 +14,13 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/MlirOptMain.h"
+#include "llvm/ExecutionEngine/Orc/LLJIT.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Mangler.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
-#include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include "llvm/IR/IRBuilder.h"
- #include "llvm/IR/Mangler.h"
-
 
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
 #include "mlir/IR/AsmState.h"
@@ -29,7 +28,6 @@
 #include "mlir/IR/Verifier.h"
 #include "mlir/Parser.h"
 #include "mlir/Transforms/Passes.h"
-
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/ErrorOr.h"
@@ -39,111 +37,110 @@
 #include "Hask/HaskDialect.h"
 #include "Hask/HaskOps.h"
 
-
 // conversion
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch6/toyc.cpp
 #include "mlir/Target/LLVMIR.h"
 
-
 // Execution
+#include "llvm/ExecutionEngine/ExecutionEngine.h"
+#include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/ExecutionEngine/ExecutionEngine.h"
-#include "llvm/ExecutionEngine/GenericValue.h"
-
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
                                                 llvm::cl::init("-"));
-static llvm::cl::opt<bool> lowerToStandard("lower-std", llvm::cl::desc("Enable lowering to standard"));
-static llvm::cl::opt<bool> lowerToLLVM("lower-llvm", llvm::cl::desc("Enable lowering to LLVM"));
-static llvm::cl::opt<bool> jit("jit", llvm::cl::desc("Enable lowering to LLVM"));
+static llvm::cl::opt<bool>
+    lowerToStandard("lower-std", llvm::cl::desc("Enable lowering to standard"));
+static llvm::cl::opt<bool>
+    lowerToLLVM("lower-llvm", llvm::cl::desc("Enable lowering to LLVM"));
+static llvm::cl::opt<bool> jit("jit",
+                               llvm::cl::desc("Enable lowering to LLVM"));
 
-//0 static llvm::cl::opt<std::string>
-//0     outputFilename("o", llvm::cl::desc("Output filename"),
-//0                    llvm::cl::value_desc("filename"), llvm::cl::init("-"));
-//0 
-//0 static llvm::cl::opt<bool> splitInputFile(
-//0     "split-input-file",
-//0     llvm::cl::desc("Split the input file into pieces and process each "
-//0                    "chunk independently"),
-//0     llvm::cl::init(false));
-//0 
-//0 static llvm::cl::opt<bool> verifyDiagnostics(
-//0     "verify-diagnostics",
-//0     llvm::cl::desc("Check that emitted diagnostics match "
-//0                    "expected-* lines on the corresponding line"),
-//0     llvm::cl::init(false));
-//0 
-//0 static llvm::cl::opt<bool> verifyPasses(
-//0     "verify-each",
-//0     llvm::cl::desc("Run the verifier after each transformation pass"),
-//0     llvm::cl::init(true));
-//0 
-//0 static llvm::cl::opt<bool> allowUnregisteredDialects(
-//0     "allow-unregistered-dialect",
-//0     llvm::cl::desc("Allow operation with no registered dialects"),
-//0     llvm::cl::init(false));
-//0 
-//0 static llvm::cl::opt<bool>
-//0     showDialects("show-dialects",
-//0                  llvm::cl::desc("Print the list of registered dialects"),
-//0                  llvm::cl::init(false));
-//0 
-
+// 0 static llvm::cl::opt<std::string>
+// 0     outputFilename("o", llvm::cl::desc("Output filename"),
+// 0                    llvm::cl::value_desc("filename"), llvm::cl::init("-"));
+// 0
+// 0 static llvm::cl::opt<bool> splitInputFile(
+// 0     "split-input-file",
+// 0     llvm::cl::desc("Split the input file into pieces and process each "
+// 0                    "chunk independently"),
+// 0     llvm::cl::init(false));
+// 0
+// 0 static llvm::cl::opt<bool> verifyDiagnostics(
+// 0     "verify-diagnostics",
+// 0     llvm::cl::desc("Check that emitted diagnostics match "
+// 0                    "expected-* lines on the corresponding line"),
+// 0     llvm::cl::init(false));
+// 0
+// 0 static llvm::cl::opt<bool> verifyPasses(
+// 0     "verify-each",
+// 0     llvm::cl::desc("Run the verifier after each transformation pass"),
+// 0     llvm::cl::init(true));
+// 0
+// 0 static llvm::cl::opt<bool> allowUnregisteredDialects(
+// 0     "allow-unregistered-dialect",
+// 0     llvm::cl::desc("Allow operation with no registered dialects"),
+// 0     llvm::cl::init(false));
+// 0
+// 0 static llvm::cl::opt<bool>
+// 0     showDialects("show-dialects",
+// 0                  llvm::cl::desc("Print the list of registered dialects"),
+// 0                  llvm::cl::init(false));
+// 0
 
 extern "C" {
-    void  __attribute__((used))  *mkClosure_capture0_args2(void *a, void *b) {
-        void **data = (void**)malloc(sizeof(void *)*2);
-        data[0] = a;
-        data[1] = b;
-        return data;
-    }
+void __attribute__((used)) * mkClosure_capture0_args2(void *a, void *b) {
+  void **data = (void **)malloc(sizeof(void *) * 2);
+  data[0] = a;
+  data[1] = b;
+  return data;
+}
 }
 
 namespace Example {
-    using namespace llvm;
-    using namespace llvm::orc;
-    ExitOnError ExitOnErr;
+using namespace llvm;
+using namespace llvm::orc;
+ExitOnError ExitOnErr;
 
-    ThreadSafeModule createDemoModule() {
-        auto Context = std::make_unique<LLVMContext>();
-        auto M = std::make_unique<Module>("test", *Context);
+ThreadSafeModule createDemoModule() {
+  auto Context = std::make_unique<LLVMContext>();
+  auto M = std::make_unique<Module>("test", *Context);
 
-        // Create the add1 function entry and insert this entry into module M.  The
-        // function will have a return type of "int" and take an argument of "int".
-        Function *Add1F =
-            Function::Create(FunctionType::get(Type::getInt32Ty(*Context),
-                        {Type::getInt32Ty(*Context)}, false),
-                    Function::ExternalLinkage, "add1", M.get());
+  // Create the add1 function entry and insert this entry into module M.  The
+  // function will have a return type of "int" and take an argument of "int".
+  Function *Add1F =
+      Function::Create(FunctionType::get(Type::getInt32Ty(*Context),
+                                         {Type::getInt32Ty(*Context)}, false),
+                       Function::ExternalLinkage, "add1", M.get());
 
-        // Add a basic block to the function. As before, it automatically inserts
-        // because of the last argument.
-        BasicBlock *BB = BasicBlock::Create(*Context, "EntryBlock", Add1F);
+  // Add a basic block to the function. As before, it automatically inserts
+  // because of the last argument.
+  BasicBlock *BB = BasicBlock::Create(*Context, "EntryBlock", Add1F);
 
-        // Create a basic block builder with default parameters.  The builder will
-        // automatically append instructions to the basic block `BB'.
-        IRBuilder<> builder(BB);
+  // Create a basic block builder with default parameters.  The builder will
+  // automatically append instructions to the basic block `BB'.
+  IRBuilder<> builder(BB);
 
-        // Get pointers to the constant `1'.
-        Value *One = builder.getInt32(1);
+  // Get pointers to the constant `1'.
+  Value *One = builder.getInt32(1);
 
-        // Get pointers to the integer argument of the add1 function...
-        assert(Add1F->arg_begin() != Add1F->arg_end()); // Make sure there's an arg
-        Argument *ArgX = &*Add1F->arg_begin();          // Get the arg
-        ArgX->setName("AnArg"); // Give it a nice symbolic name for fun.
+  // Get pointers to the integer argument of the add1 function...
+  assert(Add1F->arg_begin() != Add1F->arg_end()); // Make sure there's an arg
+  Argument *ArgX = &*Add1F->arg_begin();          // Get the arg
+  ArgX->setName("AnArg"); // Give it a nice symbolic name for fun.
 
-        // Create the add instruction, inserting it into the end of BB.
-        Value *Add = builder.CreateAdd(One, ArgX);
+  // Create the add instruction, inserting it into the end of BB.
+  Value *Add = builder.CreateAdd(One, ArgX);
 
-        // Create the return instruction and add it to the basic block
-        builder.CreateRet(Add);
+  // Create the return instruction and add it to the basic block
+  builder.CreateRet(Add);
 
-        return ThreadSafeModule(std::move(M), std::move(Context));
-    }
-
+  return ThreadSafeModule(std::move(M), std::move(Context));
 }
+
+} // namespace Example
 // code stolen from:
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
 int main(int argc, char **argv) {
@@ -164,7 +161,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-
   mlir::MLIRContext context;
   mlir::OwningModuleRef module;
   llvm::SourceMgr sourceMgr;
@@ -177,12 +173,10 @@ int main(int argc, char **argv) {
     return 3;
   }
 
-
   // TODO: why does it add a module { ... } around my hask.module { ... }?
   llvm::errs() << "\n===Module: input===\n";
   module->print(llvm::errs());
   llvm::errs() << "\n===\n";
-
 
   {
     mlir::PassManager pm(&context);
@@ -211,8 +205,8 @@ int main(int argc, char **argv) {
     pm.addPass(mlir::createCSEPass());
     llvm::errs() << "===Module: running CSE...===\n";
     if (mlir::failed(pm.run(*module))) {
-        llvm::errs() << "===CSE failed.===\n";
-        return 4;
+      llvm::errs() << "===CSE failed.===\n";
+      return 4;
     }
     llvm::errs() << "===CSE succeeded!===\n";
 
@@ -221,12 +215,13 @@ int main(int argc, char **argv) {
     llvm::errs() << "\n===\n";
   }
 
-
-
   // Lowering code to standard (?) Do I even need to (?)
   // Can I directly generate LLVM?
 
-  if (!lowerToStandard) { module->print(llvm::outs()); return 0; }
+  if (!lowerToStandard) {
+    module->print(llvm::outs());
+    return 0;
+  }
   // lowering code to Standard/SCF
   {
     mlir::PassManager pm(&context);
@@ -238,8 +233,7 @@ int main(int argc, char **argv) {
       module->print(llvm::errs());
       llvm::errs() << "\n===\n";
       return 4;
-    }
-    else {
+    } else {
       llvm::errs() << "===Lowering succeeded!===\n";
       llvm::errs() << "===Module  lowered to Standard+SCF:===\n";
       module->print(llvm::errs());
@@ -247,7 +241,10 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (!lowerToLLVM) { module->print(llvm::outs()); return 0; }
+  if (!lowerToLLVM) {
+    module->print(llvm::outs());
+    return 0;
+  }
   // Lowering code to MLIR-LLVM
   {
 
@@ -267,13 +264,12 @@ int main(int argc, char **argv) {
     }
   }
 
-
   if (!jit) {
-      llvm::errs() << "===Printing MLIR-LLVM module to stdout...===\n";
-      module->print(llvm::outs()); llvm::outs().flush();
-      return 0;
+    llvm::errs() << "===Printing MLIR-LLVM module to stdout...===\n";
+    module->print(llvm::outs());
+    llvm::outs().flush();
+    return 0;
   }
-
 
   // Lower MLIR-LLVM all the way down to "real LLVM"
   // https://github.com/llvm/llvm-project/blob/670063eb220663b5a42fd4e9bd63f51d379c9aa0/mlir/examples/toy/Ch6/toyc.cpp#L193
@@ -303,71 +299,71 @@ int main(int argc, char **argv) {
   llvm::orc::JITDylib *JD = J->getExecutionSession().getJITDylibByName("main");
 
   llvm::errs() << "main:  " << __LINE__ << "\n";
-    assert(JD);
+  assert(JD);
   llvm::errs() << "main:  " << __LINE__ << "\n";
 
   llvm::JITTargetAddress putsAddr = llvm::pointerToJITTargetAddress(&puts);
   llvm::errs() << "main:  " << __LINE__ << "\n";
 
-  llvm::orc::MangleAndInterner Mangle(J->getExecutionSession(), J->getDataLayout());
+  llvm::orc::MangleAndInterner Mangle(J->getExecutionSession(),
+                                      J->getDataLayout());
 
-    llvm::errs() << "main:  " << __LINE__ << "\n";
+  llvm::errs() << "main:  " << __LINE__ << "\n";
 
-    llvm::DenseMap<llvm::orc::SymbolStringPtr, llvm::JITEvaluatedSymbol> name2symbol;
+  llvm::DenseMap<llvm::orc::SymbolStringPtr, llvm::JITEvaluatedSymbol>
+      name2symbol;
 
-    llvm::errs() << "main:  " << __LINE__ << "\n";
-    name2symbol.insert({Mangle("puts"), llvm::JITEvaluatedSymbol(putsAddr, llvm::JITSymbolFlags::Callable)});
+  llvm::errs() << "main:  " << __LINE__ << "\n";
+  name2symbol.insert(
+      {Mangle("puts"),
+       llvm::JITEvaluatedSymbol(putsAddr, llvm::JITSymbolFlags::Callable)});
 
-    llvm::errs() << "main:  " << __LINE__ << "\n";
-    Example::ExitOnErr(JD->define(llvm::orc::absoluteSymbols(name2symbol)));
-//  llvm::orc::absoluteSymbols({
-//    { sspool.intern("puts"), llvm::pointerToJITTargetAddress(&puts)},
-//    { sspool.intern("mkClosure_capture0_args2"), llvm::pointerToJITTargetAddress(&mkClosure_capture0_args2)}
-//  }));
+  llvm::errs() << "main:  " << __LINE__ << "\n";
+  Example::ExitOnErr(JD->define(llvm::orc::absoluteSymbols(name2symbol)));
+  //  llvm::orc::absoluteSymbols({
+  //    { sspool.intern("puts"), llvm::pointerToJITTargetAddress(&puts)},
+  //    { sspool.intern("mkClosure_capture0_args2"),
+  //    llvm::pointerToJITTargetAddress(&mkClosure_capture0_args2)}
+  //  }));
 
+  llvm::errs() << "main:  " << __LINE__ << "\n";
+  Example::ExitOnErr(J->addIRModule(llvm::orc::ThreadSafeModule(
+      std::move(llvmModule), std::move(llvmContext))));
 
-
-    llvm::errs() << "main:  " << __LINE__ << "\n";
-  Example::ExitOnErr(J->addIRModule(llvm::orc::ThreadSafeModule(std::move(llvmModule), std::move(llvmContext))));
-
-
-    llvm::errs() << "main:  " << __LINE__ << "\n";
+  llvm::errs() << "main:  " << __LINE__ << "\n";
   // https://llvm.org/docs/ORCv2.html#how-to-add-process-and-library-symbols-to-the-jitdylibs
-
-
 
   // Look up the JIT'd function, cast it to a function pointer, then call it.
   auto mainfnSym = Example::ExitOnErr(J->lookup("main"));
-  void* (*mainfn)(void*) = (void* (*)(void*))mainfnSym.getAddress();
+  void *(*mainfn)(void *) = (void *(*)(void *))mainfnSym.getAddress();
 
-
-    llvm::errs() << "main:  " << __LINE__ << "\n";
-  void* result = mainfn(NULL);
+  llvm::errs() << "main:  " << __LINE__ << "\n";
+  void *result = mainfn(NULL);
   llvm::outs() << "add1(nullptr) = " << (size_t)result << "\n";
 
   return 0;
 
-  if(0) {
-      llvm::Function *mainfn = llvmModule->getFunction("main");
-      llvm::errs() << "mainfn: " << mainfn << "\n";
-      llvm::EngineBuilder EB(std::move(llvmModule));
-      assert(EB.selectTarget());
-      llvm::ExecutionEngine* EE = EB.create();
-      assert(EE && "unable to create execution engine!");
-      // Call the `foo' function with no arguments:
-      std::vector<llvm::GenericValue> noargs;
-      llvm::GenericValue gv;
+  if (0) {
+    llvm::Function *mainfn = llvmModule->getFunction("main");
+    llvm::errs() << "mainfn: " << mainfn << "\n";
+    llvm::EngineBuilder EB(std::move(llvmModule));
+    assert(EB.selectTarget());
+    llvm::ExecutionEngine *EE = EB.create();
+    assert(EE && "unable to create execution engine!");
+    // Call the `foo' function with no arguments:
+    std::vector<llvm::GenericValue> noargs;
+    llvm::GenericValue gv;
 
-      llvm::errs() << "===main:===\n";
-      void *mainaddr = EE->getPointerToGlobalIfAvailable("main");
-      //  void * mainaddr =  EE->getPointerToFunction(mainfn);
-      llvm::errs() << "Main address: " << mainaddr << "\n";
-      // GenericValue gv = EE->runFunction(FooF, noargs);
+    llvm::errs() << "===main:===\n";
+    void *mainaddr = EE->getPointerToGlobalIfAvailable("main");
+    //  void * mainaddr =  EE->getPointerToFunction(mainfn);
+    llvm::errs() << "Main address: " << mainaddr << "\n";
+    // GenericValue gv = EE->runFunction(FooF, noargs);
 
-      // Import result of execution:
-      llvm::outs() << "Result: " << gv.IntVal << "\n";
-      delete EE;
-      llvm::llvm_shutdown();
+    // Import result of execution:
+    llvm::outs() << "Result: " << gv.IntVal << "\n";
+    delete EE;
+    llvm::llvm_shutdown();
   }
 
   return 0;
