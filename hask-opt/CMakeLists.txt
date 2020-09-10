@@ -5,6 +5,9 @@ set(LLVM_LINK_COMPONENTS
   Support
   nativecodegen
   OrcJIT
+  ExecutionEngine
+  Interpreter
+  X86 #HACK?
   )
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
@@ -27,4 +30,5 @@ target_link_libraries(hask-opt PRIVATE
         MLIRTargetLLVMIR
         MLIRTransforms
         MLIRSupport)
+
 mlir_check_link_libraries(hask-opt)

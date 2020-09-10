@@ -125,7 +125,7 @@ public:
 
 };
 
-class LambdaOp : public Op<LambdaOp, OpTrait::OneResult> {
+class LambdaOp : public Op<LambdaOp, OpTrait::OneResult, OpTrait::OneRegion> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.lambdaSSA"; };

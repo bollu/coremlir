@@ -16,8 +16,10 @@
 #include "mlir/Support/MlirOptMain.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/ExecutionEngine/Orc/LLJIT.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/IR/IRBuilder.h"
 
 
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
@@ -46,8 +48,8 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
-#include "mlir/ExecutionEngine/ExecutionEngine.h"
-#include "mlir/ExecutionEngine/OptUtils.h"
+#include "llvm/ExecutionEngine/ExecutionEngine.h"
+#include "llvm/ExecutionEngine/GenericValue.h"
 
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
@@ -55,6 +57,7 @@ static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::init("-"));
 static llvm::cl::opt<bool> lowerToStandard("lower-std", llvm::cl::desc("Enable lowering to standard"));
 static llvm::cl::opt<bool> lowerToLLVM("lower-llvm", llvm::cl::desc("Enable lowering to LLVM"));
+static llvm::cl::opt<bool> jit("jit", llvm::cl::desc("Enable lowering to LLVM"));
 
 //0 static llvm::cl::opt<std::string>
 //0     outputFilename("o", llvm::cl::desc("Output filename"),
@@ -88,6 +91,49 @@ static llvm::cl::opt<bool> lowerToLLVM("lower-llvm", llvm::cl::desc("Enable lowe
 //0                  llvm::cl::init(false));
 //0 
 
+
+namespace Example {
+    using namespace llvm;
+    using namespace llvm::orc;
+    ExitOnError ExitOnErr;
+
+    ThreadSafeModule createDemoModule() {
+        auto Context = std::make_unique<LLVMContext>();
+        auto M = std::make_unique<Module>("test", *Context);
+
+        // Create the add1 function entry and insert this entry into module M.  The
+        // function will have a return type of "int" and take an argument of "int".
+        Function *Add1F =
+            Function::Create(FunctionType::get(Type::getInt32Ty(*Context),
+                        {Type::getInt32Ty(*Context)}, false),
+                    Function::ExternalLinkage, "add1", M.get());
+
+        // Add a basic block to the function. As before, it automatically inserts
+        // because of the last argument.
+        BasicBlock *BB = BasicBlock::Create(*Context, "EntryBlock", Add1F);
+
+        // Create a basic block builder with default parameters.  The builder will
+        // automatically append instructions to the basic block `BB'.
+        IRBuilder<> builder(BB);
+
+        // Get pointers to the constant `1'.
+        Value *One = builder.getInt32(1);
+
+        // Get pointers to the integer argument of the add1 function...
+        assert(Add1F->arg_begin() != Add1F->arg_end()); // Make sure there's an arg
+        Argument *ArgX = &*Add1F->arg_begin();          // Get the arg
+        ArgX->setName("AnArg"); // Give it a nice symbolic name for fun.
+
+        // Create the add instruction, inserting it into the end of BB.
+        Value *Add = builder.CreateAdd(One, ArgX);
+
+        // Create the return instruction and add it to the basic block
+        builder.CreateRet(Add);
+
+        return ThreadSafeModule(std::move(M), std::move(Context));
+    }
+
+}
 // code stolen from:
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
 int main(int argc, char **argv) {
@@ -189,9 +235,7 @@ int main(int argc, char **argv) {
       module->print(llvm::errs());
       llvm::errs() << "\n===\n";
     }
-
   }
-
 
   if (!lowerToLLVM) { module->print(llvm::outs()); return 0; }
   // Lowering code to MLIR-LLVM
@@ -214,17 +258,64 @@ int main(int argc, char **argv) {
   }
 
 
-  llvm::errs() << "===Printing MLIR-LLVM module to stdout...===\n";
-  module->print(llvm::outs()); llvm::outs().flush();
+  if (!jit) {
+      llvm::errs() << "===Printing MLIR-LLVM module to stdout...===\n";
+      module->print(llvm::outs()); llvm::outs().flush();
+      return 0;
+  }
 
 
   // Lower MLIR-LLVM all the way down to "real LLVM"
   // https://github.com/llvm/llvm-project/blob/670063eb220663b5a42fd4e9bd63f51d379c9aa0/mlir/examples/toy/Ch6/toyc.cpp#L193
-  llvm::LLVMContext llvmContext;
+  const bool nativeTargetInitialized = llvm::InitializeNativeTarget();
+  LLVMInitializeNativeAsmPrinter();
+  LLVMInitializeNativeAsmParser();
+  assert(nativeTargetInitialized == false);
+
+  auto llvmContext = std::make_unique<llvm::LLVMContext>();
   llvm::errs() << "===Lowering MLIR-LLVM module to LLVM===\n";
+
   std::unique_ptr<llvm::Module> llvmModule =
-      mlir::translateModuleToLLVMIR(*module, llvmContext);
+      mlir::translateModuleToLLVMIR(*module, *llvmContext);
   llvm::errs() << *llvmModule << "\n===\n";
+
+  llvm::errs() << "===Executing MLIR-LLVM in JIT===\n";
+  // Now we create the JIT.
+  auto J = Example::ExitOnErr(llvm::orc::LLJITBuilder().create());
+
+  Example::ExitOnErr(J->addIRModule(llvm::orc::ThreadSafeModule(std::move(llvmModule), std::move(llvmContext))));
+
+  // Look up the JIT'd function, cast it to a function pointer, then call it.
+  auto mainfnSym = Example::ExitOnErr(J->lookup("main"));
+  void* (*mainfn)(void*) = (void* (*)(void*))mainfnSym.getAddress();
+
+  void* result = mainfn(NULL);
+  llvm::outs() << "add1(nullptr) = " << (size_t)result << "\n";
+
+  return 0;
+
+  if(0) {
+      llvm::Function *mainfn = llvmModule->getFunction("main");
+      llvm::errs() << "mainfn: " << mainfn << "\n";
+      llvm::EngineBuilder EB(std::move(llvmModule));
+      assert(EB.selectTarget());
+      llvm::ExecutionEngine* EE = EB.create();
+      assert(EE && "unable to create execution engine!");
+      // Call the `foo' function with no arguments:
+      std::vector<llvm::GenericValue> noargs;
+      llvm::GenericValue gv;
+
+      llvm::errs() << "===main:===\n";
+      void *mainaddr = EE->getPointerToGlobalIfAvailable("main");
+      //  void * mainaddr =  EE->getPointerToFunction(mainfn);
+      llvm::errs() << "Main address: " << mainaddr << "\n";
+      // GenericValue gv = EE->runFunction(FooF, noargs);
+
+      // Import result of execution:
+      llvm::outs() << "Result: " << gv.IntVal << "\n";
+      delete EE;
+      llvm::llvm_shutdown();
+  }
 
   return 0;
 }

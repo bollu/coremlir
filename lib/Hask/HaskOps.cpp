@@ -840,6 +840,8 @@ void CaseOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 // === LOWERING ===
 // === LOWERING ===
 
+// TODO: fix this to use the TypeConverter machinery, not this hacky
+// stuff I wrote.
 Value transmuteToVoidPtr(Value v, ConversionPatternRewriter &rewriter, Location loc) {
     llvm::errs() << "v: " << v << " |ty: " << v.getType() << "\n";
     if(v.getType().isa<LLVM::LLVMType>()) {
@@ -1110,10 +1112,8 @@ public:
 
         llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
         LLVMType kparamty = haskToLLVMType(rewriter.getContext(), ap.getResult().getType());
-        llvm::errs() << "kparamty: " << kparamty << "\n";
 
         // Wow, in what order does the conversion happen? I have no idea.
-        llvm::errs() << "parentOp: " << *ap.getParentOp() << "\n";
         // LLVMFuncOp parent = ap.getParentOfType<LLVMFuncOp>();
         // assert(parent && "found lambda parent");
         // LLVMType kretty = parent.getType().cast<LLVMFunctionType>().getReturnType();
@@ -1294,14 +1294,19 @@ public:
     SmallVector<Value, 4> llvmFnArgs = {mallocSz};
 
 
-    mlir::LLVM::CallOp mallocMem = rewriter.create<mlir::LLVM::CallOp>(op->getLoc(),
+    // mlir::LLVM::CallOp mallocMem = rewriter.create<mlir::LLVM::CallOp>(op->getLoc(),
+    //                                     LLVMType::getInt8PtrTy(rewriter.getContext()),
+    //                                     malloc,
+    //                                     llvmFnArgs);
+
+    rewriter.replaceOpWithNewOp<mlir::LLVM::CallOp>(op,
                                         LLVMType::getInt8PtrTy(rewriter.getContext()),
                                         malloc,
                                         llvmFnArgs);
 
-    rewriter.replaceOpWithNewOp<mlir::LLVM::PtrToIntOp>(op,
-            LLVMType::getInt64Ty(rewriter.getContext()),
-            ValueRange((Value &)mallocMem));
+    // rewriter.replaceOpWithNewOp<mlir::LLVM::PtrToIntOp>(op,
+    //         LLVMType::getInt64Ty(rewriter.getContext()),
+    //         ValueRange((Value &)mallocMem));
 
     return success();
   }
