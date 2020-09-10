@@ -457,7 +457,6 @@ void MakeStringOp::print(OpAsmPrinter &p) {
 // === HASKFUNC OP ===
 
 ParseResult HaskFuncOp::parse(OpAsmParser &parser, OperationState &result) {
-    // TODO: how to parse an int32?
 
     StringAttr nameAttr;
     if (parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
@@ -1070,7 +1069,7 @@ public:
 };
 
 // Humongous hack: we run a sort of "type inference" algorithm, where at the
-// call-site, we convert from a !hask.untyped to a concrete (say, int32)
+// call-site, we convert from a !hask.untyped to a concrete (say, int64)
 // type. We bail with an error if we are unable to replace the type.
 void unifyOpTypeWithType(Value src, Type dstty) {
     if (src.getType() == dstty) { return; }
@@ -1251,20 +1250,20 @@ public:
 
 static FlatSymbolRefAttr getOrInsertMalloc(PatternRewriter &rewriter,
                                            ModuleOp module) {
-  if (module.lookupSymbol<LLVM::LLVMFuncOp>("malloc__")) {
-      return SymbolRefAttr::get("malloc__", rewriter.getContext());
+  if (module.lookupSymbol<LLVM::LLVMFuncOp>("malloc")) {
+      return SymbolRefAttr::get("malloc", rewriter.getContext());
   }
 
-  auto llvmI32Ty = LLVM::LLVMType::getInt32Ty(rewriter.getContext());
+  auto llvmI64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
   auto llvmI8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
-  auto llvmFnType = LLVM::LLVMType::getFunctionTy(llvmI8PtrTy, llvmI32Ty,
+  auto llvmFnType = LLVM::LLVMType::getFunctionTy(llvmI8PtrTy, llvmI64Ty,
                                                   /*isVarArg=*/false);
 
   // Insert the printf function into the body of the parent module.
   PatternRewriter::InsertionGuard insertGuard(rewriter);
   rewriter.setInsertionPointToStart(module.getBody());
-  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc__", llvmFnType);
-  return SymbolRefAttr::get("malloc__", rewriter.getContext());
+  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType);
+  return SymbolRefAttr::get("malloc", rewriter.getContext());
 }
 
 class HaskConstructOpConversionPattern: public ConversionPattern {
@@ -1288,7 +1287,7 @@ public:
     // allocate some huge amount because we can't be arsed to calculate the correct ammount.
     static const int HUGE = 4200;
     mlir::LLVM::ConstantOp mallocSz = rewriter.create<mlir::LLVM::ConstantOp>(op->getLoc(),
-                                            LLVMType::getInt32Ty(rewriter.getContext()),
+                                            LLVMType::getInt64Ty(rewriter.getContext()),
                                             rewriter.getI32IntegerAttr(HUGE));
 
     SmallVector<Value, 4> llvmFnArgs = {mallocSz};
