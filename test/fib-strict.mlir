@@ -9,14 +9,13 @@ module {
     %lambda = hask.lambdaSSA(%i: !hask.value) {
       %retval = hask.caseSSA  %i
       ["default" -> { ^entry: // todo: remove this defult
-        %fib_rec = hask.ref (@fibstrict):!hask.fn<!hask.value, !hask.thunk>
+        %fib_rec = hask.ref (@fibstrict):!hask.fn<!hask.value, !hask.value>
         %minus_hash = hask.ref (@"-#"): !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>
         %lit_one = hask.make_i64(1)
         %i_minus_one_t = hask.apSSA(%minus_hash: !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>, %i, %lit_one)
         %i_minus_one = hask.force(%i_minus_one_t)
 
-        %fib_i_minus_one_t = hask.apSSA(%fib_rec: !hask.fn<!hask.value, !hask.thunk>, %i_minus_one)
-        %fib_i_minus_one = hask.force(%fib_i_minus_one_t)
+        %fib_i_minus_one_t = hask.apSSA(%fib_rec: !hask.fn<!hask.value, !hask.value>, %i_minus_one)
 
         %fib_i_t = hask.apSSA(%fib_rec: !hask.fn<!hask.value, !hask.thunk>, %i)
         %fib_i = hask.force(%fib_i_t)

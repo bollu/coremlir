@@ -410,10 +410,16 @@ void HaskRefOp::print(OpAsmPrinter &p) {
 LogicalResult HaskRefOp::verify() {
     ModuleOp mod = this->getOperation()->getParentOfType<mlir::ModuleOp>();
     HaskFuncOp fn = mod.lookupSymbol<HaskFuncOp>(this->getRef());
+    if (!fn) {
+        llvm::errs() << "ERROR at HaskRefOpVerification:" <<
+        "\n-unable to find referenced function |" << this->getRef() << "\n";
+        // TODO: forward declare stuff like +#
+        return failure();
+    }
     LambdaOp lam = fn.getLambda();
     // how do I attach an error message?
     if (lam.getType() != this->getResult().getType()) {
-        llvm::errs() << "mismatch of types at ref.\n-Found from function" <<
+        llvm::errs() << "ERROR at HaskRefOp type verification:\n-mismatch of types at ref.\n-Found from function" <<
             " " << fn.getLoc() << " " << "name:" << this->getRef() << " [" << lam.getType() << "]\n"
             "-Declared at ref as [" << this->getLoc() << " " <<  *this << "]\n";
         return failure();
@@ -484,6 +490,7 @@ llvm::StringRef HaskFuncOp::getFuncName() {
 
 
 LambdaOp HaskFuncOp::getLambda() {
+    assert(this->getOperation()->getNumRegions() == 1  && "func needs exactly one region");
     Region &region = this->getRegion();
     // TODO: put this in a `verify` block.
     assert(region.getBlocks().size() == 1 && "func has more than one BB");

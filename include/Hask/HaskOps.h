@@ -103,8 +103,10 @@ public:
   void print(OpAsmPrinter &p);
   static void getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context);
-
 };
+
+
+
 
 class CaseOp : public Op<CaseOp, OpTrait::OneResult> {
 public:
@@ -156,7 +158,7 @@ public:
 class HaskFuncOp : public Op<HaskFuncOp,
                 OpTrait::ZeroOperands,
                 OpTrait::ZeroResult,
-                OpTrait::OneRegion, // OpTrait::IsIsolatedFromAbove,
+                OpTrait::OneRegion,
                 // OpTrait::AffineScope,
                 // CallableOpInterface::Trait,
                 SymbolOpInterface::Trait> {
