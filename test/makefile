@@ -34,6 +34,8 @@ fibstrict:
 	../build/bin/hask-opt ./fib-strict.mlir
 	../build/bin/hask-opt ./fib-strict.mlir > fib-strict-roundtrip.mlir
 	../build/bin/hask-opt ./fib-strict-roundtrip.mlir
+	../build/bin/hask-opt ./fib-strict.mlir -lower-std -lower-llvm
+	../build/bin/hask-opt ./fib-strict.mlir -lower-std -lower-llvm -jit
 
 
 playground: 

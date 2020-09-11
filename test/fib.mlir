@@ -10,10 +10,10 @@ module {
   // plus i j = case i of MkSimpleInt ival -> case j of MkSimpleInt jval -> MkSimpleInt (ival +# jval)
   hask.func @plus {
     %lam = hask.lambdaSSA(%i : !hask.thunk, %j: !hask.thunk) {
-      %icons = hask.force(%i)
+      %icons = hask.force(%i: !hask.thunk): !hask.value
       %reti = hask.caseSSA %icons 
            [@SimpleInt -> { ^entry(%ival: !hask.value):
-              %jcons = hask.force(%j)
+              %jcons = hask.force(%j: !hask.thunk):!hask.value
               %retj = hask.caseSSA %jcons 
                   [@SimpleInt -> { ^entry(%jval: !hask.value):
                         // %plus_hash = hask.ref (@"+#")  : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>
@@ -33,10 +33,10 @@ module {
   // minus i j = case i of MkSimpleInt ival -> case j of MkSimpleInt jval -> MkSimpleInt (ival -# jval)
   hask.func @minus {
     %lam = hask.lambdaSSA(%i : !hask.thunk, %j: !hask.thunk) {
-      %icons = hask.force(%i)
+      %icons = hask.force(%i:!hask.thunk):!hask.value
       %reti = hask.caseSSA %icons 
            [@SimpleInt -> { ^entry(%ival: !hask.value):
-              %jcons = hask.force(%j)
+              %jcons = hask.force(%j:!hask.thunk):!hask.value
               %retj = hask.caseSSA %jcons 
                   [@SimpleInt -> { ^entry(%jval: !hask.value):
                         // %minus_hash = hask.ref (@"-#")  : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>
@@ -72,6 +72,13 @@ module {
   }
 
 
+  hask.global @two {
+      %lit_two = hask.make_i64(2)
+      %boxed = hask.construct(@MkSimpleInt, %lit_two)
+      hask.return(%boxed): !hask.thunk
+  }
+
+
   // fib :: SimpleInt -> SimpleInt
   // fib i = 
   //     case i of
@@ -82,7 +89,7 @@ module {
   //               _ -> plus (fib i) (fib (minus i one))
   hask.func @fib {
     %lam = hask.lambdaSSA(%i: !hask.thunk) {
-        %icons = hask.force(%i)
+        %icons = hask.force(%i:!hask.thunk):!hask.value
         %ret = hask.caseSSA %icons
                [@MkSimpleInt -> { ^entry(%ihash: !hask.value):
                      %ret = hask.caseint %ihash 
@@ -101,7 +108,7 @@ module {
                                      %one_ref = hask.ref(@one): !hask.thunk
                                      %i_minus_one = hask.apSSA(%minus_ref: !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, 
                                         %i, %one_ref)
-                                     %fib_i_minus_one = hask.apSSA(%fib_ref: !hask.fn<!hask.thunk, !hask.thunk>, %i_minus_one)
+                                     %fib_i_minus_one = hask.apSSA(%fib_ref: !hask.fn<!hask.thunk, !hask.thunk>, %i_minus_one_val)
                                      %plus_ref = hask.ref(@plus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
                                      %fib_i_plus_fib_i_minus_one = 
                                         hask.apSSA(%plus_ref: !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, 
