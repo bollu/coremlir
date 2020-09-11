@@ -1030,7 +1030,7 @@ Value transmuteToInt(Value v, ConversionPatternRewriter &rewriter, Location loc)
       assert(v.getType().isa<HaskFnType>() || v.getType().isa<ValueType>() ||
              v.getType().isa<ThunkType>());
       // this maybe completely borked x(
-      return v;
+      return rewriter.create<LLVM::PtrToIntOp>(loc, LLVM::LLVMType::getInt64Ty(rewriter.getContext()), v);
     }
 }
 
@@ -1717,9 +1717,13 @@ public:
         Value scrutinee = caseop.getScrutinee();
 
         rewriter.setInsertionPoint(caseop);
+        Value scrutineeInt = rewriter.create<LLVM::PtrToIntOp>(
+            caseop.getLoc(), LLVM::LLVMType::getInt64Ty(rewriter.getContext()), scrutinee);
+
         // TODO: get block of current caseop?
-         Block *prevBB = rewriter.getInsertionBlock();
         for(int i = 0; i < caseop.getNumAlts(); ++i) {
+          Block *prevBB = rewriter.getInsertionBlock();
+
             if (default_ix && i == *default_ix) { continue; }
             // Type result, IntegerAttr predicate, Value lhs, Value rhs
             auto I64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
@@ -1728,7 +1732,6 @@ public:
                 rewriter.create<LLVM::ConstantOp>(caseop.getLoc(), I64Ty,
                                                   *caseop.getAltLHS(i));
 
-            Value scrutineeInt = transmuteToInt(scrutinee, rewriter, caseop.getLoc());
             Value scrut_eq_alt =
                 rewriter.create<LLVM::ICmpOp>(caseop.getLoc(),
                 LLVM::ICmpPredicate::eq, scrutineeInt, altLhsInt);
@@ -1745,26 +1748,25 @@ public:
             */
 
 
-            SmallVector<Type, 1> BBArgs = { rewriter.getI64Type()};
+            SmallVector<Type, 1> BBArgs = { I64Ty };
             Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
-                                                 I8PtrTy);
+                                                 I64Ty);
 
             rewriter.setInsertionPointToEnd(thenBB);
-
-            Region &caseRHS = caseop.getAltRHS(i);
-            rewriter.inlineRegionBefore(caseRHS, thenBB);
+            Block &altRhs = caseop.getAltRHS(i).getBlocks().front();
+            rewriter.mergeBlocks(&altRhs, thenBB, scrutineeInt);
 
             Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
                                                  I64Ty);
 
             rewriter.setInsertionPointToEnd(elseBB);
 
-
+            rewriter.setInsertionPointToEnd(prevBB);
             rewriter.create<LLVM::CondBrOp>(rewriter.getUnknownLoc(),
                                                 scrut_eq_alt,
-                                                thenBB, scrutinee,
-                                                elseBB, scrutinee);
-            rewriter.setInsertionPointToEnd(prevBB);
+                                                thenBB, scrutineeInt,
+                                                elseBB, scrutineeInt);
+
             llvm::errs() << "---op---\n";
             llvm::errs() << *thenBB->getParentOp();
             llvm::errs() << "---^^---\n";
@@ -1775,9 +1777,9 @@ public:
 
         // we have a default block
         if (default_ix) {
-            // default block should have ha no parameters!
+            // default block should have have no parameters?
             rewriter.mergeBlocks(&caseop.getAltRHS(*default_ix).front(),
-                                 rewriter.getInsertionBlock(), {});
+                                 rewriter.getInsertionBlock(), scrutineeInt);
         } else {
             rewriter.create<mlir::LLVM::UnreachableOp>(rewriter.getUnknownLoc());
         }

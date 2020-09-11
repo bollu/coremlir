@@ -2,31 +2,33 @@
 module {
 
   hask.func @prec {
-    %lam = hask.lambdaSSA(%i: !hask.value) {
+    %lam = hask.lambdaSSA(%ihash: !hask.value) {
+     // do we know that %ihash is an int here?
      %ret = hask.caseint %ihash 
-     [0 -> { ^entry(%_: !hask.value): 
-                hask.return (%i): !hask.value      
+     [0 -> { ^entry(%ival: !hask.value): 
+                hask.return (%ival): !hask.value      
      }]
-     [@default -> { ^entry:
+     [@default -> { ^entry(%ival: !hask.value): // ... or here?
                      %lit_one = hask.make_i64(1)
-                     %pred = hask.primop_sub(%ihash, %lit_one)
-                     hask.return(%pred):!hask.value
+                     %pred = hask.primop_sub(%ival, %lit_one)
+                     hask.return(%pred): !hask.value
 
      }]
+     hask.return (%ret) : !hask.value
+    }
     hask.return (%lam): !hask.fn<!hask.value, !hask.value>
+  }
 
   hask.func @main {
     %lambda = hask.lambdaSSA(%_: !hask.thunk) {
       %lit_42 = hask.make_i64(42)
-      %x = hask.construct(@X, %lit_42)
       %prec = hask.ref(@prec)  : !hask.fn<!hask.value, !hask.value>
-      %out_t = hask.apSSA(%prec : !hask.fn<!hask.value, !hask.value>, %lit_42)
-      %out_v = hask.force(%out_t)
-
-      %x = hask.construct(@X, %out_v)
-      hask.return(%x) : !hask.value
+      %out_v = hask.apSSA(%prec : !hask.fn<!hask.value, !hask.value>, %lit_42)
+      %out_v_forced = hask.force(%out_v : !hask.value): !hask.value
+      %x = hask.construct(@X, %out_v_forced)
+      hask.return(%x) : !hask.thunk
     }
-    hask.return(%lambda) :!hask.fn<!hask.thunk, !hask.value>
+    hask.return(%lambda) :!hask.fn<!hask.thunk, !hask.thunk>
   }
     
 }
