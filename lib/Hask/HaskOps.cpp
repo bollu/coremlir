@@ -1012,6 +1012,28 @@ Value transmuteToVoidPtr(Value v, ConversionPatternRewriter &rewriter, Location 
 
 }
 
+Value transmuteToInt(Value v, ConversionPatternRewriter &rewriter, Location loc) {
+    llvm::errs() << "v: " << v << " |ty: " << v.getType() << "\n";
+    if(v.getType().isa<LLVM::LLVMType>()) {
+        LLVM::LLVMType vty = v.getType().cast<LLVM::LLVMType>();
+        if (vty.isPointerTy()) {
+            return rewriter.create<LLVM::PtrToIntOp>(loc,
+                                                    LLVM::LLVMType::getInt64Ty(rewriter.getContext()),
+                                                    v);
+        } else if (vty.isIntegerTy()) {
+            return v;
+        } else {
+            assert(false && "unable to transmute LLVM type into int");
+        }
+    }
+  else {
+      assert(v.getType().isa<HaskFnType>() || v.getType().isa<ValueType>() ||
+             v.getType().isa<ThunkType>());
+      // this maybe completely borked x(
+      return v;
+    }
+}
+
 // Value transmuteFromVoidPtr(Value v, LLVM::LLVMType desired,  ConversionPatternRewriter &rewriter) {
 //     assert(vty.isPointerTy());
 //     LLVM::LLVMType vty = v.getType().cast<LLVM::LLVMType>();
@@ -1044,7 +1066,8 @@ mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
 
     llvm::errs() << __FUNCTION__ << "(" << t << ")\n";
     if (t.isa<ValueType>() || t.isa<ThunkType>()) {
-        return LLVMType::getInt64Ty(context);
+        // return LLVMType::getInt64Ty(context);
+        return LLVMType::getInt8PtrTy(context);
     } else if (auto fnty = t.dyn_cast<HaskFnType>()) {
         Type retty;
         std::vector<Type> argTys;
@@ -1054,7 +1077,10 @@ mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
         // (a -> a) -> a
         // should become (int -> int) -> int
         std::vector<LLVMType> llvmArgTys;
-        for(Type arg : argTys) { llvmArgTys.push_back(haskToLLVMType(context, arg)); }
+        for(Type arg : argTys) {
+          llvmArgTys.push_back(LLVMType::getInt8PtrTy(context));
+          // llvmArgTys.push_back(haskToLLVMType(context, arg));
+        }
         return LLVMType::getFunctionTy(haskToLLVMType(context, retty),
                                        llvmArgTys, /*isVaridic=*/false);
     } else {
@@ -1083,13 +1109,16 @@ public:
     LambdaOp lam = fn.getLambda();
 
     SmallVector<LLVM::LLVMType, 4> fnArgTys;
+    auto I8PtrTy = LLVMType::getInt8PtrTy(rewriter.getContext());
     for(int i = 0; i < lam.getNumInputs(); ++i) {
-        fnArgTys.push_back(LLVMType::getInt64Ty(rewriter.getContext()));
+        // fnArgTys.push_back(LLVMType::getInt64Ty(rewriter.getContext()));
+        fnArgTys.push_back(I8PtrTy);
+
     }
 
     LLVMFuncOp llvmfn = rewriter.create<LLVMFuncOp>(fn.getLoc(), 
             fn.getFuncName().str(),
-            LLVMFunctionType::get(LLVMType::getInt64Ty(rewriter.getContext()), fnArgTys));
+            LLVMFunctionType::get(I8PtrTy, fnArgTys));
 
 
 
@@ -1693,17 +1722,16 @@ public:
         for(int i = 0; i < caseop.getNumAlts(); ++i) {
             if (default_ix && i == *default_ix) { continue; }
             // Type result, IntegerAttr predicate, Value lhs, Value rhs
-            FlatSymbolRefAttr is_int_eq = getOrInsertIsIntEq(rewriter, mod);
             auto I64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
-            LLVM::ConstantOp altLhsValue =
+
+            LLVM::ConstantOp altLhsInt =
                 rewriter.create<LLVM::ConstantOp>(caseop.getLoc(), I64Ty,
                                                   *caseop.getAltLHS(i));
-            LLVM::PtrToIntOp scrutineeValue =
-                rewriter.create<LLVM::PtrToIntOp>(caseop.getLoc(), I64Ty, scrutinee);
 
+            Value scrutineeInt = transmuteToInt(scrutinee, rewriter, caseop.getLoc());
             Value scrut_eq_alt =
                 rewriter.create<LLVM::ICmpOp>(caseop.getLoc(),
-                LLVM::ICmpPredicate::eq, scrutineeValue, altLhsValue);
+                LLVM::ICmpPredicate::eq, scrutineeInt, altLhsInt);
 
           auto I8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
 
@@ -1722,11 +1750,12 @@ public:
                                                  I8PtrTy);
 
             rewriter.setInsertionPointToEnd(thenBB);
+
             Region &caseRHS = caseop.getAltRHS(i);
             rewriter.inlineRegionBefore(caseRHS, thenBB);
 
             Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
-                                                 I8PtrTy);
+                                                 I64Ty);
 
             rewriter.setInsertionPointToEnd(elseBB);
 
