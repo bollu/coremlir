@@ -209,6 +209,12 @@ public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.global"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
+  Type getType() { 
+      Region &r = getRegion(); 
+      HaskReturnOp ret = dyn_cast<HaskReturnOp>(r.getBlocks().front().getTerminator());
+      assert(ret && "global does not have a return value");
+      return ret.getType();
+  }
   llvm::StringRef getGlobalName();
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
@@ -230,6 +236,25 @@ public:
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
+
+class HaskPrimopAddOp : public Op<HaskPrimopAddOp,
+    OpTrait::OneResult, OpTrait::NOperands<2>::Impl> {
+public:
+    using Op::Op;
+    static StringRef getOperationName() { return "hask.primop_add"; };
+    static ParseResult parse(OpAsmParser &parser, OperationState &result);
+    void print(OpAsmPrinter &p);
+};
+
+class HaskPrimopSubOp : public Op<HaskPrimopSubOp,
+    OpTrait::OneResult, OpTrait::NOperands<2>::Impl> {
+public:
+    using Op::Op;
+    static StringRef getOperationName() { return "hask.primop_sub"; };
+    static ParseResult parse(OpAsmParser &parser, OperationState &result);
+    void print(OpAsmPrinter &p);
+};
+
 
 
 

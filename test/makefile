@@ -2,6 +2,14 @@
 # pipelines which involve tee and allow such pipelines to fail.
 .PHONY: fib fibstrict playground
 
+fib: 
+	make -C ~/work/mlir/coremlir/build
+	../build/bin/hask-opt ./fib.mlir 
+	../build/bin/hask-opt ./fib.mlir > fib-roundtrip.mlir
+	../build/bin/hask-opt ./fib-roundtrip.mlir
+	../build/bin/hask-opt ./fib-roundtrip.mlir -lower-std -lower-llvm
+	../build/bin/hask-opt ./fib-roundtrip.mlir -lower-std -lower-llvm -jit
+
 k-lazy: 
 	make -C ~/work/mlir/coremlir/build
 	../build/bin/hask-opt ./k-lazy.mlir
@@ -10,11 +18,6 @@ k-lazy:
 	../build/bin/hask-opt ./k-lazy.mlir -lower-std -lower-llvm
 	../build/bin/hask-opt ./k-lazy.mlir -lower-std -lower-llvm -jit
 
-fib: 
-	make -C ~/work/mlir/coremlir/build
-	../build/bin/hask-opt ./fib.mlir 
-	../build/bin/hask-opt ./fib.mlir > fib-roundtrip.mlir
-	../build/bin/hask-opt ./fib-roundtrip.mlir
 
 fibstrict: 
 	-rm fib-strict-roundtrip.mlir

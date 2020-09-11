@@ -10,11 +10,9 @@ module {
         %3 = hask.force(%arg1)
         %4 = hask.caseSSA %3 [@SimpleInt ->  {
         ^bb0(%arg3: !hask.value):  // no predecessors
-          %5 = hask.ref(@"+#") : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>
-          %6 = hask.apSSA(%5 :!hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>, %arg2, %arg3)
-          %7 = hask.force(%6)
-          %8 = hask.construct(@MkSimpleInt, %7)
-          hask.return(%8) : !hask.thunk
+          %5 = hask.primop_add(%arg2,%arg3)
+          %6 = hask.construct(@MkSimpleInt, %5)
+          hask.return(%6) : !hask.thunk
         }]
 
         hask.return(%4) : !hask.thunk
@@ -32,11 +30,9 @@ module {
         %3 = hask.force(%arg1)
         %4 = hask.caseSSA %3 [@SimpleInt ->  {
         ^bb0(%arg3: !hask.value):  // no predecessors
-          %5 = hask.ref(@"-#") : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>
-          %6 = hask.apSSA(%5 :!hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>, %arg2, %arg3)
-          %7 = hask.force(%6)
-          %8 = hask.construct(@MkSimpleInt, %7)
-          hask.return(%8) : !hask.thunk
+          %5 = hask.primop_sub(%arg2,%arg3)
+          %6 = hask.construct(@MkSimpleInt, %5)
+          hask.return(%6) : !hask.thunk
         }]
 
         hask.return(%4) : !hask.thunk

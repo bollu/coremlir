@@ -410,21 +410,32 @@ void HaskRefOp::print(OpAsmPrinter &p) {
 LogicalResult HaskRefOp::verify() {
     ModuleOp mod = this->getOperation()->getParentOfType<mlir::ModuleOp>();
     HaskFuncOp fn = mod.lookupSymbol<HaskFuncOp>(this->getRef());
-    if (!fn) {
-        llvm::errs() << "ERROR at HaskRefOpVerification:" <<
-        "\n-unable to find referenced function |" << this->getRef() << "\n";
-        // TODO: forward declare stuff like +#
-        return failure();
-    }
-    LambdaOp lam = fn.getLambda();
-    // how do I attach an error message?
-    if (lam.getType() != this->getResult().getType()) {
-        llvm::errs() << "ERROR at HaskRefOp type verification:\n-mismatch of types at ref.\n-Found from function" <<
+    HaskGlobalOp global = mod.lookupSymbol<HaskGlobalOp>(this->getRef());
+    if (fn) {
+        LambdaOp lam = fn.getLambda();
+        // how do I attach an error message?
+        if (lam.getType() == this->getResult().getType()) { return success(); }
+        llvm::errs() << "ERROR at HaskRefOp type verification:"  <<
+            "\n-mismatch of types at ref."
+            << "\n-Found from function" <<
             " " << fn.getLoc() << " " << "name:" << this->getRef() << " [" << lam.getType() << "]\n"
             "-Declared at ref as [" << this->getLoc() << " " <<  *this << "]\n";
         return failure();
+    } else if(global) {
+        if (global.getType() == this->getResult().getType()) { return success(); }
+        llvm::errs() << "ERROR at HaskRefOp type verification:" <<
+            "\n-mismatch of types at ref." <<
+            "\n-Found from global" <<
+            " " << fn.getLoc() << " " << "name:" << this->getRef() << 
+            " [" << global.getType() << "]\n"
+            "-Declared at ref as [" << this->getLoc() << " " <<  *this << "]\n";
+        return failure();
+    } else {
+        llvm::errs() << "ERROR at HaskRefOpVerification:" <<
+        "\n-unable to find referenced function/global |" << this->getRef() << "|\n";
+        // TODO: forward declare stuff like +#
+        return failure();
     }
-    return success();
 }
 
 
@@ -594,13 +605,11 @@ void HaskGlobalOp::print(OpAsmPrinter &p) {
             /*printBlockTerminators=*/true);
 };
 
-// === MK-CONSTRUCTOR OP ===
-// === MK-CONSTRUCTOR OP ===
-// === MK-CONSTRUCTOR OP ===
-// === MK-CONSTRUCTOR OP ===
-// === MK-CONSTRUCTOR OP ===
-
-
+// === CONSTRUCT OP ===
+// === CONSTRUCT OP ===
+// === CONSTRUCT OP ===
+// === CONSTRUCT OP ===
+// === CONSTRUCT OP ===
 
 // do I even need this? I'm not sure. Don't think so?
 ParseResult HaskConstructOp::parse(OpAsmParser &parser, OperationState &result) {
@@ -650,6 +659,56 @@ void HaskConstructOp::print(OpAsmPrinter &p) {
     }
     p << ")";
 }
+
+// === PRIMOP ADD OP ===
+// === PRIMOP ADD OP ===
+// === PRIMOP ADD OP ===
+// === PRIMOP ADD OP ===
+// === PRIMOP ADD OP ===
+
+
+ParseResult HaskPrimopAddOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType lhs, rhs;
+    if (parser.parseLParen() ||
+    parser.parseOperand(lhs) ||
+    parser.parseComma() ||
+    parser.parseOperand(rhs) ||
+    parser.parseRParen()) { return failure(); }
+    parser.resolveOperand(lhs, parser.getBuilder().getType<ValueType>(), result.operands);
+    parser.resolveOperand(rhs, parser.getBuilder().getType<ValueType>(), result.operands);
+    result.addTypes(parser.getBuilder().getType<ValueType>());
+    return success();
+};
+
+void HaskPrimopAddOp::print(OpAsmPrinter &p) {
+    p << this->getOperation()->getName() << "(" <<
+        this->getOperand(0) << "," << this->getOperand(1) <<  ")";
+};
+
+// === PRIMOP SUB OP ===
+// === PRIMOP SUB OP ===
+// === PRIMOP SUB OP ===
+// === PRIMOP SUB OP ===
+// === PRIMOP SUB OP ===
+
+
+ParseResult HaskPrimopSubOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType lhs, rhs;
+    if (parser.parseLParen() ||
+    parser.parseOperand(lhs) ||
+    parser.parseComma() ||
+    parser.parseOperand(rhs) ||
+    parser.parseRParen()) { return failure(); }
+    parser.resolveOperand(lhs, parser.getBuilder().getType<ValueType>(), result.operands);
+    parser.resolveOperand(rhs, parser.getBuilder().getType<ValueType>(), result.operands);
+    result.addTypes(parser.getBuilder().getType<ValueType>());
+    return success();
+};
+
+void HaskPrimopSubOp::print(OpAsmPrinter &p) {
+    p << this->getOperation()->getName() << "(" <<
+        this->getOperand(0) << "," << this->getOperand(1) <<  ")";
+};
 
 
 // ==REWRITES==

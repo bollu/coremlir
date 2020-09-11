@@ -16,9 +16,9 @@ module {
               %jcons = hask.force(%j)
               %retj = hask.caseSSA %jcons 
                   [@SimpleInt -> { ^entry(%jval: !hask.value):
-                        %plus_hash = hask.ref (@"+#")  : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>
-                        %sum_t = hask.apSSA(%plus_hash : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>, %ival, %jval)
-                        %sum_v = hask.force(%sum_t)
+                        // %plus_hash = hask.ref (@"+#")  : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>
+                        // %sum_t = hask.apSSA(%plus_hash : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>, %ival, %jval)
+                        %sum_v = hask.primop_add(%ival, %jval)
                         %boxed = hask.construct(@MkSimpleInt, %sum_v)
                         hask.return(%boxed) :!hask.thunk
                   }]
@@ -39,9 +39,10 @@ module {
               %jcons = hask.force(%j)
               %retj = hask.caseSSA %jcons 
                   [@SimpleInt -> { ^entry(%jval: !hask.value):
-                        %minus_hash = hask.ref (@"-#")  : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>
-                        %diff_t = hask.apSSA(%minus_hash : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>, %ival, %jval)
-                        %diff_v = hask.force(%diff_t)
+                        // %minus_hash = hask.ref (@"-#")  : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>
+                        // %diff_t = hask.apSSA(%minus_hash : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>, %ival, %jval)
+                        // %diff_v = hask.force(%diff_t)
+                        %diff_v = hask.primop_sub(%ival, %jval)
                         %boxed = hask.construct(@MkSimpleInt, %diff_v)
                         hask.return(%boxed) :!hask.thunk
                   }]
