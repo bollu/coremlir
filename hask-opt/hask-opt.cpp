@@ -91,23 +91,80 @@ static llvm::cl::opt<bool> jit("jit",
 // 0
 
 extern "C" {
-void *__attribute__((used))
-mkClosure_capture0_args2(void *fn, void *a, void *b) {
-  void **data = (void **)malloc(sizeof(void *) * 2);
-  data[0] = a;
-  data[1] = b;
-  return data;
+
+static const int MAX_CLOSURE_ARGS = 10;
+struct Closure {
+    int n;
+    void *fn;
+    void *args[MAX_CLOSURE_ARGS];
+};
+
+void * __attribute__((used)) mkClosure_capture0_args2(void *fn, void *a, void *b) {
+  Closure *data = (Closure *)malloc(sizeof(Closure));
+  data->n = 2;
+  data->fn = fn;
+  data->args[0] = a;
+  data->args[1] = b;
+  return (void *)data;
 }
 
 void *__attribute__((used)) mkClosure_capture0_args1(void *fn, void *a) {
-  void **data = (void **)malloc(sizeof(void *) * 1);
-  data[0] = a;
-  return data;
+  Closure *data = (Closure *)malloc(sizeof(Closure));
+  data->n = 1;
+  data->fn = fn;
+  data->args[0] = a;
+  return (void *)data;
 }
-void *__attribute__((used)) evalClosure(void *closure){
 
+typedef void *(*FnZeroArgs)();
+typedef void *(*FnOneArg)(void*);
+typedef void *(*FnTwoArgs)(void*, void *);
+
+void *__attribute__((used)) evalClosure(void *closure_voidptr) {
+    Closure *c = (Closure*)closure_voidptr;
+    assert(c->n >= 0 && c->n <= 3);
+    if (c->n == 0) {
+        FnZeroArgs f = (FnZeroArgs)(c->fn);
+        return f();
+    } else if (c->n == 1) {
+        FnOneArg  f = (FnOneArg)(c->fn);
+        return f(c->args[0]);
+    } else if (c->n == 2) {
+        FnTwoArgs f = (FnTwoArgs)(c->fn);
+        return f(c->args[0], c->args[1]);
+    }
+    assert(false && "unhandled function arity");
 };
 
+static const int MAX_CONSTRUCTOR_ARGS = 2;
+struct Constructor {
+    const char *tag; // inefficient!
+    int n;
+    void *args[MAX_CONSTRUCTOR_ARGS];
+};
+
+void *__attribute__((used)) mkConstructor0(const char *tag) {
+    Constructor *c = (Constructor *)malloc(sizeof(Constructor));
+    c->n = 0;
+    c->tag = tag;
+    return c;
+};
+
+void *__attribute__((used)) mkConstructor1(const char *tag, void *a) {
+    Constructor *c = (Constructor *)malloc(sizeof(Constructor));
+    c->tag = tag;
+    c->n = 1;
+    c->args[0] = a;
+    return c;
+};
+
+void *__attribute__((used)) mkConstructor2(const char *tag, void *a, void *b) {
+    Constructor *c = (Constructor *)malloc(sizeof(Constructor));
+    c->tag = tag;
+    c->n = 2;
+    c->args[0] = a; c->args[1] = b;
+    return c;
+};
 } // end extern C
 
 namespace Example {
@@ -347,6 +404,23 @@ int main(int argc, char **argv) {
       {Mangle("evalClosure"),
        llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&evalClosure),
                                 llvm::JITSymbolFlags::Callable)});
+
+      name2symbol.insert(
+      {Mangle("mkConstructor0"),
+       llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&mkConstructor0),
+                                llvm::JITSymbolFlags::Callable)});
+
+
+    name2symbol.insert(
+      {Mangle("mkConstructor1"),
+       llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&mkConstructor1),
+                                llvm::JITSymbolFlags::Callable)});
+    name2symbol.insert(
+      {Mangle("mkConstructor2"),
+       llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&mkConstructor2),
+                                llvm::JITSymbolFlags::Callable)});
+
+
   llvm::errs() << "main:  " << __LINE__ << "\n";
   Example::ExitOnErr(JD->define(llvm::orc::absoluteSymbols(name2symbol)));
   //  llvm::orc::absoluteSymbols({
@@ -368,8 +442,8 @@ int main(int argc, char **argv) {
 
   llvm::errs() << "main:  " << __LINE__ << "\n";
   void *result = mainfn(NULL);
-  llvm::outs() << "add1(nullptr) = " << (size_t)result << "\n";
-
+  llvm::outs() << "(void*)add1(nullptr) = " << (size_t)result << "\n";
+  llvm::outs() << "(Constructor 1*)add1(nullptr) = " << (size_t)(((Constructor*)result)->args[0]) << "\n";
   return 0;
 
   if (0) {

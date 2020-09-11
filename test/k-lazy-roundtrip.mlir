@@ -19,13 +19,14 @@ module {
   hask.adt @X [#hask.data_constructor<@MkX []>]
   hask.func @main {
     %0 = hask.lambdaSSA(%arg0:!hask.thunk) {
-      %1 = hask.construct(@X)
-      %2 = hask.ref(@k) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
-      %3 = hask.ref(@loop) : !hask.fn<!hask.thunk, !hask.thunk>
-      %4 = hask.apSSA(%3 :!hask.fn<!hask.thunk, !hask.thunk>, %1)
-      %5 = hask.apSSA(%2 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %1, %4)
-      %6 = hask.force(%5)
-      hask.return(%6) : !hask.value
+      %1 = hask.make_i64(42 : i64)
+      %2 = hask.construct(@X, %1)
+      %3 = hask.ref(@k) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
+      %4 = hask.ref(@loop) : !hask.fn<!hask.thunk, !hask.thunk>
+      %5 = hask.apSSA(%4 :!hask.fn<!hask.thunk, !hask.thunk>, %2)
+      %6 = hask.apSSA(%3 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %2, %5)
+      %7 = hask.force(%6)
+      hask.return(%7) : !hask.value
     }
     hask.return(%0) : !hask.fn<!hask.thunk, !hask.value>
   }

@@ -1162,7 +1162,11 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     llvm::errs() << "running MakeI64OpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
     MakeI64Op makei64 = cast<MakeI64Op>(op);
-    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op,rewriter.getI64Type(), makei64.getValue());
+    auto I64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
+    Value v = rewriter.create<mlir::LLVM::ConstantOp>(makei64.getLoc(), I64Ty, makei64.getValue());
+    auto I8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+    rewriter.replaceOpWithNewOp<LLVM::IntToPtrOp>(makei64, I8PtrTy, v);
+//    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op,rewriter.getI64Type(), makei64.getValue());
     return success();
   }
 };
@@ -1266,6 +1270,55 @@ static FlatSymbolRefAttr getOrInsertMalloc(PatternRewriter &rewriter,
   return SymbolRefAttr::get("malloc", rewriter.getContext());
 }
 
+static FlatSymbolRefAttr getOrInsertMkConstructor(PatternRewriter &rewriter,
+                                           ModuleOp module, int n) {
+  const std::string name = "mkConstructor" + std::to_string(n);
+  if (module.lookupSymbol<LLVM::LLVMFuncOp>(name)) {
+      return SymbolRefAttr::get(name, rewriter.getContext());
+  }
+
+  auto llvmI64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
+  auto llvmI8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+
+  // string constructor name, <n> arguments.
+  SmallVector<mlir::LLVM::LLVMType, 4> argsTy(n+1, llvmI8PtrTy);
+  auto llvmFnType = LLVM::LLVMType::getFunctionTy(llvmI8PtrTy, argsTy,
+                                                  /*isVarArg=*/false);
+
+  // Insert the printf function into the body of the parent module.
+  PatternRewriter::InsertionGuard insertGuard(rewriter);
+  rewriter.setInsertionPointToStart(module.getBody());
+  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), name, llvmFnType);
+  return SymbolRefAttr::get(name, rewriter.getContext());
+}
+
+
+static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
+                                       StringRef name, StringRef value,
+                                       ModuleOp module) {
+    // Create the global at the entry of the module.
+    LLVM::GlobalOp global;
+    if (!(global = module.lookupSymbol<LLVM::GlobalOp>(name))) {
+      OpBuilder::InsertionGuard insertGuard(builder);
+      builder.setInsertionPointToStart(module.getBody());
+      auto type = LLVM::LLVMType::getArrayTy(
+          LLVM::LLVMType::getInt8Ty(builder.getContext()), value.size());
+      global = builder.create<LLVM::GlobalOp>(loc, type, /*isConstant=*/true,
+                                              LLVM::Linkage::Internal, name,
+                                              builder.getStringAttr(value));
+    }
+
+    // Get the pointer to the first character in the global string.
+    Value globalPtr = builder.create<LLVM::AddressOfOp>(loc, global);
+    Value cst0 = builder.create<LLVM::ConstantOp>(
+        loc, LLVM::LLVMType::getInt64Ty(builder.getContext()),
+        builder.getIntegerAttr(builder.getIndexType(), 0));
+    return builder.create<LLVM::GEPOp>(
+        loc, LLVM::LLVMType::getInt8PtrTy(builder.getContext()), globalPtr,
+        ArrayRef<Value>({cst0, cst0}));
+  }
+
+
 class HaskConstructOpConversionPattern: public ConversionPattern {
 public:
   explicit HaskConstructOpConversionPattern(MLIRContext *context)
@@ -1274,38 +1327,50 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    HaskConstructOp ref = cast<HaskConstructOp>(op);
-    llvm::errs() << "running HaskConstructOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    llvm::errs() << "running HaskConstructOpConversionPattern on: " <<
+    op->getName() << " | " << op->getLoc() << "\n";
+
+      HaskConstructOp cons = cast<HaskConstructOp>(op);
+    ModuleOp mod = cons.getParentOfType<ModuleOp>();
+
+
 
     using namespace mlir::LLVM;
 
+    FlatSymbolRefAttr mkConstructor = getOrInsertMkConstructor(rewriter, 
+            op->getParentOfType<ModuleOp>(), cons.getNumOperands());
 
-    FlatSymbolRefAttr malloc = getOrInsertMalloc(rewriter, op->getParentOfType<ModuleOp>());
-    // FlatSymbolRefAttr malloc = SymbolRefAttr::get("malloc__", rewriter.getContext());
+    const std::string consName_global_var_name = (cons.getDataConstructorName() + "_name").str();
+    Value consName = getOrCreateGlobalString(cons.getLoc(), rewriter,
+                            consName_global_var_name,
+                            cons.getDataConstructorName(),
+                            mod);
+    SmallVector<Value, 4> args = {consName};
+    for(int i = 0; i < cons.getNumOperands(); ++i) {
+        args.push_back(transmuteToVoidPtr(cons.getOperand(i), rewriter,
+                    cons.getLoc()));
+    }
+    
+    rewriter.replaceOpWithNewOp<mlir::LLVM::CallOp>(op,
+                                        LLVMType::getInt8PtrTy(rewriter.getContext()),
+                                        mkConstructor,
+                                        args);
 
 
-    // allocate some huge amount because we can't be arsed to calculate the correct ammount.
-    static const int HUGE = 4200;
-    mlir::LLVM::ConstantOp mallocSz = rewriter.create<mlir::LLVM::ConstantOp>(op->getLoc(),
-                                            LLVMType::getInt64Ty(rewriter.getContext()),
-                                            rewriter.getI32IntegerAttr(HUGE));
+    // FlatSymbolRefAttr malloc = getOrInsertMalloc(rewriter, op->getParentOfType<ModuleOp>());
+    // // allocate some huge amount because we can't be arsed to calculate the correct ammount.
+    // static const int HUGE = 4200;
+    // mlir::LLVM::ConstantOp mallocSz = rewriter.create<mlir::LLVM::ConstantOp>(op->getLoc(),
+    //                                         LLVMType::getInt64Ty(rewriter.getContext()),
+    //                                         rewriter.getI32IntegerAttr(HUGE));
 
-    SmallVector<Value, 4> llvmFnArgs = {mallocSz};
+    // SmallVector<Value, 4> llvmFnArgs = {mallocSz};
 
 
-    // mlir::LLVM::CallOp mallocMem = rewriter.create<mlir::LLVM::CallOp>(op->getLoc(),
+    // rewriter.replaceOpWithNewOp<mlir::LLVM::CallOp>(op,
     //                                     LLVMType::getInt8PtrTy(rewriter.getContext()),
     //                                     malloc,
     //                                     llvmFnArgs);
-
-    rewriter.replaceOpWithNewOp<mlir::LLVM::CallOp>(op,
-                                        LLVMType::getInt8PtrTy(rewriter.getContext()),
-                                        malloc,
-                                        llvmFnArgs);
-
-    // rewriter.replaceOpWithNewOp<mlir::LLVM::PtrToIntOp>(op,
-    //         LLVMType::getInt64Ty(rewriter.getContext()),
-    //         ValueRange((Value &)mallocMem));
 
     return success();
   }
@@ -1366,7 +1431,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
     // patterns.insert<CaseSSAOpConversionPattern>(&getContext());
     // patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
-    // patterns.insert<MakeI64OpConversionPattern>(&getContext());
+    patterns.insert<MakeI64OpConversionPattern>(&getContext());
     patterns.insert<HaskReturnOpConversionPattern>(&getContext());
     patterns.insert<HaskRefOpConversionPattern>(&getContext());
     patterns.insert<HaskConstructOpConversionPattern>(&getContext());
