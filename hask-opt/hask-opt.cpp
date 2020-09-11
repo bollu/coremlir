@@ -165,6 +165,12 @@ void *__attribute__((used)) mkConstructor2(const char *tag, void *a, void *b) {
     c->args[0] = a; c->args[1] = b;
     return c;
 };
+
+void *extractConstructorArg(void *cptr, int i) {
+  Constructor *c = (Constructor *)cptr;
+  assert(i < c->n);
+  return c->args[i];
+}
 } // end extern C
 
 namespace Example {

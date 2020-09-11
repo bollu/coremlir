@@ -117,13 +117,39 @@ public:
   int getNumAlts() { return this->getOperation()->getNumRegions(); }
   Region &getAltRHS(int i) { return this->getOperation()->getRegion(i); }
   mlir::DictionaryAttr getAltLHSs() { return this->getOperation()->getAttrDictionary(); }
-  Attribute getAltLHS(int i) { return getAltLHSs().get("alt" + std::to_string(i)); }
+  FlatSymbolRefAttr getAltLHS(int i) { 
+      return getAltLHSs().get("alt" + std::to_string(i)).cast<FlatSymbolRefAttr>();
+  }
   void print(OpAsmPrinter &p);
   llvm::Optional<int> getDefaultAltIndex();
 
 
   static void getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context);
+
+};
+
+
+class CaseIntOp : public Op<CaseIntOp, OpTrait::OneResult> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.caseint"; };
+  Value getScrutinee() { this->getOperation()->getOperand(0); }
+  int getNumAlts() { return this->getOperation()->getNumRegions(); }
+  Region &getAltRHS(int i) { return this->getOperation()->getRegion(i); }
+  mlir::DictionaryAttr getAltLHSs() { return this->getOperation()->getAttrDictionary(); }
+  Optional<IntegerAttr> getAltLHS(int i) {
+      Attribute lhs = getAltLHSs().get("alt" + std::to_string(i));
+      if (lhs.isa<IntegerAttr>()) { return {lhs.cast<IntegerAttr>()}; }
+      return {};
+  }
+  Attribute getAltLHSRaw(int i) {
+      return getAltLHSs().get("alt" + std::to_string(i));
+  }
+
+  void print(OpAsmPrinter &p);
+  llvm::Optional<int> getDefaultAltIndex();
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
 
 };
 

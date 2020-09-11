@@ -11,8 +11,8 @@ module {
     %0 = hask.lambdaSSA(%arg0:!hask.thunk) {
       %1 = hask.ref(@loop) : !hask.fn<!hask.thunk, !hask.thunk>
       %2 = hask.apSSA(%1 :!hask.fn<!hask.thunk, !hask.thunk>, %arg0)
-      %3 = hask.force(%2)
-      hask.return(%2) : !hask.thunk
+      %3 = hask.force(%2 :!hask.thunk):!hask.thunk
+      hask.return(%3) : !hask.thunk
     }
     hask.return(%0) : !hask.fn<!hask.thunk, !hask.thunk>
   }
@@ -25,7 +25,7 @@ module {
       %4 = hask.ref(@loop) : !hask.fn<!hask.thunk, !hask.thunk>
       %5 = hask.apSSA(%4 :!hask.fn<!hask.thunk, !hask.thunk>, %2)
       %6 = hask.apSSA(%3 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %2, %5)
-      %7 = hask.force(%6)
+      %7 = hask.force(%6 :!hask.thunk):!hask.value
       hask.return(%7) : !hask.value
     }
     hask.return(%0) : !hask.fn<!hask.thunk, !hask.value>

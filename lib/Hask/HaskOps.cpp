@@ -71,6 +71,7 @@ ParseResult HaskReturnOp::parse(OpAsmParser &parser, OperationState &result) {
     if (!(type.isa<ValueType>() || type.isa<ThunkType>() || type.isa<HaskFnType>())) {
         return parser.emitError(in.location, "expected value, thunk, or function type");
     }
+
     parser.resolveOperand(in, type, result.operands);
     return success();
 };
@@ -259,9 +260,9 @@ ParseResult CaseOp::parse(OpAsmParser &parser, OperationState &result) {
     int nattr = 0;
     SmallVector<Region *, 4> altRegions;
     while (succeeded(parser.parseOptionalLSquare())) {
-        Attribute alt_type_attr;
+        FlatSymbolRefAttr alt_type_attr;
         const std::string attrname = "alt" + std::to_string(nattr);
-        parser.parseAttribute(alt_type_attr, attrname, result.attributes);
+        parser.parseAttribute<FlatSymbolRefAttr>(alt_type_attr, attrname, result.attributes);
         nattr++;
         parser.parseArrow();
         Region *r = result.addRegion();
@@ -519,21 +520,25 @@ LambdaOp HaskFuncOp::getLambda() {
 
 ParseResult ForceOp::parse(OpAsmParser &parser, OperationState &result) {
     OpAsmParser::OperandType scrutinee;
+    mlir::Type type, retty;
     
-    if(parser.parseLParen() || parser.parseOperand(scrutinee) || parser.parseRParen()) {
+    if(parser.parseLParen() || parser.parseOperand(scrutinee) ||
+       parser.parseColon() || parser.parseType(type) || parser.parseRParen() ||
+       parser.parseColon() || parser.parseType(retty)) {
         return failure();
     }
 
     SmallVector<Value, 4> results;
-    if(parser.resolveOperand(scrutinee, parser.getBuilder().getType<ThunkType>(), results)) return failure();
+    if(parser.resolveOperand(scrutinee, type, results)) return failure();
     result.addOperands(results);
-    result.addTypes(parser.getBuilder().getType<ValueType>());
+    result.addTypes(retty);
     return success();
 
 };
 
 void ForceOp::print(OpAsmPrinter &p) {
-    p << "hask.force(" << this->getScrutinee() << ")";
+    p << "hask.force(" << this->getScrutinee() << " :" << this->getScrutinee().getType() << ")" <<
+        ":" << this->getResult().getType();
 };
 
 void ForceOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
@@ -709,6 +714,74 @@ void HaskPrimopSubOp::print(OpAsmPrinter &p) {
     p << this->getOperation()->getName() << "(" <<
         this->getOperand(0) << "," << this->getOperand(1) <<  ")";
 };
+
+
+// === CASE INT OP ===
+// === CASE INT OP ===
+// === CASE INT OP ===
+// === CASE INT OP ===
+// === CASE INT OP ===
+ParseResult CaseIntOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType scrutinee;
+    if(parser.parseOperand(scrutinee)) return failure();
+    if(parser.resolveOperand(scrutinee,
+                parser.getBuilder().getType<ValueType>(), result.operands)) {
+        return failure();
+    }
+
+
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    // if(parser.parseOptionalAttrDict(result.attributes)) return failure();
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+    // "[" altname "->" region "]"
+    int nattr = 0;
+    SmallVector<Region *, 4> altRegions;
+    while (succeeded(parser.parseOptionalLSquare())) {
+        Attribute alt_type_attr;
+        const std::string attrname = "alt" + std::to_string(nattr);
+        parser.parseAttribute(alt_type_attr, attrname, result.attributes);
+        assert(alt_type_attr.isa<IntegerAttr>() || alt_type_attr.isa<FlatSymbolRefAttr>());
+        nattr++;
+        parser.parseArrow();
+        Region *r = result.addRegion();
+        altRegions.push_back(r);
+        if(parser.parseRegion(*r, {}, {})) return failure();
+        parser.parseRSquare();
+    }
+
+    assert(altRegions.size() > 0);
+
+    HaskReturnOp retFirst =  cast<HaskReturnOp>(altRegions[0]->getBlocks().front().getTerminator());
+    for(int i = 1; i < altRegions.size(); ++i) {
+        HaskReturnOp ret = cast<HaskReturnOp>(altRegions[i]->getBlocks().front().getTerminator());
+        assert(retFirst.getType() == ret.getType()
+                && "all case branches must return  same levity [value/thunk]");
+    }
+
+    result.addTypes(retFirst.getType());
+    return success();
+
+};
+
+void CaseIntOp::print(OpAsmPrinter &p) {
+    p << getOperationName() << " ";
+    p <<  this->getScrutinee();
+    for(int i = 0; i < this->getNumAlts(); ++i) {
+        p <<" [" << this->getAltLHSRaw(i) <<" -> ";
+        p.printRegion(this->getAltRHS(i));
+        p << "]\n";
+    }
+};
+
+llvm::Optional<int> CaseIntOp::getDefaultAltIndex() {
+    for(int i = 0; i < getNumAlts(); ++i) {
+        Attribute ai = this->getAltLHSRaw(i);
+         FlatSymbolRefAttr sai = ai.dyn_cast<FlatSymbolRefAttr>();
+         if (sai && sai.getValue() == "default") { return i; }
+    }
+    return llvm::Optional<int>();
+}
 
 
 // ==REWRITES==
@@ -1045,6 +1118,79 @@ public:
   }
 };
 
+// isConstructorTagEq(TAG : char *, constructor: void * -> bool)
+static FlatSymbolRefAttr getOrInsertIsConstructorTagEq(PatternRewriter &rewriter,
+                                           ModuleOp module) {
+  const std::string name = "isConstructorTagEq";
+  if (module.lookupSymbol<LLVM::LLVMFuncOp>(name)) {
+      return SymbolRefAttr::get(name, rewriter.getContext());
+  }
+
+  auto llvmI8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+  auto llvmI1Ty = LLVM::LLVMType::getInt1Ty(rewriter.getContext());
+
+  // string constructor name, <n> arguments.
+  SmallVector<mlir::LLVM::LLVMType, 4> argsTy{llvmI8PtrTy, llvmI8PtrTy, llvmI8PtrTy};
+  auto llvmFnType = LLVM::LLVMType::getFunctionTy(llvmI1Ty, argsTy,
+                                                  /*isVarArg=*/false);
+
+  // Insert the printf function into the body of the parent module.
+  PatternRewriter::InsertionGuard insertGuard(rewriter);
+  rewriter.setInsertionPointToStart(module.getBody());
+  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), name, llvmFnType);
+  return SymbolRefAttr::get(name, rewriter.getContext());
+}
+
+
+// extractConstructorArgN(constructor: void *, arg_ix: int) -> bool)
+static FlatSymbolRefAttr getOrInsertExtractConstructorArg(PatternRewriter &rewriter,
+                                           ModuleOp module, int i) {
+  const std::string name = "extractConstructorArg";
+  if (module.lookupSymbol<LLVM::LLVMFuncOp>(name)) {
+      return SymbolRefAttr::get(name, rewriter.getContext());
+  }
+
+  auto llvmI8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+  auto llvmI64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
+
+  // string constructor name, <n> arguments.
+  SmallVector<mlir::LLVM::LLVMType, 4> argsTy{llvmI8PtrTy, llvmI64Ty};
+  auto llvmFnType = LLVM::LLVMType::getFunctionTy(llvmI8PtrTy, argsTy,
+                                                  /*isVarArg=*/false);
+
+  // Insert the printf function into the body of the parent module.
+  PatternRewriter::InsertionGuard insertGuard(rewriter);
+  rewriter.setInsertionPointToStart(module.getBody());
+  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), name, llvmFnType);
+  return SymbolRefAttr::get(name, rewriter.getContext());
+}
+
+static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
+                                       StringRef name, StringRef value,
+                                       ModuleOp module) {
+    // Create the global at the entry of the module.
+    LLVM::GlobalOp global;
+    if (!(global = module.lookupSymbol<LLVM::GlobalOp>(name))) {
+      OpBuilder::InsertionGuard insertGuard(builder);
+      builder.setInsertionPointToStart(module.getBody());
+      auto type = LLVM::LLVMType::getArrayTy(
+          LLVM::LLVMType::getInt8Ty(builder.getContext()), value.size());
+      global = builder.create<LLVM::GlobalOp>(loc, type, /*isConstant=*/true,
+                                              LLVM::Linkage::Internal, name,
+                                              builder.getStringAttr(value));
+    }
+
+    // Get the pointer to the first character in the global string.
+    Value globalPtr = builder.create<LLVM::AddressOfOp>(loc, global);
+    Value cst0 = builder.create<LLVM::ConstantOp>(
+        loc, LLVM::LLVMType::getInt64Ty(builder.getContext()),
+        builder.getIntegerAttr(builder.getIndexType(), 0));
+    return builder.create<LLVM::GEPOp>(
+        loc, LLVM::LLVMType::getInt8PtrTy(builder.getContext()), globalPtr,
+        ArrayRef<Value>({cst0, cst0}));
+  }
+
+
 class CaseSSAOpConversionPattern : public ConversionPattern {
 public:
     explicit CaseSSAOpConversionPattern(MLIRContext *context)
@@ -1053,53 +1199,73 @@ public:
     LogicalResult
     matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                     ConversionPatternRewriter &rewriter) const override {
+      using namespace mlir::LLVM;
       auto caseop = cast<CaseOp>(op);
+      ModuleOp mod = op->getParentOfType<ModuleOp>();
       const Optional<int> default_ix = caseop.getDefaultAltIndex();
 
       llvm::errs() << "running CaseSSAOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
       llvm::errs() << caseop << "\n";
 
-
       // delete the use of the case.
-      // TODO: Change the IR so that a case doesn't have a use.
-      // TODO: This is so kludgy :(
+      // TODO: Change the IR so that we create a landing pad BB where the
+      // case uses all wind up.
       for(Operation *user : op->getUsers()) { rewriter.eraseOp(user); }
-
         Value scrutinee = caseop.getScrutinee();
-        scrutinee.setType(rewriter.getI64Type());
 
         rewriter.setInsertionPoint(caseop);
         // TODO: get block of current caseop?
+         Block *prevBB = rewriter.getInsertionBlock();
         for(int i = 0; i < caseop.getNumAlts(); ++i) {
             if (default_ix && i == *default_ix) { continue; }
-            mlir::ConstantOp lhsConstant =
-                rewriter.create<mlir::ConstantOp>(rewriter.getUnknownLoc(),
-                                                  caseop.getAltLHS(i));
             // Type result, IntegerAttr predicate, Value lhs, Value rhs
+            FlatSymbolRefAttr is_cons_tag_eq = getOrInsertIsConstructorTagEq(rewriter, mod);
+            Value lhsName = getOrCreateGlobalString(caseop.getLoc(),
+                                               rewriter,
+                                               caseop.getAltLHS(i).getValue(),
+                                               caseop.getAltLHS(i).getValue(),
+                                               mod);
+            SmallVector<Value, 4> isConsTagEqArgs{scrutinee, lhsName};
+            LLVM::CallOp scrut_eq_alt =
+                rewriter.create<LLVM::CallOp>(caseop.getLoc(),
+                LLVMType::getInt1Ty(rewriter.getContext()),
+                is_cons_tag_eq,  isConsTagEqArgs);
+            Type llvmI8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+
+            /*
             mlir::CmpIOp scrutinee_eq_val =
                 rewriter.create<mlir::CmpIOp>(rewriter.getUnknownLoc(),
                                               rewriter.getI1Type(),
                                               mlir::CmpIPredicate::eq,
                                               lhsConstant,
                                               caseop.getScrutinee());
-            Block *prevBB = rewriter.getInsertionBlock();
+            */
+
+
             SmallVector<Type, 1> BBArgs = { rewriter.getI64Type()};
-            Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), {},
-                                                 rewriter.getI64Type());
-            Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), {},
-                                                 rewriter.getI64Type());
+            Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
+                                                 llvmI8PtrTy);
 
+            rewriter.setInsertionPointToEnd(thenBB);
+            Region &caseRHS = caseop.getAltRHS(i);
+            rewriter.inlineRegionBefore(caseRHS, thenBB);
+
+            Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
+                                                 llvmI8PtrTy);
+
+            rewriter.setInsertionPointToEnd(elseBB);
+
+
+            rewriter.create<LLVM::CondBrOp>(rewriter.getUnknownLoc(),
+                                                scrut_eq_alt.getResult(0),
+                                                thenBB, scrutinee,
+                                                elseBB, scrutinee);
             rewriter.setInsertionPointToEnd(prevBB);
-            rewriter.create<mlir::CondBranchOp>(rewriter.getUnknownLoc(),
-                                                scrutinee_eq_val,
-                                                thenBB, caseop.getScrutinee(),
-                                                elseBB, caseop.getScrutinee());
-
             llvm::errs() << "---op---\n";
             llvm::errs() << *thenBB->getParentOp();
             llvm::errs() << "---^^---\n";
 
-            rewriter.mergeBlocks(&caseop.getAltRHS(i).front(), thenBB, caseop.getScrutinee());
+            // rewriter.mergeBlocks(&caseop.getAltRHS(i).front(), thenBB, caseop.getScrutinee());
             rewriter.setInsertionPointToStart(elseBB);
         }
 
@@ -1112,8 +1278,6 @@ public:
             rewriter.create<mlir::LLVM::UnreachableOp>(rewriter.getUnknownLoc());
         }
         rewriter.eraseOp(caseop);
-
-
         return success();
     }
 };
@@ -1245,7 +1409,6 @@ static FlatSymbolRefAttr getOrInsertEvalClosure(PatternRewriter &rewriter,
     }
 
     auto VoidPtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
-    auto VoidTy = LLVM::LLVMType::getVoidTy(rewriter.getContext());
     auto llvmFnType = LLVM::LLVMType::getFunctionTy(VoidPtrTy, VoidPtrTy,
             /*isVarArg=*/false);
 
@@ -1272,7 +1435,7 @@ public:
     // LLVMFunctionType scrutty = force.getScrutinee().getType().cast<LLVMFunctionType>();
 
     rewriter.replaceOpWithNewOp<LLVM::CallOp>(op,
-            LLVMType::getVoidTy(rewriter.getContext()),
+            LLVMType::getInt8PtrTy(rewriter.getContext()),
             getOrInsertEvalClosure(rewriter, force.getParentOfType<ModuleOp>()),
             force.getScrutinee());
     return success();
@@ -1359,31 +1522,6 @@ static FlatSymbolRefAttr getOrInsertMkConstructor(PatternRewriter &rewriter,
 }
 
 
-static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
-                                       StringRef name, StringRef value,
-                                       ModuleOp module) {
-    // Create the global at the entry of the module.
-    LLVM::GlobalOp global;
-    if (!(global = module.lookupSymbol<LLVM::GlobalOp>(name))) {
-      OpBuilder::InsertionGuard insertGuard(builder);
-      builder.setInsertionPointToStart(module.getBody());
-      auto type = LLVM::LLVMType::getArrayTy(
-          LLVM::LLVMType::getInt8Ty(builder.getContext()), value.size());
-      global = builder.create<LLVM::GlobalOp>(loc, type, /*isConstant=*/true,
-                                              LLVM::Linkage::Internal, name,
-                                              builder.getStringAttr(value));
-    }
-
-    // Get the pointer to the first character in the global string.
-    Value globalPtr = builder.create<LLVM::AddressOfOp>(loc, global);
-    Value cst0 = builder.create<LLVM::ConstantOp>(
-        loc, LLVM::LLVMType::getInt64Ty(builder.getContext()),
-        builder.getIntegerAttr(builder.getIndexType(), 0));
-    return builder.create<LLVM::GEPOp>(
-        loc, LLVM::LLVMType::getInt8PtrTy(builder.getContext()), globalPtr,
-        ArrayRef<Value>({cst0, cst0}));
-  }
-
 
 class HaskConstructOpConversionPattern: public ConversionPattern {
 public:
@@ -1442,6 +1580,184 @@ public:
   }
 };
 
+
+class HaskPrimopAddOpConversionPattern: public ConversionPattern {
+public:
+  explicit HaskPrimopAddOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(HaskPrimopAddOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    using namespace mlir::LLVM;
+    HaskPrimopAddOp add = cast<HaskPrimopAddOp>(op);
+    auto I64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
+    auto I8PtrTy =  LLVMType::getInt8PtrTy(rewriter.getContext());
+
+    LLVM::PtrToIntOp lhs = rewriter.create<LLVM::PtrToIntOp>(op->getLoc(),
+                                                             I64Ty,
+                                                             add.getOperand(0));
+    LLVM::PtrToIntOp rhs = rewriter.create<LLVM::PtrToIntOp>(op->getLoc(),
+                                                             I64Ty,
+                                                             add.getOperand(1));
+
+    LLVM::AddOp out = rewriter.create<LLVM::AddOp>(op->getLoc(), I64Ty,
+                                                   lhs,
+                                                   rhs);
+    rewriter.replaceOpWithNewOp<mlir::LLVM::IntToPtrOp>(op,
+                                        I8PtrTy, out);
+
+    return success();
+  }
+};
+
+
+class HaskPrimopSubOpConversionPattern: public ConversionPattern {
+public:
+  explicit HaskPrimopSubOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(HaskPrimopSubOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    using namespace mlir::LLVM;
+    HaskPrimopSubOp sub = cast<HaskPrimopSubOp>(op);
+    auto I64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
+    auto I8PtrTy =  LLVMType::getInt8PtrTy(rewriter.getContext());
+
+    LLVM::PtrToIntOp lhs = rewriter.create<LLVM::PtrToIntOp>(op->getLoc(),
+                                                             I64Ty,
+                                                             sub.getOperand(0));
+    LLVM::PtrToIntOp rhs = rewriter.create<LLVM::PtrToIntOp>(op->getLoc(),
+                                                             I64Ty,
+                                                             sub.getOperand(1));
+
+    LLVM::SubOp out = rewriter.create<LLVM::SubOp>(op->getLoc(), I64Ty,
+                                                   lhs,
+                                                   rhs);
+    rewriter.replaceOpWithNewOp<mlir::LLVM::IntToPtrOp>(op,
+                                        I8PtrTy, out);
+
+    return success();
+  }
+};
+
+static FlatSymbolRefAttr getOrInsertIsIntEq(PatternRewriter &rewriter,
+                                           ModuleOp module) {
+  const std::string name = "isIntEq";
+  if (module.lookupSymbol<LLVM::LLVMFuncOp>(name)) {
+      return SymbolRefAttr::get(name, rewriter.getContext());
+  }
+
+  auto llvmI8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+  auto llvmI1Ty = LLVM::LLVMType::getInt1Ty(rewriter.getContext());
+  SmallVector<mlir::LLVM::LLVMType, 4> argsTy{llvmI8PtrTy, llvmI8PtrTy};
+  auto llvmFnType = LLVM::LLVMType::getFunctionTy(llvmI1Ty, argsTy,
+                                                  /*isVarArg=*/false);
+
+  // Insert the printf function into the body of the parent module.
+  PatternRewriter::InsertionGuard insertGuard(rewriter);
+  rewriter.setInsertionPointToStart(module.getBody());
+  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), name, llvmFnType);
+  return SymbolRefAttr::get(name, rewriter.getContext());
+}
+
+
+
+class CaseIntOpConversionPattern : public ConversionPattern {
+public:
+    explicit CaseIntOpConversionPattern(MLIRContext *context)
+            : ConversionPattern(standalone::CaseIntOp::getOperationName(), 1, context) { }
+
+    LogicalResult
+    matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                    ConversionPatternRewriter &rewriter) const override {
+      using namespace mlir::LLVM;
+      auto caseop = cast<CaseIntOp>(op);
+      ModuleOp mod = op->getParentOfType<ModuleOp>();
+      const Optional<int> default_ix = caseop.getDefaultAltIndex();
+
+      llvm::errs() << "running CaseSSAOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+      llvm::errs() << caseop << "\n";
+
+      // delete the use of the case.
+      // TODO: Change the IR so that we create a landing pad BB where the
+      // case uses all wind up.
+      for(Operation *user : op->getUsers()) { rewriter.eraseOp(user); }
+        Value scrutinee = caseop.getScrutinee();
+
+        rewriter.setInsertionPoint(caseop);
+        // TODO: get block of current caseop?
+         Block *prevBB = rewriter.getInsertionBlock();
+        for(int i = 0; i < caseop.getNumAlts(); ++i) {
+            if (default_ix && i == *default_ix) { continue; }
+            // Type result, IntegerAttr predicate, Value lhs, Value rhs
+            FlatSymbolRefAttr is_int_eq = getOrInsertIsIntEq(rewriter, mod);
+            auto I64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
+            LLVM::ConstantOp altLhsValue =
+                rewriter.create<LLVM::ConstantOp>(caseop.getLoc(), I64Ty,
+                                                  *caseop.getAltLHS(i));
+            LLVM::PtrToIntOp scrutineeValue =
+                rewriter.create<LLVM::PtrToIntOp>(caseop.getLoc(), I64Ty, scrutinee);
+
+            Value scrut_eq_alt =
+                rewriter.create<LLVM::ICmpOp>(caseop.getLoc(),
+                LLVM::ICmpPredicate::eq, scrutineeValue, altLhsValue);
+
+          auto I8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+
+            /*
+            mlir::CmpIOp scrutinee_eq_val =
+                rewriter.create<mlir::CmpIOp>(rewriter.getUnknownLoc(),
+                                              rewriter.getI1Type(),
+                                              mlir::CmpIPredicate::eq,
+                                              lhsConstant,
+                                              caseop.getScrutinee());
+            */
+
+
+            SmallVector<Type, 1> BBArgs = { rewriter.getI64Type()};
+            Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
+                                                 I8PtrTy);
+
+            rewriter.setInsertionPointToEnd(thenBB);
+            Region &caseRHS = caseop.getAltRHS(i);
+            rewriter.inlineRegionBefore(caseRHS, thenBB);
+
+            Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
+                                                 I8PtrTy);
+
+            rewriter.setInsertionPointToEnd(elseBB);
+
+
+            rewriter.create<LLVM::CondBrOp>(rewriter.getUnknownLoc(),
+                                                scrut_eq_alt,
+                                                thenBB, scrutinee,
+                                                elseBB, scrutinee);
+            rewriter.setInsertionPointToEnd(prevBB);
+            llvm::errs() << "---op---\n";
+            llvm::errs() << *thenBB->getParentOp();
+            llvm::errs() << "---^^---\n";
+
+            // rewriter.mergeBlocks(&caseop.getAltRHS(i).front(), thenBB, caseop.getScrutinee());
+            rewriter.setInsertionPointToStart(elseBB);
+        }
+
+        // we have a default block
+        if (default_ix) {
+            // default block should have ha no parameters!
+            rewriter.mergeBlocks(&caseop.getAltRHS(*default_ix).front(),
+                                 rewriter.getInsertionBlock(), {});
+        } else {
+            rewriter.create<mlir::LLVM::UnreachableOp>(rewriter.getUnknownLoc());
+        }
+        rewriter.eraseOp(caseop);
+        return success();
+    }
+};
+
+
 // === LowerHaskToLLVMPass ===
 // === LowerHaskToLLVMPass ===
 // === LowerHaskToLLVMPass ===
@@ -1495,7 +1811,7 @@ void LowerHaskToStandardPass::runOnOperation() {
 
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
-    // patterns.insert<CaseSSAOpConversionPattern>(&getContext());
+    patterns.insert<CaseSSAOpConversionPattern>(&getContext());
     // patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
     patterns.insert<MakeI64OpConversionPattern>(&getContext());
     patterns.insert<HaskReturnOpConversionPattern>(&getContext());
@@ -1503,6 +1819,9 @@ void LowerHaskToStandardPass::runOnOperation() {
     patterns.insert<HaskConstructOpConversionPattern>(&getContext());
     patterns.insert<ForceOpConversionPattern>(&getContext());
     patterns.insert<ApOpConversionPattern>(&getContext());
+    patterns.insert<HaskPrimopAddOpConversionPattern>(&getContext());
+    patterns.insert<HaskPrimopSubOpConversionPattern>(&getContext());
+    patterns.insert<CaseIntOpConversionPattern>(&getContext());
 
     //llvm::errs() << "===Enabling Debugging...===\n";
     //::llvm::DebugFlag = true;

@@ -2,6 +2,14 @@
 # pipelines which involve tee and allow such pipelines to fail.
 .PHONY: fib fibstrict playground
 
+case-int: 
+	make -C ~/work/mlir/coremlir/build
+	../build/bin/hask-opt ./case-int.mlir
+	../build/bin/hask-opt ./case-int.mlir > case-int-roundtrip.mlir
+	../build/bin/hask-opt ./case-int-roundtrip.mlir
+	../build/bin/hask-opt ./case-int.mlir -lower-std -lower-llvm
+	../build/bin/hask-opt ./case-int.mlir -lower-std -lower-llvm -jit
+
 fib: 
 	make -C ~/work/mlir/coremlir/build
 	../build/bin/hask-opt ./fib.mlir 

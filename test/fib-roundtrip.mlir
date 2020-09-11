@@ -57,7 +57,7 @@ module {
       %1 = hask.force(%arg0)
       %2 = hask.caseSSA %1 [@MkSimpleInt ->  {
       ^bb0(%arg1: !hask.value):  // no predecessors
-        %3 = hask.caseSSA %arg1 [0 : i64 ->  {
+        %3 = hask.caseint %arg1 [0 : i64 ->  {
         ^bb0(%arg2: !hask.value):  // no predecessors
           %4 = hask.ref(@zero) : !hask.thunk
           hask.return(%4) : !hask.thunk

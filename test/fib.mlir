@@ -85,7 +85,7 @@ module {
         %icons = hask.force(%i)
         %ret = hask.caseSSA %icons
                [@MkSimpleInt -> { ^entry(%ihash: !hask.value):
-                     %ret = hask.caseSSA %ihash 
+                     %ret = hask.caseint %ihash 
                      [0 -> { ^entry(%_: !hask.value): 
                                 %z = hask.ref(@zero) : !hask.thunk
                                 hask.return (%z): !hask.thunk      
