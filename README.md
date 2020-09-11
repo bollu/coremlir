@@ -7,6 +7,10 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Friday, Sep 11 2020
+
+- [doc to call](https://docs.google.com/document/d/1AMTo9cTpPTVzLrBAnzE9NS5wJcQ6Jo8PeMKO7-foHEg/edit?usp=sharing)
+
 # Wednesday, Sep 9 2020
 
 ##### `k-lazy`: MLIR
