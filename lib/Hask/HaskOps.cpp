@@ -1189,8 +1189,8 @@ static FlatSymbolRefAttr getOrInsertIsConstructorTagEq(PatternRewriter &rewriter
   auto llvmI8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
   auto llvmI1Ty = LLVM::LLVMType::getInt1Ty(rewriter.getContext());
 
-  // string constructor name, <n> arguments.
-  SmallVector<mlir::LLVM::LLVMType, 4> argsTy{llvmI8PtrTy, llvmI8PtrTy, llvmI8PtrTy};
+  // constructor, string constructor name
+  SmallVector<mlir::LLVM::LLVMType, 4> argsTy{llvmI8PtrTy, llvmI8PtrTy};
   auto llvmFnType = LLVM::LLVMType::getFunctionTy(llvmI1Ty, argsTy,
                                                   /*isVarArg=*/false);
 
@@ -1290,8 +1290,6 @@ public:
                 rewriter.create<LLVM::CallOp>(caseop.getLoc(),
                 LLVMType::getInt1Ty(rewriter.getContext()),
                 is_cons_tag_eq,  is_cons_tag_eq_params);
-
-            Type llvmI8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
 
 
             Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
@@ -1526,8 +1524,10 @@ public:
     assert(referenced && "reference does not exist");
 
     if (LLVMFuncOp llvmfn = dyn_cast<LLVMFuncOp>(referenced)) {
-          rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(op,
+        LLVM::AddressOfOp addr = rewriter.create<LLVM::AddressOfOp>(op->getLoc(),
             llvmfn.getType().getPointerTo(), ref.getRef());
+          rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op,
+            I8PtrTy, addr);
           return success();
     } else {
       // not yet converted.
@@ -1541,19 +1541,12 @@ public:
       } else {
         assert(false && "unknown symbol");
       }
-      rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(op, llvmty.getPointerTo(),
-                                                     ref.getRef());
+        LLVM::AddressOfOp addr = rewriter.create<LLVM::AddressOfOp>(op->getLoc(),
+            llvmty, ref.getRef());
+        rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op,
+            I8PtrTy, addr);
+        return success();
     }
-
-
-    /*
-    llvm::errs() << "-ref: " << ref.getRef() << "\n";
-    LLVMType llvmty = haskToLLVMType(rewriter.getContext(), ref.getResult().getType());
-    llvm::errs() << "-llvm type: " << llvmty << "\n";
-    rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(op,
-            llvmty.getPointerTo(),
-            ref.getRef());
-   */
     return success();
   }
 };
@@ -1628,8 +1621,9 @@ public:
                             mod);
     SmallVector<Value, 4> args = {consName};
     for(int i = 0; i < cons.getNumOperands(); ++i) {
-        args.push_back(transmuteToVoidPtr(cons.getOperand(i), rewriter,
-                    cons.getLoc()));
+        // args.push_back(transmuteToVoidPtr(cons.getOperand(i), rewriter,
+        //             cons.getLoc()));
+        args.push_back(cons.getOperand(i));
     }
     
     rewriter.replaceOpWithNewOp<mlir::LLVM::CallOp>(op,

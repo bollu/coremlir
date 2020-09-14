@@ -319,6 +319,7 @@ int main(int argc, char **argv) {
     module->print(llvm::outs());
     return 0;
   }
+
   // Lowering code to MLIR-LLVM
   {
 
@@ -338,12 +339,23 @@ int main(int argc, char **argv) {
     }
   }
 
+
+
+  auto llvmContext = std::make_unique<llvm::LLVMContext>();
+  llvm::errs() << "===Lowering MLIR-LLVM module to LLVM===\n";
+
+  std::unique_ptr<llvm::Module> llvmModule =
+      mlir::translateModuleToLLVMIR(*module, *llvmContext);
+  llvm::errs() << *llvmModule << "\n===\n";
+
   if (!jit) {
-    llvm::errs() << "===Printing MLIR-LLVM module to stdout...===\n";
-    module->print(llvm::outs());
-    llvm::outs().flush();
-    return 0;
+      llvm::errs() << "===Printing LLVM module to stdout...===\n";
+      llvm::outs () << *llvmModule;
+      llvm::errs() << "\n===\n";
+      return 0;
   }
+
+
 
   // Lower MLIR-LLVM all the way down to "real LLVM"
   // https://github.com/llvm/llvm-project/blob/670063eb220663b5a42fd4e9bd63f51d379c9aa0/mlir/examples/toy/Ch6/toyc.cpp#L193
@@ -352,12 +364,6 @@ int main(int argc, char **argv) {
   LLVMInitializeNativeAsmParser();
   assert(nativeTargetInitialized == false);
 
-  auto llvmContext = std::make_unique<llvm::LLVMContext>();
-  llvm::errs() << "===Lowering MLIR-LLVM module to LLVM===\n";
-
-  std::unique_ptr<llvm::Module> llvmModule =
-      mlir::translateModuleToLLVMIR(*module, *llvmContext);
-  llvm::errs() << *llvmModule << "\n===\n";
 
   llvm::errs() << "===Executing MLIR-LLVM in JIT===\n";
   // Now we create the JIT.

@@ -78,15 +78,7 @@ module {
           %6 = hask.ref(@one) : !hask.thunk
           %7 = hask.apSSA(%5 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %arg0, %6)
           %8 = hask.force(%7 :!hask.thunk):!hask.thunk
-          %9 = hask.apSSA(%4 :!hask.fn<!hask.thunk, !hask.thunk>, %8)
-          %10 = hask.force(%9 :!hask.thunk):!hask.thunk
-          %11 = hask.ref(@two) : !hask.thunk
-          %12 = hask.apSSA(%5 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %arg0, %11)
-          %13 = hask.force(%12 :!hask.thunk):!hask.thunk
-          %14 = hask.force(%9 :!hask.thunk):!hask.thunk
-          %15 = hask.ref(@plus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
-          %16 = hask.apSSA(%15 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %10, %14)
-          hask.return(%16) : !hask.thunk
+          hask.return(%6) : !hask.thunk
         }]
 
         hask.return(%3) : !hask.thunk
