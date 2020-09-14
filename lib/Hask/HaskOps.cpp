@@ -1796,8 +1796,7 @@ public:
             */
 
 
-            Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
-                                                 I64Ty);
+            Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
 
             rewriter.setInsertionPointToEnd(thenBB);
             Block &altRhs = caseop.getAltRHS(i).getBlocks().front();
@@ -1805,16 +1804,15 @@ public:
             rewriter.mergeBlocks(&altRhs, thenBB, scrutineeInt);
             llvm::errs() << "--MERGE BLOCKS (CaseInt)--\n";
 
-            Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
-                                                 I64Ty);
+            Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
 
             rewriter.setInsertionPointToEnd(elseBB);
 
             rewriter.setInsertionPointToEnd(prevBB);
             rewriter.create<LLVM::CondBrOp>(rewriter.getUnknownLoc(),
                                                 scrut_eq_alt,
-                                                thenBB, scrutineeInt,
-                                                elseBB, scrutineeInt);
+                                                thenBB,
+                                                elseBB);
 
             // llvm::errs() << "---op---\n";
             // llvm::errs() << *thenBB->getParentOp();
@@ -1827,7 +1825,6 @@ public:
         // we have a default block
         if (default_ix) {
             // default block should have have no parameters?
-
 
             llvm::errs() << "--MERGE BLOCKS (CaseIntOp/default)--\n";
             rewriter.mergeBlocks(&caseop.getAltRHS(*default_ix).front(),

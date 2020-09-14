@@ -7,9 +7,9 @@ module {
      [0 -> { ^entry(%ival: !hask.value): 
                 hask.return (%ival): !hask.value      
      }]
-     [@default -> { ^entry(%ival: !hask.value): // ... or here?
+     [@default -> { ^entry: // ... or here?
                      %lit_one = hask.make_i64(1)
-                     %pred = hask.primop_sub(%ival, %lit_one)
+                     %pred = hask.primop_sub(%ihash, %lit_one)
                      hask.return(%pred): !hask.value
 
      }]

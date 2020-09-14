@@ -8,9 +8,8 @@ module {
         hask.return(%arg1) : !hask.value
       }]
  [@default ->  {
-      ^bb0(%arg1: !hask.value):  // no predecessors
         %2 = hask.make_i64(1 : i64)
-        %3 = hask.primop_sub(%arg1,%2)
+        %3 = hask.primop_sub(%arg0,%2)
         hask.return(%3) : !hask.value
       }]
 
