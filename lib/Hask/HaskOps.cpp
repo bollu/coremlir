@@ -1220,9 +1220,9 @@ static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
   }
 
 
-class CaseSSAOpConversionPattern : public ConversionPattern {
+class CaseOpConversionPattern : public ConversionPattern {
 public:
-    explicit CaseSSAOpConversionPattern(MLIRContext *context)
+    explicit CaseOpConversionPattern(MLIRContext *context)
             : ConversionPattern(standalone::CaseOp::getOperationName(), 1, context) { }
 
     LogicalResult
@@ -1233,7 +1233,7 @@ public:
       ModuleOp mod = op->getParentOfType<ModuleOp>();
       const Optional<int> default_ix = caseop.getDefaultAltIndex();
 
-      llvm::errs() << "running CaseSSAOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+      llvm::errs() << "running CaseOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
       llvm::errs() << caseop << "\n";
 
       // delete the use of the case.
@@ -1254,57 +1254,43 @@ public:
                                                caseop.getAltLHS(i).getValue(),
                                                caseop.getAltLHS(i).getValue(),
                                                mod);
-            SmallVector<Value, 4> isConsTagEqArgs{scrutinee, lhsName};
+            SmallVector<Value, 4> is_cons_tag_eq_params{scrutinee, lhsName};
             LLVM::CallOp scrut_eq_alt =
                 rewriter.create<LLVM::CallOp>(caseop.getLoc(),
                 LLVMType::getInt1Ty(rewriter.getContext()),
-                is_cons_tag_eq,  isConsTagEqArgs);
+                is_cons_tag_eq,  is_cons_tag_eq_params);
+
             Type llvmI8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
 
-            /*
-            mlir::CmpIOp scrutinee_eq_val =
-                rewriter.create<mlir::CmpIOp>(rewriter.getUnknownLoc(),
-                                              rewriter.getI1Type(),
-                                              mlir::CmpIPredicate::eq,
-                                              lhsConstant,
-                                              caseop.getScrutinee());
-            */
 
-
-            SmallVector<Type, 1> BBArgs = { rewriter.getI64Type()};
-            Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
-                                                 llvmI8PtrTy);
+            Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
 
             rewriter.setInsertionPointToEnd(thenBB);
-            Region &caseRHS = caseop.getAltRHS(i);
-            rewriter.inlineRegionBefore(caseRHS, thenBB);
-
-            Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
-                                                 llvmI8PtrTy);
-
-            rewriter.setInsertionPointToEnd(elseBB);
-
-
+            Block &altRhs = caseop.getAltRHS(i).getBlocks().front();
+            llvm::errs() << "--MERGE BLOCKS (CaseOp)--\n";
+            rewriter.mergeBlocks(&altRhs, thenBB, scrutinee);
+            llvm::errs() << "--DONE MERGE BLOCKS (CaseOp)--\n";
+ 
+            Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
+            rewriter.setInsertionPointToEnd(prevBB);
             rewriter.create<LLVM::CondBrOp>(rewriter.getUnknownLoc(),
                                                 scrut_eq_alt.getResult(0),
-                                                thenBB, scrutinee,
-                                                elseBB, scrutinee);
-            rewriter.setInsertionPointToEnd(prevBB);
-            llvm::errs() << "---op---\n";
-            llvm::errs() << *thenBB->getParentOp();
-            llvm::errs() << "---^^---\n";
-
-            // rewriter.mergeBlocks(&caseop.getAltRHS(i).front(), thenBB, caseop.getScrutinee());
-            rewriter.setInsertionPointToStart(elseBB);
+                                                thenBB, elseBB);
+            rewriter.setInsertionPointToEnd(elseBB);
         }
 
         // we have a default block
         if (default_ix) {
             // default block should have ha no parameters!
+            llvm::errs() << "--MERGE BLOCKS (CaseOp/Default)--\n";
             rewriter.mergeBlocks(&caseop.getAltRHS(*default_ix).front(),
-                                 rewriter.getInsertionBlock(), {});
+                                 rewriter.getInsertionBlock(), scrutinee);
+            llvm::errs() << "--MERGE BLOCKS (CaseOp/Default)--\n";
         } else {
+            // wut?
+            // if (!rewriter.getInsertionBlock()->getTerminator()) {
             rewriter.create<mlir::LLVM::UnreachableOp>(rewriter.getUnknownLoc());
+            // }
         }
         rewriter.eraseOp(caseop);
         return success();
@@ -1707,7 +1693,7 @@ public:
       ModuleOp mod = op->getParentOfType<ModuleOp>();
       const Optional<int> default_ix = caseop.getDefaultAltIndex();
 
-      llvm::errs() << "running CaseSSAOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+      llvm::errs() << "running CaseIntOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
       llvm::errs() << caseop << "\n";
 
       // delete the use of the case.
@@ -1748,13 +1734,14 @@ public:
             */
 
 
-            SmallVector<Type, 1> BBArgs = { I64Ty };
             Block *thenBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
                                                  I64Ty);
 
             rewriter.setInsertionPointToEnd(thenBB);
             Block &altRhs = caseop.getAltRHS(i).getBlocks().front();
+            llvm::errs() << "--MERGE BLOCKS (CaseInt)--\n";
             rewriter.mergeBlocks(&altRhs, thenBB, scrutineeInt);
+            llvm::errs() << "--MERGE BLOCKS (CaseInt)--\n";
 
             Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{},
                                                  I64Ty);
@@ -1767,9 +1754,9 @@ public:
                                                 thenBB, scrutineeInt,
                                                 elseBB, scrutineeInt);
 
-            llvm::errs() << "---op---\n";
-            llvm::errs() << *thenBB->getParentOp();
-            llvm::errs() << "---^^---\n";
+            // llvm::errs() << "---op---\n";
+            // llvm::errs() << *thenBB->getParentOp();
+            // llvm::errs() << "---^^---\n";
 
             // rewriter.mergeBlocks(&caseop.getAltRHS(i).front(), thenBB, caseop.getScrutinee());
             rewriter.setInsertionPointToStart(elseBB);
@@ -1778,8 +1765,12 @@ public:
         // we have a default block
         if (default_ix) {
             // default block should have have no parameters?
+
+
+            llvm::errs() << "--MERGE BLOCKS (CaseIntOp/default)--\n";
             rewriter.mergeBlocks(&caseop.getAltRHS(*default_ix).front(),
-                                 rewriter.getInsertionBlock(), scrutineeInt);
+                                 rewriter.getInsertionBlock(), {});
+            llvm::errs() << "--MERGE BLOCKS (CaseIntOp/default)--\n";
         } else {
             rewriter.create<mlir::LLVM::UnreachableOp>(rewriter.getUnknownLoc());
         }
@@ -1835,14 +1826,14 @@ void LowerHaskToStandardPass::runOnOperation() {
     target.addLegalOp<LambdaOp>();
     target.addLegalOp<HaskGlobalOp>();
     // target.addLegalOp<HaskReturnOp>();
-    target.addLegalOp<CaseOp>();
-//    target.addLegalOp<ApOp>();
-//    target.addLegalOp<HaskConstructOp>();
-//    target.addLegalOp<ForceOp>();
+    // target.addLegalOp<CaseOp>();
+    // target.addLegalOp<ApOp>();
+    // target.addLegalOp<HaskConstructOp>();
+    // target.addLegalOp<ForceOp>();
 
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
-    patterns.insert<CaseSSAOpConversionPattern>(&getContext());
+    patterns.insert<CaseOpConversionPattern>(&getContext());
     // patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
     patterns.insert<MakeI64OpConversionPattern>(&getContext());
     patterns.insert<HaskReturnOpConversionPattern>(&getContext());
