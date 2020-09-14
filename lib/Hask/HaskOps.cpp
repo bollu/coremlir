@@ -1088,6 +1088,37 @@ mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
     }
 };
 
+// http://localhost:8000/structanonymous__namespace_02ConvertStandardToLLVM_8cpp_03_1_1FuncOpConversion.html#a9043f45e0e37eb828942ff867c4fe38d
+class HaskGlobalOpConversionPattern : public ConversionPattern {
+public:
+  explicit HaskGlobalOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(standalone::HaskGlobalOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    using namespace mlir::LLVM;
+
+    Operation *module = op->getParentOp();
+    // Now lower the [LambdaOp + HaskFuncOp together]
+    // TODO: deal with free floating lambads. This LambdaOp is going to
+    // become a top-level function. Other lambdas will become toplevel functions with synthetic names.
+    llvm::errs() << "running HaskGlobalOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+    auto fn = cast<HaskGlobalOp>(op);
+
+    auto I8PtrTy = LLVMType::getInt8PtrTy(rewriter.getContext());
+    LLVMFuncOp llvmfn = rewriter.create<LLVMFuncOp>(fn.getLoc(), 
+            fn.getName().str(), LLVMFunctionType::get(I8PtrTy, {}));
+
+    Block *llvmfnEntry = llvmfn.addEntryBlock();
+    rewriter.mergeBlocks(&fn.getRegion().getBlocks().front(), llvmfnEntry,
+                          llvmfnEntry->getArguments());
+    rewriter.eraseOp(op);
+
+    return success();
+  }
+};
+
 
 // http://localhost:8000/structanonymous__namespace_02ConvertStandardToLLVM_8cpp_03_1_1FuncOpConversion.html#a9043f45e0e37eb828942ff867c4fe38d
 class HaskFuncOpConversionPattern : public ConversionPattern {
@@ -1270,7 +1301,7 @@ public:
             llvm::errs() << "--MERGE BLOCKS (CaseOp)--\n";
             rewriter.mergeBlocks(&altRhs, thenBB, scrutinee);
             llvm::errs() << "--DONE MERGE BLOCKS (CaseOp)--\n";
- 
+
             Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
             rewriter.setInsertionPointToEnd(prevBB);
             rewriter.create<LLVM::CondBrOp>(rewriter.getUnknownLoc(),
@@ -1483,15 +1514,46 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     HaskRefOp ref = cast<HaskRefOp>(op);
+    ModuleOp mod = ref.getParentOfType<ModuleOp>();
+
     llvm::errs() << "running HaskRefOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
     using namespace mlir::LLVM;
 
+    auto I8PtrTy = mlir::LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+
+
+    Operation *referenced = mod.lookupSymbol(ref.getRef());
+    assert(referenced && "reference does not exist");
+
+    if (LLVMFuncOp llvmfn = dyn_cast<LLVMFuncOp>(referenced)) {
+          rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(op,
+            llvmfn.getType().getPointerTo(), ref.getRef());
+          return success();
+    } else {
+      // not yet converted.
+      LLVMType llvmty;
+      if (HaskFuncOp fn = mod.lookupSymbol<HaskFuncOp>(ref.getRef())) {
+        llvmty =
+            haskToLLVMType(rewriter.getContext(), ref.getResult().getType());
+
+      } else if (mod.lookupSymbol<HaskGlobalOp>(ref.getRef())) {
+        llvmty = LLVMType::getFunctionTy(I8PtrTy, {}, /*isVaridic=*/false);
+      } else {
+        assert(false && "unknown symbol");
+      }
+      rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(op, llvmty.getPointerTo(),
+                                                     ref.getRef());
+    }
+
+
+    /*
     llvm::errs() << "-ref: " << ref.getRef() << "\n";
     LLVMType llvmty = haskToLLVMType(rewriter.getContext(), ref.getResult().getType());
     llvm::errs() << "-llvm type: " << llvmty << "\n";
     rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(op,
             llvmty.getPointerTo(),
             ref.getRef());
+   */
     return success();
   }
 };
@@ -1824,7 +1886,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     // target.addLegalOp<HaskRefOp>();
     target.addLegalOp<HaskADTOp>();
     target.addLegalOp<LambdaOp>();
-    target.addLegalOp<HaskGlobalOp>();
+    // target.addLegalOp<HaskGlobalOp>();
     // target.addLegalOp<HaskReturnOp>();
     // target.addLegalOp<CaseOp>();
     // target.addLegalOp<ApOp>();
@@ -1833,6 +1895,7 @@ void LowerHaskToStandardPass::runOnOperation() {
 
     OwningRewritePatternList patterns;
     patterns.insert<HaskFuncOpConversionPattern>(&getContext());
+    patterns.insert<HaskGlobalOpConversionPattern>(&getContext());
     patterns.insert<CaseOpConversionPattern>(&getContext());
     // patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
     patterns.insert<MakeI64OpConversionPattern>(&getContext());
