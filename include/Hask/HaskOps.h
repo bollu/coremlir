@@ -281,6 +281,17 @@ public:
     void print(OpAsmPrinter &p);
 };
 
+class ThunkifyOp : public Op<ThunkifyOp, OpTrait::OneResult> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.thunkify"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  Value getScrutinee() { this->getOperation()->getOperand(0); }
+  void print(OpAsmPrinter &p);
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    Value scrutinee);
+};
+
 
 
 

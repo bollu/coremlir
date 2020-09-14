@@ -53,7 +53,7 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
   ApOp, CaseOp, HaskRefOp, LambdaOp,
   MakeStringOp, HaskFuncOp, ForceOp, HaskGlobalOp, HaskADTOp,
   HaskConstructOp,
-  HaskPrimopAddOp, HaskPrimopSubOp, CaseIntOp>();
+  HaskPrimopAddOp, HaskPrimopSubOp, CaseIntOp, ThunkifyOp>();
   //addTypes<UntypedType>();
   addTypes<ThunkType, ValueType, HaskFnType>();
   addAttributes<DataConstructorAttr>();

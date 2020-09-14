@@ -48,6 +48,7 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
 
+
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
                                                 llvm::cl::init("-"));
@@ -92,6 +93,14 @@ static llvm::cl::opt<bool> jit("jit",
 
 extern "C" {
 
+static int DEBUG_STACK_DEPTH = 0;
+#define DEBUG_LOG if(1) {                                                   \ 
+    for(int i = 0; i < DEBUG_STACK_DEPTH; ++i) { fputs("  |", stderr); }     \
+    fprintf(stderr, "%s ", __FUNCTION__);                   \
+}
+void DEBUG_PUSH_STACK() { DEBUG_STACK_DEPTH++; }
+void DEBUG_POP_STACK() { DEBUG_STACK_DEPTH--; }
+
 static const int MAX_CLOSURE_ARGS = 10;
 struct Closure {
     int n;
@@ -99,8 +108,10 @@ struct Closure {
     void *args[MAX_CLOSURE_ARGS];
 };
 
+
 void * __attribute__((used)) mkClosure_capture0_args2(void *fn, void *a, void *b) {
   Closure *data = (Closure *)malloc(sizeof(Closure));
+  DEBUG_LOG; fprintf(stderr, "(%p, %p, %p) -> %10p\n", fn, a, b, data); 
   data->n = 2;
   data->fn = fn;
   data->args[0] = a;
@@ -110,9 +121,29 @@ void * __attribute__((used)) mkClosure_capture0_args2(void *fn, void *a, void *b
 
 void *__attribute__((used)) mkClosure_capture0_args1(void *fn, void *a) {
   Closure *data = (Closure *)malloc(sizeof(Closure));
+  DEBUG_LOG; fprintf(stderr, "(%p, %p) -> %10p\n", fn, a, data); 
   data->n = 1;
   data->fn = fn;
   data->args[0] = a;
+  return (void *)data;
+}
+
+void *__attribute__((used)) mkClosure_capture0_args0(void *fn) {
+  Closure *data = (Closure *)malloc(sizeof(Closure));
+  DEBUG_LOG; fprintf(stderr, "(%p) -> %p\n", fn, data); 
+  data->n = 0;
+  data->fn = fn;
+  return (void *)data;
+}
+
+void *identity(void *v) { return v; }
+
+void *__attribute__((used)) mkClosure_thunkify(void *v) {
+  Closure *data = (Closure *)malloc(sizeof(Closure));
+  DEBUG_LOG; fprintf(stderr, "(%p) -> %p\n", v, data); 
+  data->n = 1;
+  data->fn = (void*)identity;
+  data->args[0] = v;
   return (void *)data;
 }
 
@@ -121,19 +152,26 @@ typedef void *(*FnOneArg)(void*);
 typedef void *(*FnTwoArgs)(void*, void *);
 
 void *__attribute__((used)) evalClosure(void *closure_voidptr) {
+    DEBUG_LOG; fprintf(stderr, "(%p)\n", closure_voidptr); fflush(stderr);
+    DEBUG_PUSH_STACK();
     Closure *c = (Closure*)closure_voidptr;
     assert(c->n >= 0 && c->n <= 3);
+    void *ret = NULL;
     if (c->n == 0) {
         FnZeroArgs f = (FnZeroArgs)(c->fn);
-        return f();
+        ret = f();
     } else if (c->n == 1) {
         FnOneArg  f = (FnOneArg)(c->fn);
-        return f(c->args[0]);
+        ret = f(c->args[0]);
     } else if (c->n == 2) {
         FnTwoArgs f = (FnTwoArgs)(c->fn);
-        return f(c->args[0], c->args[1]);
+        ret = f(c->args[0], c->args[1]);
+    } else {
+        assert(false && "unhandled function arity");
     }
-    assert(false && "unhandled function arity");
+    DEBUG_POP_STACK();
+    fprintf(stderr, "-> %10p\n", ret);
+    return ret;
 };
 
 static const int MAX_CONSTRUCTOR_ARGS = 2;
@@ -145,6 +183,7 @@ struct Constructor {
 
 void *__attribute__((used)) mkConstructor0(const char *tag) {
     Constructor *c = (Constructor *)malloc(sizeof(Constructor));
+    DEBUG_LOG; fprintf(stderr, "(%s) -> %p\n", tag,  c);
     c->n = 0;
     c->tag = tag;
     return c;
@@ -152,6 +191,7 @@ void *__attribute__((used)) mkConstructor0(const char *tag) {
 
 void *__attribute__((used)) mkConstructor1(const char *tag, void *a) {
     Constructor *c = (Constructor *)malloc(sizeof(Constructor));
+    DEBUG_LOG; fprintf(stderr, "(%s, %p) -> %p\n", tag, a, c);
     c->tag = tag;
     c->n = 1;
     c->args[0] = a;
@@ -160,6 +200,7 @@ void *__attribute__((used)) mkConstructor1(const char *tag, void *a) {
 
 void *__attribute__((used)) mkConstructor2(const char *tag, void *a, void *b) {
     Constructor *c = (Constructor *)malloc(sizeof(Constructor));
+    DEBUG_LOG; fprintf(stderr, "(%s, %p, %p) -> %p\n", tag, a, b, c);
     c->tag = tag;
     c->n = 2;
     c->args[0] = a; c->args[1] = b;
@@ -168,8 +209,17 @@ void *__attribute__((used)) mkConstructor2(const char *tag, void *a, void *b) {
 
 void *extractConstructorArg(void *cptr, int i) {
   Constructor *c = (Constructor *)cptr;
+  void *v = c->args[i];
   assert(i < c->n);
-  return c->args[i];
+  DEBUG_LOG; fprintf(stderr, "%s %d -> %p\n", cptr, i, v);
+  return v;
+}
+
+bool isConstructorTagEq(const void *cptr, const char *tag) {
+    Constructor *c = (Constructor*)cptr;
+    const bool eq = !strcmp(c->tag, tag);
+    DEBUG_LOG; fprintf(stderr, "(%p:%s, %s) -> %d\n", cptr, c->tag, tag, eq);
+    return eq;
 }
 } // end extern C
 
@@ -407,6 +457,17 @@ int main(int argc, char **argv) {
        llvm::JITEvaluatedSymbol(
            llvm::pointerToJITTargetAddress(&mkClosure_capture0_args1),
            llvm::JITSymbolFlags::Callable)});
+
+  name2symbol.insert(
+      {Mangle("mkClosure_capture0_args0"),
+       llvm::JITEvaluatedSymbol(
+           llvm::pointerToJITTargetAddress(&mkClosure_capture0_args0),
+           llvm::JITSymbolFlags::Callable)});
+  name2symbol.insert(
+      {Mangle("mkClosure_thunkify"),
+       llvm::JITEvaluatedSymbol(
+           llvm::pointerToJITTargetAddress(&mkClosure_thunkify),
+           llvm::JITSymbolFlags::Callable)});
   name2symbol.insert(
       {Mangle("malloc"),
        llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&malloc),
@@ -416,6 +477,12 @@ int main(int argc, char **argv) {
       {Mangle("evalClosure"),
        llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&evalClosure),
                                 llvm::JITSymbolFlags::Callable)});
+
+  name2symbol.insert(
+      {Mangle("extractConstructorArg"),
+       llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&extractConstructorArg),
+                                llvm::JITSymbolFlags::Callable)});
+
 
       name2symbol.insert(
       {Mangle("mkConstructor0"),
@@ -430,6 +497,11 @@ int main(int argc, char **argv) {
     name2symbol.insert(
       {Mangle("mkConstructor2"),
        llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&mkConstructor2),
+                                llvm::JITSymbolFlags::Callable)});
+
+    name2symbol.insert(
+      {Mangle("isConstructorTagEq"),
+       llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&isConstructorTagEq),
                                 llvm::JITSymbolFlags::Callable)});
 
 
@@ -454,33 +526,9 @@ int main(int argc, char **argv) {
 
   llvm::errs() << "main:  " << __LINE__ << "\n";
   void *result = mainfn(NULL);
-  llvm::outs() << "(void*)add1(nullptr) = " << (size_t)result << "\n";
-  llvm::outs() << "(Constructor 1*)add1(nullptr) = " << (size_t)(((Constructor*)result)->args[0]) << "\n";
-  return 0;
-
-  if (0) {
-    llvm::Function *mainfn = llvmModule->getFunction("main");
-    llvm::errs() << "mainfn: " << mainfn << "\n";
-    llvm::EngineBuilder EB(std::move(llvmModule));
-    assert(EB.selectTarget());
-    llvm::ExecutionEngine *EE = EB.create();
-    assert(EE && "unable to create execution engine!");
-    // Call the `foo' function with no arguments:
-    std::vector<llvm::GenericValue> noargs;
-    llvm::GenericValue gv;
-
-    llvm::errs() << "===main:===\n";
-    void *mainaddr = EE->getPointerToGlobalIfAvailable("main");
-    //  void * mainaddr =  EE->getPointerToFunction(mainfn);
-    llvm::errs() << "Main address: " << mainaddr << "\n";
-    // GenericValue gv = EE->runFunction(FooF, noargs);
-
-    // Import result of execution:
-    llvm::outs() << "Result: " << gv.IntVal << "\n";
-    delete EE;
-    llvm::llvm_shutdown();
-  }
-
+  llvm::errs() << "main:  " << __LINE__ << "\n";
+  llvm::errs() << "(void*)main(nullptr) = " << (size_t)result << "\n";
+  llvm::errs() << "(Constructor 1*)main(nullptr) = " << (size_t)(((Constructor*)result)->args[0]) << "\n";
   return 0;
 }
 

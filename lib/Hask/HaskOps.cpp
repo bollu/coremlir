@@ -788,6 +788,42 @@ llvm::Optional<int> CaseIntOp::getDefaultAltIndex() {
     return llvm::Optional<int>();
 }
 
+// === THUNKIFY OP ===
+// === THUNKIFY OP ===
+// === THUNKIFY OP ===
+// === THUNKIFY OP ===
+// === THUNKIFY OP ===
+
+
+ParseResult ThunkifyOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType scrutinee;
+    mlir::Type type, retty;
+    
+    if(parser.parseLParen() || parser.parseOperand(scrutinee) ||
+       parser.parseColon() || parser.parseType(type) || parser.parseRParen() ||
+       parser.parseColon() || parser.parseType(retty)) {
+        return failure();
+    }
+
+    SmallVector<Value, 4> results;
+    if(parser.resolveOperand(scrutinee, type, results)) return failure();
+    result.addOperands(results);
+    result.addTypes(retty);
+    return success();
+
+};
+
+void ThunkifyOp::print(OpAsmPrinter &p) {
+    p << getOperationName() << "(" << this->getScrutinee() << " :" << this->getScrutinee().getType() << ")" <<
+        ":" << this->getResult().getType();
+};
+
+void ThunkifyOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    Value scrutinee) {
+  state.addOperands(scrutinee);
+  state.addTypes(builder.getType<ThunkType>());
+}
+
 
 // ==REWRITES==
 // ==REWRITES==
@@ -1216,7 +1252,7 @@ static FlatSymbolRefAttr getOrInsertIsConstructorTagEq(PatternRewriter &rewriter
 
 // extractConstructorArgN(constructor: void *, arg_ix: int) -> bool)
 static FlatSymbolRefAttr getOrInsertExtractConstructorArg(PatternRewriter &rewriter,
-                                           ModuleOp module, int i) {
+                                           ModuleOp module) {
   const std::string name = "extractConstructorArg";
   if (module.lookupSymbol<LLVM::LLVMFuncOp>(name)) {
       return SymbolRefAttr::get(name, rewriter.getContext());
@@ -1309,7 +1345,21 @@ public:
             rewriter.setInsertionPointToEnd(thenBB);
             Block &altRhs = caseop.getAltRHS(i).getBlocks().front();
             llvm::errs() << "--MERGE BLOCKS (CaseOp)--\n";
-            rewriter.mergeBlocks(&altRhs, thenBB, scrutinee);
+            SmallVector<Value, 4> extractedFields;
+            FlatSymbolRefAttr extractConstructorArg = getOrInsertExtractConstructorArg(rewriter, mod);
+            llvm::errs() << "-number of arguments: [" << altRhs.getNumArguments() << "]--\n";
+            for(int i = 0; i < altRhs.getNumArguments(); ++i) {
+              Value ival = rewriter.create<LLVM::ConstantOp>(caseop.getLoc(),
+                                                             LLVMType::getInt64Ty(rewriter.getContext()),
+                                                             rewriter.getI64IntegerAttr(i));
+              SmallVector<Value, 2> args = { scrutinee, ival};
+              LLVM::CallOp call = rewriter.create<LLVM::CallOp>(caseop.getLoc(),
+                                                                LLVMType::getInt8PtrTy(rewriter.getContext()),
+                                                                extractConstructorArg, args);
+              extractedFields.push_back(call.getResult(0));
+            }
+            llvm::errs() << "-----merging blocks-----\n";
+            rewriter.mergeBlocks(&altRhs, thenBB, extractedFields);
             llvm::errs() << "--DONE MERGE BLOCKS (CaseOp)--\n";
 
             Block *elseBB = rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
@@ -1845,6 +1895,49 @@ public:
     }
 };
 
+static FlatSymbolRefAttr getOrInsertMkClosureThunkify(PatternRewriter &rewriter, ModuleOp module) {
+    
+    const std::string name = "mkClosure_thunkify";
+    if (module.lookupSymbol<LLVM::LLVMFuncOp>(name)) {
+        return SymbolRefAttr::get(name, rewriter.getContext());
+    }
+
+    auto I8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+    llvm::SmallVector<LLVM::LLVMType, 4> argTys{I8PtrTy};
+    auto llvmFnType = LLVM::LLVMType::getFunctionTy(I8PtrTy, argTys,
+            /*isVarArg=*/false);
+
+    // Insert the printf function into the body of the parent module.
+    PatternRewriter::InsertionGuard insertGuard(rewriter);
+    rewriter.setInsertionPointToStart(module.getBody());
+    rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), name, llvmFnType);
+    return SymbolRefAttr::get(name, rewriter.getContext());
+}
+
+class ThunkifyOpConversionPattern : public ConversionPattern {
+public:
+  explicit ThunkifyOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(ThunkifyOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    llvm::errs() << "running ThunkifyOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+
+    ThunkifyOp thunkify = cast<ThunkifyOp>(op);
+    ModuleOp mod = thunkify.getParentOfType<ModuleOp>();
+
+    using namespace mlir::LLVM;
+
+    FlatSymbolRefAttr llvmThunkifyFn = getOrInsertMkClosureThunkify(rewriter, mod);
+
+    rewriter.replaceOpWithNewOp<LLVM::CallOp>(op,
+            LLVMType::getInt8PtrTy(rewriter.getContext()),
+            llvmThunkifyFn, thunkify.getScrutinee());
+    return success();
+  }
+};
+
 
 // === LowerHaskToLLVMPass ===
 // === LowerHaskToLLVMPass ===
@@ -1911,6 +2004,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     patterns.insert<HaskPrimopAddOpConversionPattern>(&getContext());
     patterns.insert<HaskPrimopSubOpConversionPattern>(&getContext());
     patterns.insert<CaseIntOpConversionPattern>(&getContext());
+    patterns.insert<ThunkifyOpConversionPattern>(&getContext());
 
     //llvm::errs() << "===Enabling Debugging...===\n";
     //::llvm::DebugFlag = true;
