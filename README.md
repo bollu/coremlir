@@ -7,6 +7,49 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Monday, Sep 14th 2020
+
+- I need to fix functions/globals ASAP. I think it should be like this:
+0. Lazy functions are denoted by `a ~> b`. Strict functions by `a => b`.
+1. `apLazy(a ~> b)` can peel off arguments, leaving one with finally `() ~> b`.
+2. `force` can 'invoke' a `() => b` leaving one with a `b`.
+2. `apStrict(a -> b)` can peel off arguments, leaving one with finally `b`.
+
+
+This is hard to write an example for. But basically, there is a difference
+between a value that is expected to be forced and the value itself.
+
+for example, should `plus` be:
+
+```
+  hask.func @plus {
+    %lam = hask.lambdaSSA(%i : !hask.thunk, %j: !hask.thunk) {
+      %icons = hask.force(%i: !hask.thunk): !hask.value
+      %reti = hask.caseSSA %icons 
+           [@MkSimpleInt -> { ^entry(%ival: !hask.value):
+              %jcons = hask.force(%j: !hask.thunk):!hask.value
+              %retj = hask.caseSSA %jcons 
+                  [@MkSimpleInt -> { ^entry(%jval: !hask.value):
+                        %sum_v = hask.primop_add(%ival, %jval)
+                        %boxed = hask.construct(@MkSimpleInt, %sum_v)
+                        // do we return the box?
+                        hask.return(%boxed) :!hask.thunk
+                        // or do we return a closure that holds the box?
+                        // this matters to callees. In one case, they can
+                        // `case` case on the box. In the other case, they need
+                        // to `force`, and then `case`.
+                        hask.suspend(%boxed) :!hask.thunk
+
+                  }]
+              hask.return(%retj):!hask.thunk
+           }]
+      hask.return(%reti): !hask.thunk
+    }
+    hask.return(%lam): !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
+  }
+```
+
+
 # Friday, Sep 11 2020
 
 - [doc to call](https://docs.google.com/document/d/1AMTo9cTpPTVzLrBAnzE9NS5wJcQ6Jo8PeMKO7-foHEg/edit?usp=sharing)

@@ -557,6 +557,18 @@ flattenExpr expr =
     Tick _ e -> return (text ("TICK"))
     Cast _ e -> return (text ("CAST"))
 
+   Let (NonRec b e) body -> do
+        i <- builderMakeUnique 
+        let name_unimpl = text ("%unimpl_let_nonrec" ++ show i)
+        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
+        return name_unimpl
+      
+   Let (Rec bs) body -> do 
+        i <- builderMakeUnique 
+        let name_unimpl = text ("%unimpl_let_rec" ++ show i)
+        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
+        return name_unimpl
+
     _ -> do
         i <- builderMakeUnique 
         let name_unimpl = text ("%unimpl_" ++ show i)

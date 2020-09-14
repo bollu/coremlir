@@ -12,8 +12,7 @@ module {
         ^bb0(%arg3: !hask.value):  // no predecessors
           %5 = hask.primop_add(%arg2,%arg3)
           %6 = hask.construct(@MkSimpleInt, %5)
-          %7 = hask.thunkify(%6 :!hask.thunk):!hask.thunk
-          hask.return(%7) : !hask.thunk
+          hask.return(%6) : !hask.thunk
         }]
 
         hask.return(%4) : !hask.thunk
@@ -33,8 +32,7 @@ module {
         ^bb0(%arg3: !hask.value):  // no predecessors
           %5 = hask.primop_sub(%arg2,%arg3)
           %6 = hask.construct(@MkSimpleInt, %5)
-          %7 = hask.thunkify(%6 :!hask.thunk):!hask.thunk
-          hask.return(%7) : !hask.thunk
+          hask.return(%6) : !hask.thunk
         }]
 
         hask.return(%4) : !hask.thunk
@@ -73,30 +71,35 @@ module {
         ^bb0(%arg2: !hask.value):  // no predecessors
           %4 = hask.ref(@zero) : !hask.thunk
           %5 = hask.apSSA(%4 :!hask.thunk)
-          hask.return(%5) : !hask.thunk
+          %6 = hask.force(%5 :!hask.thunk):!hask.thunk
+          hask.return(%6) : !hask.thunk
         }]
  [1 : i64 ->  {
         ^bb0(%arg2: !hask.value):  // no predecessors
           %4 = hask.ref(@one) : !hask.thunk
           %5 = hask.apSSA(%4 :!hask.thunk)
-          hask.return(%5) : !hask.thunk
+          %6 = hask.force(%5 :!hask.thunk):!hask.thunk
+          hask.return(%6) : !hask.thunk
         }]
  [@default ->  {
-          %4 = hask.ref(@eight) : !hask.thunk
-          %5 = hask.ref(@fib) : !hask.fn<!hask.thunk, !hask.thunk>
-          %6 = hask.ref(@minus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
-          %7 = hask.ref(@one) : !hask.thunk
-          %8 = hask.apSSA(%6 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %arg0, %7)
-          %9 = hask.force(%8 :!hask.thunk):!hask.thunk
-          %10 = hask.apSSA(%5 :!hask.fn<!hask.thunk, !hask.thunk>, %9)
-          %11 = hask.force(%10 :!hask.thunk):!hask.thunk
-          %12 = hask.ref(@two) : !hask.thunk
-          %13 = hask.apSSA(%6 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %arg0, %12)
-          %14 = hask.force(%13 :!hask.thunk):!hask.thunk
-          %15 = hask.force(%10 :!hask.thunk):!hask.thunk
-          %16 = hask.ref(@plus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
-          %17 = hask.apSSA(%16 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %11, %15)
-          hask.return(%17) : !hask.thunk
+          %4 = hask.ref(@fib) : !hask.fn<!hask.thunk, !hask.thunk>
+          %5 = hask.ref(@minus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
+          %6 = hask.ref(@one) : !hask.thunk
+          %7 = hask.apSSA(%6 :!hask.thunk)
+          %8 = hask.apSSA(%5 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %arg0, %7)
+          %9 = hask.apSSA(%4 :!hask.fn<!hask.thunk, !hask.thunk>, %8)
+          %10 = hask.force(%9 :!hask.thunk):!hask.thunk
+          %11 = hask.ref(@two) : !hask.thunk
+          %12 = hask.apSSA(%11 :!hask.thunk)
+          %13 = hask.apSSA(%5 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %arg0, %12)
+          %14 = hask.apSSA(%4 :!hask.fn<!hask.thunk, !hask.thunk>, %13)
+          %15 = hask.force(%14 :!hask.thunk):!hask.thunk
+          %16 = hask.thunkify(%10 :!hask.thunk):!hask.thunk
+          %17 = hask.thunkify(%15 :!hask.thunk):!hask.thunk
+          %18 = hask.ref(@plus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
+          %19 = hask.apSSA(%18 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %16, %17)
+          %20 = hask.force(%19 :!hask.thunk):!hask.thunk
+          hask.return(%20) : !hask.thunk
         }]
 
         hask.return(%3) : !hask.thunk
@@ -108,15 +111,13 @@ module {
   }
   hask.func @main {
     %0 = hask.lambdaSSA(%arg0:!hask.thunk) {
-      %1 = hask.ref(@one) : !hask.thunk
-      %2 = hask.make_i64(8 : i64)
-      %3 = hask.construct(@MkSimpleInt, %2)
-      %4 = hask.thunkify(%3 :!hask.thunk):!hask.thunk
-      %5 = hask.ref(@fib) : !hask.fn<!hask.thunk, !hask.thunk>
-      %6 = hask.apSSA(%5 :!hask.fn<!hask.thunk, !hask.thunk>, %4)
-      %7 = hask.force(%6 :!hask.thunk):!hask.thunk
-      %8 = hask.force(%7 :!hask.thunk):!hask.thunk
-      hask.return(%8) : !hask.thunk
+      %1 = hask.make_i64(6 : i64)
+      %2 = hask.construct(@MkSimpleInt, %1)
+      %3 = hask.thunkify(%2 :!hask.thunk):!hask.thunk
+      %4 = hask.ref(@fib) : !hask.fn<!hask.thunk, !hask.thunk>
+      %5 = hask.apSSA(%4 :!hask.fn<!hask.thunk, !hask.thunk>, %3)
+      %6 = hask.force(%5 :!hask.thunk):!hask.thunk
+      hask.return(%6) : !hask.thunk
     }
     hask.return(%0) : !hask.fn<!hask.thunk, !hask.thunk>
   }

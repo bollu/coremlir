@@ -94,8 +94,10 @@ static llvm::cl::opt<bool> jit("jit",
 extern "C" {
 
 static int DEBUG_STACK_DEPTH = 0;
-#define DEBUG_LOG if(1) {                                                   \ 
-    for(int i = 0; i < DEBUG_STACK_DEPTH; ++i) { fputs("  |", stderr); }     \
+void DEBUG_INDENT() { for(int i = 0; i < DEBUG_STACK_DEPTH; ++i) { fputs("  ⋮", stderr); } }
+
+#define DEBUG_LOG if(1) {                                   \ 
+    DEBUG_INDENT();                                         \
     fprintf(stderr, "%s ", __FUNCTION__);                   \
 }
 void DEBUG_PUSH_STACK() { DEBUG_STACK_DEPTH++; }
@@ -108,10 +110,36 @@ struct Closure {
     void *args[MAX_CLOSURE_ARGS];
 };
 
+char *getPronouncableNum(size_t N) {
+     const char *cs = "bcdfghjklmnpqrstvwxzy";
+     const char *vs = "aeiou";
+
+     size_t ncs = strlen(cs); size_t nvs = strlen(vs);
+
+     char buf[1024]; char *out = buf;
+     int i = 0;
+     while(N > 0) {
+         const size_t icur = N % (ncs * nvs);
+         *out++ = cs[icur%ncs]; *out++ = vs[(icur/ncs) % nvs];
+         N /= ncs*nvs;
+         if (N > 0 && !(++i % 2)) { *out++ = '-'; }
+     }
+     *out = 0;
+     return strdup(buf);
+};
+
+char *getPronouncablePtr(void *N) { 
+    return getPronouncableNum((size_t) N);
+}
+
 
 void * __attribute__((used)) mkClosure_capture0_args2(void *fn, void *a, void *b) {
   Closure *data = (Closure *)malloc(sizeof(Closure));
-  DEBUG_LOG; fprintf(stderr, "(%p, %p, %p) -> %10p\n", fn, a, b, data); 
+  DEBUG_LOG; fprintf(stderr, "(%p:%s, %p:%s, %p:%s) -> %10p:%s\n", 
+          fn, getPronouncablePtr(fn),
+          a, getPronouncablePtr(a),
+          b, getPronouncablePtr(b), 
+          data, getPronouncablePtr(data)); 
   data->n = 2;
   data->fn = fn;
   data->args[0] = a;
@@ -121,7 +149,10 @@ void * __attribute__((used)) mkClosure_capture0_args2(void *fn, void *a, void *b
 
 void *__attribute__((used)) mkClosure_capture0_args1(void *fn, void *a) {
   Closure *data = (Closure *)malloc(sizeof(Closure));
-  DEBUG_LOG; fprintf(stderr, "(%p, %p) -> %10p\n", fn, a, data); 
+  DEBUG_LOG; fprintf(stderr, "(%p:%s, %p:%s) -> %10p:%s\n", 
+          fn, getPronouncablePtr(fn),
+          a, getPronouncablePtr(a),
+          data, getPronouncablePtr(data)); 
   data->n = 1;
   data->fn = fn;
   data->args[0] = a;
@@ -130,7 +161,9 @@ void *__attribute__((used)) mkClosure_capture0_args1(void *fn, void *a) {
 
 void *__attribute__((used)) mkClosure_capture0_args0(void *fn) {
   Closure *data = (Closure *)malloc(sizeof(Closure));
-  DEBUG_LOG; fprintf(stderr, "(%p) -> %p\n", fn, data); 
+  DEBUG_LOG; fprintf(stderr, "(%p:%s) -> %p:%s\n", 
+          fn, getPronouncablePtr(fn),
+          data, getPronouncablePtr(data)); 
   data->n = 0;
   data->fn = fn;
   return (void *)data;
@@ -152,7 +185,8 @@ typedef void *(*FnOneArg)(void*);
 typedef void *(*FnTwoArgs)(void*, void *);
 
 void *__attribute__((used)) evalClosure(void *closure_voidptr) {
-    DEBUG_LOG; fprintf(stderr, "(%p)\n", closure_voidptr); fflush(stderr);
+    DEBUG_LOG; fprintf(stderr, "(%p:%s)\n", 
+            closure_voidptr, getPronouncablePtr(closure_voidptr));
     DEBUG_PUSH_STACK();
     Closure *c = (Closure*)closure_voidptr;
     assert(c->n >= 0 && c->n <= 3);
@@ -170,7 +204,8 @@ void *__attribute__((used)) evalClosure(void *closure_voidptr) {
         assert(false && "unhandled function arity");
     }
     DEBUG_POP_STACK();
-    fprintf(stderr, "-> %10p\n", ret);
+    DEBUG_INDENT(); fprintf(stderr, "=>%10p:%s\n", 
+            ret, getPronouncablePtr(ret));
     return ret;
 };
 
@@ -183,7 +218,8 @@ struct Constructor {
 
 void *__attribute__((used)) mkConstructor0(const char *tag) {
     Constructor *c = (Constructor *)malloc(sizeof(Constructor));
-    DEBUG_LOG; fprintf(stderr, "(%s) -> %p\n", tag,  c);
+    DEBUG_LOG; fprintf(stderr, "(%s) -> %p:%s\n", tag,
+            c, getPronouncablePtr(c));
     c->n = 0;
     c->tag = tag;
     return c;
@@ -191,7 +227,8 @@ void *__attribute__((used)) mkConstructor0(const char *tag) {
 
 void *__attribute__((used)) mkConstructor1(const char *tag, void *a) {
     Constructor *c = (Constructor *)malloc(sizeof(Constructor));
-    DEBUG_LOG; fprintf(stderr, "(%s, %p) -> %p\n", tag, a, c);
+    DEBUG_LOG; fprintf(stderr, "(%s, %p) -> %p:%s\n", tag, a,
+            c, getPronouncablePtr(c));
     c->tag = tag;
     c->n = 1;
     c->args[0] = a;
@@ -211,7 +248,8 @@ void *extractConstructorArg(void *cptr, int i) {
   Constructor *c = (Constructor *)cptr;
   void *v = c->args[i];
   assert(i < c->n);
-  DEBUG_LOG; fprintf(stderr, "%s %d -> %p\n", cptr, i, v);
+  DEBUG_LOG; fprintf(stderr, "%s %d -> %p:%s\n", cptr, i,
+          v, getPronouncablePtr(v));
   return v;
 }
 

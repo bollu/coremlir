@@ -16,12 +16,9 @@ module {
               %jcons = hask.force(%j: !hask.thunk):!hask.value
               %retj = hask.caseSSA %jcons 
                   [@MkSimpleInt -> { ^entry(%jval: !hask.value):
-                        // %plus_hash = hask.ref (@"+#")  : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>
-                        // %sum_t = hask.apSSA(%plus_hash : !hask.fn<!hask.value, !hask.fn<!hask.value, !hask.thunk>>, %ival, %jval)
                         %sum_v = hask.primop_add(%ival, %jval)
                         %boxed = hask.construct(@MkSimpleInt, %sum_v)
-                        %boxed_thunk = hask.thunkify(%boxed: !hask.thunk):!hask.thunk
-                        hask.return(%boxed_thunk) :!hask.thunk
+                        hask.return(%boxed) :!hask.thunk
                   }]
               hask.return(%retj):!hask.thunk
            }]
@@ -45,8 +42,7 @@ module {
                         // %diff_v = hask.force(%diff_t)
                         %diff_v = hask.primop_sub(%ival, %jval)
                         %boxed = hask.construct(@MkSimpleInt, %diff_v)
-                        %boxed_thunk = hask.thunkify(%boxed: !hask.thunk):!hask.thunk
-                        hask.return(%boxed_thunk) :!hask.thunk
+                        hask.return(%boxed) : !hask.thunk
 
                   }]
               hask.return(%retj):!hask.thunk
@@ -105,42 +101,48 @@ module {
                      [0 -> { ^entry(%_: !hask.value): 
                                 %z = hask.ref(@zero) : !hask.thunk
                                 %z_t = hask.apSSA(%z: !hask.thunk)
-                                // %z_v = hask.force(%z_t: !hask.thunk):!hask.thunk
-                                hask.return (%z_t): !hask.thunk      
+                                %z_v = hask.force(%z_t: !hask.thunk):!hask.thunk
+                                hask.return (%z_v): !hask.thunk      
                      }]
                      [1 -> { ^entry(%_: !hask.value): 
                                 %o = hask.ref(@one):!hask.thunk
                                 %o_t = hask.apSSA(%o: !hask.thunk)
-                                // %o_v = hask.force(%o_t: !hask.thunk):!hask.thunk
-                                hask.return (%o_t): !hask.thunk
+                                %o_v = hask.force(%o_t: !hask.thunk):!hask.thunk
+                                hask.return (%o_v): !hask.thunk
                      }]
                      [@default -> { ^entry:
-                                %o = hask.ref(@eight):!hask.thunk
-                                %o_t = hask.apSSA(%o: !hask.thunk)
                                 // %o_v = hask.force(%o_t: !hask.thunk):!hask.thunk
                                 %fib = hask.ref(@fib):  !hask.fn<!hask.thunk, !hask.thunk>
                                 %minus = hask.ref(@minus): !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>> 
                                 %one = hask.ref(@one): !hask.thunk
-                                %i_minus_one_t = hask.apSSA(%minus: !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, 
-                                    %i, %one)
-                                %i_minus_one_v = hask.force(%i_minus_one_t : !hask.thunk): !hask.thunk
+                                %one_t = hask.apSSA(%one: !hask.thunk)
 
-                                %fib_i_minus_one_t = hask.apSSA(%fib: !hask.fn<!hask.thunk, !hask.thunk>, %i_minus_one_v)
+                                %i_minus_one_t = hask.apSSA(%minus: !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, 
+                                    %i, %one_t)
+
+
+                                %fib_i_minus_one_t = hask.apSSA(%fib: !hask.fn<!hask.thunk, !hask.thunk>, %i_minus_one_t)
                                 %fib_i_minus_one_v = hask.force(%fib_i_minus_one_t :!hask.thunk) :!hask.thunk
 
+
                                 %two = hask.ref(@two): !hask.thunk
+                                %two_t = hask.apSSA(%two: !hask.thunk)
+
                                 %i_minus_two_t = hask.apSSA(%minus: !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, 
-                                   %i, %two)
-                                %i_minus_two_v = hask.force(%i_minus_two_t : !hask.thunk): !hask.thunk
+                                   %i, %two_t)
 
-                                %fib_i_minus_two_t = hask.apSSA(%fib: !hask.fn<!hask.thunk, !hask.thunk>, %i_minus_two_v)
-                                %fib_i_minus_two_v = hask.force(%fib_i_minus_one_t :!hask.thunk) :!hask.thunk
+                                %fib_i_minus_two_t = hask.apSSA(%fib: !hask.fn<!hask.thunk, !hask.thunk>, %i_minus_two_t)
+                                %fib_i_minus_two_v = hask.force(%fib_i_minus_two_t :!hask.thunk) :!hask.thunk
 
-                                %plus = hask.ref(@plus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
-                                %sum = 
-                                   hask.apSSA(%plus: !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, 
-                                       %fib_i_minus_one_v, %fib_i_minus_two_v)
-                                hask.return (%sum):!hask.thunk
+                                %fib_i_minus_one_v_t = hask.thunkify(%fib_i_minus_one_v: !hask.thunk): !hask.thunk
+                                %fib_i_minus_two_v_t = hask.thunkify(%fib_i_minus_two_v: !hask.thunk): !hask.thunk
+
+                                 %plus = hask.ref(@plus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
+                                 %sum = 
+                                     hask.apSSA(%plus: !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, 
+                                         %fib_i_minus_one_v_t, %fib_i_minus_two_v_t)
+                                 %sum_v = hask.force(%sum:!hask.thunk):!hask.thunk
+                                 hask.return (%sum_v):!hask.thunk
                      }]
                      hask.return(%ret):!hask.thunk
                }]
@@ -154,19 +156,14 @@ module {
   // val: 0 1 1 2 3 5 8
   hask.func@main {
     %lam = hask.lambdaSSA(%_: !hask.thunk) {
-      %input = hask.ref(@one) : !hask.thunk
-      %input_t = hask.apSSA(%input: !hask.thunk)
-
-      %number = hask.make_i64(8)
+      %number = hask.make_i64(6)
       %boxed_number = hask.construct(@MkSimpleInt, %number)
       %thunk_number = hask.thunkify(%boxed_number :!hask.thunk) : !hask.thunk
 
       %fib = hask.ref(@fib)  : !hask.fn<!hask.thunk, !hask.thunk>
       %out_t = hask.apSSA(%fib : !hask.fn<!hask.thunk, !hask.thunk>, %thunk_number)
       %out_v = hask.force(%out_t : !hask.thunk): !hask.thunk
-
-      %out_cons = hask.force(%out_v:!hask.thunk):!hask.thunk
-      hask.return(%out_cons) : !hask.thunk
+      hask.return(%out_v) : !hask.thunk
     }
     hask.return (%lam) : !hask.fn<!hask.thunk, !hask.thunk>
   }
