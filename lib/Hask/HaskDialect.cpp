@@ -61,6 +61,7 @@ mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
 
       return HaskFnType::get(parser.getBuilder().getContext(), param, res);
   } else {
+      parser.emitError(parser.getCurrentLocation(), "unknown type for hask dialect");
       assert(false && "unknown type");
   }
   return Type();

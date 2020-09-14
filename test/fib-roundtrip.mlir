@@ -4,10 +4,10 @@ module {
   hask.adt @SimpleInt [#hask.data_constructor<@MkSimpleInt [@"Int#"]>]
   hask.func @plus {
     %0 = hask.lambdaSSA(%arg0:!hask.thunk,%arg1:!hask.thunk) {
-      %1 = hask.force(%arg0)
+      %1 = hask.force(%arg0 :!hask.thunk):!hask.value
       %2 = hask.caseSSA %1 [@SimpleInt ->  {
       ^bb0(%arg2: !hask.value):  // no predecessors
-        %3 = hask.force(%arg1)
+        %3 = hask.force(%arg1 :!hask.thunk):!hask.value
         %4 = hask.caseSSA %3 [@SimpleInt ->  {
         ^bb0(%arg3: !hask.value):  // no predecessors
           %5 = hask.primop_add(%arg2,%arg3)
@@ -24,10 +24,10 @@ module {
   }
   hask.func @minus {
     %0 = hask.lambdaSSA(%arg0:!hask.thunk,%arg1:!hask.thunk) {
-      %1 = hask.force(%arg0)
+      %1 = hask.force(%arg0 :!hask.thunk):!hask.value
       %2 = hask.caseSSA %1 [@SimpleInt ->  {
       ^bb0(%arg2: !hask.value):  // no predecessors
-        %3 = hask.force(%arg1)
+        %3 = hask.force(%arg1 :!hask.thunk):!hask.value
         %4 = hask.caseSSA %3 [@SimpleInt ->  {
         ^bb0(%arg3: !hask.value):  // no predecessors
           %5 = hask.primop_sub(%arg2,%arg3)
@@ -52,9 +52,14 @@ module {
     %1 = hask.construct(@MkSimpleInt, %0)
     hask.return(%1) : !hask.thunk
   }
+  hask.global @two {
+    %0 = hask.make_i64(2 : i64)
+    %1 = hask.construct(@MkSimpleInt, %0)
+    hask.return(%1) : !hask.thunk
+  }
   hask.func @fib {
     %0 = hask.lambdaSSA(%arg0:!hask.thunk) {
-      %1 = hask.force(%arg0)
+      %1 = hask.force(%arg0 :!hask.thunk):!hask.value
       %2 = hask.caseSSA %1 [@MkSimpleInt ->  {
       ^bb0(%arg1: !hask.value):  // no predecessors
         %3 = hask.caseint %arg1 [0 : i64 ->  {
@@ -69,14 +74,19 @@ module {
         }]
  [@default ->  {
           %4 = hask.ref(@fib) : !hask.fn<!hask.thunk, !hask.thunk>
-          %5 = hask.apSSA(%4 :!hask.fn<!hask.thunk, !hask.thunk>, %arg0)
-          %6 = hask.ref(@minus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
-          %7 = hask.ref(@one) : !hask.thunk
-          %8 = hask.apSSA(%6 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %arg0, %7)
+          %5 = hask.ref(@minus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
+          %6 = hask.ref(@one) : !hask.thunk
+          %7 = hask.apSSA(%5 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %arg0, %6)
+          %8 = hask.force(%7 :!hask.thunk):!hask.thunk
           %9 = hask.apSSA(%4 :!hask.fn<!hask.thunk, !hask.thunk>, %8)
-          %10 = hask.ref(@plus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
-          %11 = hask.apSSA(%10 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %5, %9)
-          hask.return(%11) : !hask.thunk
+          %10 = hask.force(%9 :!hask.thunk):!hask.thunk
+          %11 = hask.ref(@two) : !hask.thunk
+          %12 = hask.apSSA(%5 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %arg0, %11)
+          %13 = hask.force(%12 :!hask.thunk):!hask.thunk
+          %14 = hask.force(%9 :!hask.thunk):!hask.thunk
+          %15 = hask.ref(@plus) : !hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
+          %16 = hask.apSSA(%15 :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>, %10, %14)
+          hask.return(%16) : !hask.thunk
         }]
 
         hask.return(%3) : !hask.thunk
