@@ -1,6 +1,15 @@
 # Yes I hate myself, but this is far too convenient to be able to write
 # pipelines which involve tee and allow such pipelines to fail.
-.PHONY: fib fibstrict playground
+.PHONY: fib fibstrict playground add
+
+add: 
+	make -C ~/work/mlir/coremlir/build
+	../build/bin/hask-opt ./add.mlir 
+	../build/bin/hask-opt ./add.mlir > add-roundtrip.mlir
+	../build/bin/hask-opt ./add-roundtrip.mlir
+	../build/bin/hask-opt ./add-roundtrip.mlir -lower-std -lower-llvm
+	../build/bin/hask-opt ./add-roundtrip.mlir -lower-std -lower-llvm -jit
+
 
 fib: 
 	make -C ~/work/mlir/coremlir/build
