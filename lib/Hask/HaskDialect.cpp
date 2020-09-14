@@ -18,9 +18,24 @@
 #include "mlir/IR/Types.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
+#include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/TypeSupport.h"
+ 
 
 using namespace mlir;
 using namespace mlir::standalone;
+//===----------------------------------------------------------------------===//
+// Hask type.
+//===----------------------------------------------------------------------===//
+
+
+ bool HaskType::classof(Type type) {
+   return llvm::isa<HaskDialect>(type.getDialect());
+ }
+ 
+ HaskDialect &HaskType::getDialect() {
+   return static_cast<HaskDialect &>(Type::getDialect());
+ }
 
 //===----------------------------------------------------------------------===//
 // Hask dialect.

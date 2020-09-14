@@ -39,15 +39,31 @@ public:
 };
 */
 
+class HaskType : public Type {
+public:
+  /// Inherit base constructors.
+  using Type::Type;
 
-class ThunkType : public mlir::Type::TypeBase<ThunkType, mlir::Type,
+  /// Support for PointerLikeTypeTraits.
+  using Type::getAsOpaquePointer;
+  static HaskType getFromOpaquePointer(const void *ptr) {
+    return HaskType(static_cast<ImplType *>(const_cast<void *>(ptr)));
+  }
+  /// Support for isa/cast.
+  static bool classof(Type type);
+  HaskDialect &getDialect();
+};
+
+
+
+class ThunkType : public mlir::Type::TypeBase<ThunkType, HaskType,
                                                TypeStorage> {
 public:
   using Base::Base;
   static ThunkType get(MLIRContext *context) { return Base::get(context); }
 };
 
-class ValueType : public mlir::Type::TypeBase<ValueType, mlir::Type,
+class ValueType : public mlir::Type::TypeBase<ValueType, HaskType,
                                                TypeStorage> {
 public:
   using Base::Base;
@@ -82,7 +98,7 @@ struct HaskFnTypeStorage : public TypeStorage {
 //https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/include/mlir/IR/Types.h#L239
 //https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/lib/IR/Types.cpp#L36
 class HaskFnType : 
-    public mlir::Type::TypeBase<HaskFnType, mlir::Type, HaskFnTypeStorage> {
+    public mlir::Type::TypeBase<HaskFnType, HaskType, HaskFnTypeStorage> {
 public:
   using Base::Base;
   static HaskFnType get(MLIRContext *context, 

@@ -159,44 +159,49 @@ ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
     if (parser.parseOperand(op_fn)) { return failure(); }
 
     // : type
-    HaskFnType fnty;
-    if (parser.parseColonType<HaskFnType>(fnty)) { return failure(); }
-    if(parser.resolveOperand(op_fn, fnty, result.operands)) {
+    HaskType ratorty;
+    if (parser.parseColonType<HaskType>(ratorty)) { return failure(); }
+    if(parser.resolveOperand(op_fn, ratorty, result.operands)) {
         return failure();
     }
 
-    std::vector<Type> paramtys; Type retty;
-    std::tie(retty, paramtys) = fnty.uncurry();
+    if(HaskFnType fnty = ratorty.dyn_cast<HaskFnType>()) {
+        std::vector<Type> paramtys; Type retty;
+        std::tie(retty, paramtys) = fnty.uncurry();
 
-    llvm::errs() << result.operands[0] << ": (";
-    for(int i = 0; i < paramtys.size() ; ++i) {
-        llvm::errs() << i << "=" << paramtys[i]  << " ";
-    }
-    llvm::errs() << ") -> " << retty << "\n";
-
-    // ["," <arg>]
-    int nargs = 0;
-    while(succeeded(parser.parseOptionalComma())) {
-        OpAsmParser::OperandType op;
-        if (parser.parseOperand(op)) return failure();
-        if (nargs > paramtys.size()) {
-            InFlightDiagnostic diag = parser.emitError(parser.getCurrentLocation());
-            diag << "expected |" << paramtys.size() << "| parameters based on |" << fnty << "|";
-            return diag;
+        llvm::errs() << result.operands[0] << ": (";
+        for(int i = 0; i < paramtys.size() ; ++i) {
+            llvm::errs() << i << "=" << paramtys[i]  << " ";
         }
-        if(parser.resolveOperand(op, paramtys[nargs], result.operands)) {
-            return failure();
+        llvm::errs() << ") -> " << retty << "\n";
+
+        // ["," <arg>]
+        int nargs = 0;
+        while(succeeded(parser.parseOptionalComma())) {
+            OpAsmParser::OperandType op;
+            if (parser.parseOperand(op)) return failure();
+            if (nargs > paramtys.size()) {
+                InFlightDiagnostic diag = parser.emitError(parser.getCurrentLocation());
+                diag << "expected |" << paramtys.size() << "| parameters based on |" << fnty << "|";
+                return diag;
+            }
+            if(parser.resolveOperand(op, paramtys[nargs], result.operands)) {
+                return failure();
+            }
+            nargs++;
         }
-        nargs++;
+
+        //)
+        if (parser.parseRParen()) return failure();
+
+        // ensure fully saturated calls
+        assert(nargs == paramtys.size());
+        result.addTypes(fnty.stripNArguments(nargs));
+    } else {
+        if (parser.parseRParen()) return failure();
+        result.addTypes(parser.getBuilder().getType<ThunkType>());
     }
 
-    //)
-    if (parser.parseRParen()) return failure();
-
-    // ensure fully saturated calls
-    assert(nargs == paramtys.size());
-
-    result.addTypes(fnty.stripNArguments(nargs));
     return success();
 };
 
@@ -1115,6 +1120,13 @@ public:
                           llvmfnEntry->getArguments());
     rewriter.eraseOp(op);
 
+    // TODO: consider building a struct with the default closure
+    // interface?
+    // {
+    //    mlir::LLVM::LLVMStructType closure0ArgsStruct;
+    //    rewriter.create<mlir::LLVM::GlobalOp>(fn.getLoc(), fn.getName(),
+    //                                          closure0ArgsStruct)
+    
     return success();
   }
 };
@@ -1551,6 +1563,8 @@ public:
   }
 };
 
+
+
 static FlatSymbolRefAttr getOrInsertMalloc(PatternRewriter &rewriter,
                                            ModuleOp module) {
   if (module.lookupSymbol<LLVM::LLVMFuncOp>("malloc")) {
@@ -1614,9 +1628,8 @@ public:
     FlatSymbolRefAttr mkConstructor = getOrInsertMkConstructor(rewriter, 
             op->getParentOfType<ModuleOp>(), cons.getNumOperands());
 
-    const std::string consName_global_var_name = (cons.getDataConstructorName() + "_name").str();
     Value consName = getOrCreateGlobalString(cons.getLoc(), rewriter,
-                            consName_global_var_name,
+                            cons.getDataConstructorName(),
                             cons.getDataConstructorName(),
                             mod);
     SmallVector<Value, 4> args = {consName};
