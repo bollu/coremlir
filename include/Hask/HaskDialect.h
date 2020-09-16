@@ -71,14 +71,15 @@ public:
 };
 
 /// Function Type Storage and Uniquing.
+// https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/lib/IR/TypeDetail.h#L83
 struct HaskFnTypeStorage : public TypeStorage {
-  HaskFnTypeStorage(ArrayRef<Type> input, ArrayRef<Type> const result)
-      : input(input), result(result) {};
+  HaskFnTypeStorage(ArrayRef<Type> const inputs, ArrayRef<Type> const result)
+      : inputs(inputs), result(result) {};
 
   /// The hash key used for uniquing.
   using KeyTy = std::pair<ArrayRef<Type>, ArrayRef<Type>>;
   bool operator==(const KeyTy &key) const {
-    return key == KeyTy(getInput(), getResult());
+    return key == KeyTy(getInputs(), getResult());
   }
 
   /// Construction.
@@ -89,14 +90,15 @@ struct HaskFnTypeStorage : public TypeStorage {
                 allocator.copyInto(key.second));
   }
 
-  ArrayRef<Type> getInput() const { return input; }
+  ArrayRef<Type> getInputs() const { return inputs; }
   ArrayRef<Type> getResult() const { return result; }
-  ArrayRef<Type> const input;
+  ArrayRef<Type> const inputs;
   ArrayRef<Type> const result;
 };
 
 //https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/include/mlir/IR/Types.h#L239
 //https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/lib/IR/Types.cpp#L36
+//https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/lib/IR/TypeDetail.h#L83
 class HaskFnType : 
     public mlir::Type::TypeBase<HaskFnType, HaskType, HaskFnTypeStorage> {
 public:
@@ -106,34 +108,9 @@ public:
       std::pair<ArrayRef<Type>, ArrayRef<Type>> data(argTy, resultTy);
       return Base::get(context, data);
   }
-  std::pair<Type, std::vector<Type>> uncurry() {
-      std::vector<Type> paramtys;
-      Type retty;
-      HaskFnType cur = *this;
-      while(1) {
-          paramtys.push_back(*cur.getInputType().data());
-          if (cur.getResultType().data()->isa<HaskFnType>()) {
-              cur = cur.getResultType().data()->cast<HaskFnType>();
-          } else {
-              retty = *cur.getResultType().data();
-              break;
-          }
-      }
-      return {retty, paramtys};
-  }
 
-  // get the type after N applications
-  Type stripNArguments(int n) {
-      Type outty = *this;
-      for(int i = 0; i < n; ++i) { 
-          HaskFnType fn = outty.cast<HaskFnType>();
-          outty = *fn.getResultType().data();
-      }
-      return outty;
-  }
-
-  ArrayRef<Type> getInputType() { return this->getImpl()->getInput(); }
-  ArrayRef<Type> getResultType() { return this->getImpl()->getResult(); }
+  ArrayRef<Type> getInputTypes() { return this->getImpl()->getInputs(); }
+  Type getResultType() { return *this->getImpl()->getResult().data(); }
 };
 
 struct DataConstructorAttributeStorage : public AttributeStorage {

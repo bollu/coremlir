@@ -65,16 +65,65 @@ mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
   } else if(succeeded(parser.parseOptionalKeyword("value"))) {
     return ValueType::get(parser.getBuilder().getContext());
   } else if (succeeded(parser.parseOptionalKeyword("fn"))) {
-      Type param, res;
-      if (parser.parseLess() ||
-          parser.parseType(param) || parser.parseComma() || 
-          parser.parseType(res) || parser.parseGreater()) {
+      SmallVector<Type, 4> params; Type res;
+      if (parser.parseLess()) { 
           parser.emitError(parser.getCurrentLocation(),
-                                  "unable to parse function type");
+                                  "unable to parse function type. Missing `<`");
           return Type();
       }
 
-      return HaskFnType::get(parser.getBuilder().getContext(), param, res);
+      if (parser.parseLParen()) { 
+          parser.emitError(parser.getCurrentLocation(),
+                                  "unable to parse function type. Missing `(`");
+          return Type();
+      }
+
+      if (succeeded(parser.parseOptionalRParen())) {
+          // empty function
+      } else {
+          while(1) {
+              Type t;
+              if (parser.parseType(t)) { 
+                  parser.emitError(parser.getCurrentLocation(),
+                          "unable to parse argument type");
+                  return Type();
+              }
+
+              params.push_back(t);
+
+              if (succeeded(parser.parseOptionalRParen())) {
+                  break; 
+              }
+
+              if (parser.parseComma()) {
+                  parser.emitError(parser.getCurrentLocation(),
+                          "unable to parse function type. Missing `,` after"
+                          "argument");
+              }
+          }
+      }
+
+      if (parser.parseArrow()) {
+          parser.emitError(parser.getCurrentLocation(),
+                                  "unable to parse function type. Missing `->`"
+                                  "after argument list");
+          return Type();
+      }
+
+      if (parser.parseType(res)) {
+          parser.emitError(parser.getCurrentLocation(),
+                                  "unable to parse return type.");
+          return Type();
+
+      }
+
+      if (parser.parseGreater()) {
+          parser.emitError(parser.getCurrentLocation(),
+                  "unable to parse function type. Missing `>`");
+          return Type();
+      }
+
+      return HaskFnType::get(parser.getBuilder().getContext(), params, res);
   } else {
       parser.emitError(parser.getCurrentLocation(), "unknown type for hask dialect");
       assert(false && "unknown type");
@@ -89,8 +138,14 @@ void HaskDialect::printType(mlir::Type type,
   else if (type.isa<ValueType>()) { p << "value"; }
   else if (type.isa<HaskFnType>()) {
       HaskFnType fnty = type.cast<HaskFnType>();
-      p << "fn<" << *fnty.getInputType().data() << ", " <<
-                *fnty.getResultType().data() << ">";
+      ArrayRef<Type> intys = fnty.getInputTypes();
+
+      p << "fn<(";
+      for(int i = 0; i < intys.size(); ++i) {
+          p << intys[i];
+          if (i + 1 < intys.size()) p << ", ";
+      }
+      p << ") -> " << fnty.getResultType() << ">";
   }
   else { assert(false && "unknown type"); }
 }

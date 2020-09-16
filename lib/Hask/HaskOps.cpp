@@ -164,8 +164,8 @@ ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
     }
 
     if(HaskFnType fnty = ratorty.dyn_cast<HaskFnType>()) {
-        std::vector<Type> paramtys; Type retty;
-        std::tie(retty, paramtys) = fnty.uncurry();
+        std::vector<Type> paramtys = fnty.getInputTypes(); 
+        Type retty = fnty.getResultType();
 
         llvm::errs() << result.operands[0] << ": (";
         for(int i = 0; i < paramtys.size() ; ++i) {
@@ -194,7 +194,7 @@ ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
 
         // ensure fully saturated calls
         assert(nargs == paramtys.size());
-        result.addTypes(fnty.stripNArguments(nargs));
+        result.addTypes(fnty.getResultType());
     } else {
         if (parser.parseRParen()) return failure();
         result.addTypes(parser.getBuilder().getType<ThunkType>());
@@ -224,20 +224,16 @@ void ApOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
     HaskFnType fnty = fn.getType().cast<HaskFnType>();
 
     std::vector<Type> paramtys; Type retty;
-    std::tie(retty, paramtys) = fnty.uncurry();
 
 
-    assert(params.size() <= paramtys.size());
-    // ensure fully saturated calls
     assert(params.size() == paramtys.size());
 
     for(int i = 0; i < params.size(); ++i) {
         assert(paramtys[i] == params[i].getType());
     }
 
-
     state.addOperands(params);
-    state.addTypes(fnty.stripNArguments(params.size()));
+    state.addTypes(fnty.getResultType());
 };
 
 
@@ -352,14 +348,9 @@ ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
 
     HaskReturnOp ret = cast<HaskReturnOp>(r->getBlocks().front().getTerminator());
     Value retval = ret.getInput();
+    Type rettyy = retval.getType();
 
-    // build type (a1 -> (a2 -> ... -> (an -> res)...))
-    Type finalty = retval.getType();
-    for(int i = argTys.size() - 1; i >= 0; i--) {
-        finalty = parser.getBuilder().getType<HaskFnType>(argTys[i], finalty);
-    }
-    result.addTypes(finalty);
-
+    result.addTypes(parser.getBuilder().getType<HaskFnType>(argTys, rettyy));
     return success();
 }
 
@@ -1108,9 +1099,8 @@ mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
         // return LLVMType::getInt64Ty(context);
         return LLVMType::getInt8PtrTy(context);
     } else if (auto fnty = t.dyn_cast<HaskFnType>()) {
-        Type retty;
-        std::vector<Type> argTys;
-        std::tie(retty, argTys) = fnty.uncurry();
+        ArrayRef<Type> argTys = fnty.getInputTypes();
+        Type retty = fnty.getResultType();
 
         // recall that functions can occur in negative position:
         // (a -> a) -> a
