@@ -55,12 +55,11 @@ public:
 };
 
 
-
-class ThunkType : public mlir::Type::TypeBase<ThunkType, HaskType,
+class UntypedType : public mlir::Type::TypeBase<UntypedType, HaskType,
                                                TypeStorage> {
 public:
   using Base::Base;
-  static ThunkType get(MLIRContext *context) { return Base::get(context); }
+  static UntypedType get(MLIRContext *context) { return Base::get(context); }
 };
 
 class ValueType : public mlir::Type::TypeBase<ValueType, HaskType,
@@ -68,6 +67,35 @@ class ValueType : public mlir::Type::TypeBase<ValueType, HaskType,
 public:
   using Base::Base;
   static ValueType get(MLIRContext *context) { return Base::get(context); }
+};
+
+
+struct ThunkTypeStorage : public TypeStorage {
+  ThunkTypeStorage(ArrayRef<Type> const t) : t(t) {}
+
+  /// The hash key used for uniquing.
+  using KeyTy = ArrayRef<Type>;
+  bool operator==(const KeyTy &key) const {
+    return key == t;
+  }
+
+  /// Construction.
+  static ThunkTypeStorage *construct(TypeStorageAllocator &allocator,
+                                        const KeyTy &key) {
+    return new (allocator.allocate<ThunkTypeStorage>())ThunkTypeStorage(allocator.copyInto(key));
+  }
+
+  ArrayRef<Type> getElementType() const { return t; }
+  ArrayRef<Type> const t;
+};
+
+
+class ThunkType : public mlir::Type::TypeBase<ThunkType, HaskType,
+                                               ThunkTypeStorage> {
+public:
+  using Base::Base;
+  static ThunkType get(MLIRContext *context, Type elemty) { return Base::get(context, elemty); }
+  Type getElementType() { return *this->getImpl()->getElementType().data(); }
 };
 
 /// Function Type Storage and Uniquing.

@@ -54,16 +54,24 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
   MakeStringOp, HaskFuncOp, ForceOp, HaskGlobalOp, HaskADTOp,
   HaskConstructOp,
   HaskPrimopAddOp, HaskPrimopSubOp, CaseIntOp, ThunkifyOp>();
-  //addTypes<UntypedType>();
-  addTypes<ThunkType, ValueType, HaskFnType>();
+  addTypes<UntypedType, ThunkType, ValueType, HaskFnType>();
   addAttributes<DataConstructorAttr>();
 }
 
 mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
   if(succeeded(parser.parseOptionalKeyword("thunk"))) {
-    return ThunkType::get(parser.getBuilder().getContext());
+      Type t;
+      if (parser.parseLess() || parser.parseType(t) || parser.parseGreater()) { 
+          parser.emitError(parser.getCurrentLocation(), "unable to parse ThunkType");
+          return Type();
+
+      }
+      return ThunkType::get(parser.getBuilder().getContext(), t);
+    
   } else if(succeeded(parser.parseOptionalKeyword("value"))) {
     return ValueType::get(parser.getBuilder().getContext());
+  } else if (succeeded(parser.parseOptionalKeyword("untyped"))) {
+    return UntypedType::get(parser.getBuilder().getContext());
   } else if (succeeded(parser.parseOptionalKeyword("fn"))) {
       SmallVector<Type, 4> params; Type res;
       if (parser.parseLess()) { 
@@ -134,7 +142,11 @@ mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
 
 void HaskDialect::printType(mlir::Type type,
                            mlir::DialectAsmPrinter &p) const {
-  if (type.isa<ThunkType>()) { p << "thunk"; }
+  if (type.isa<ThunkType>()) { 
+      ThunkType thunk = type.cast<ThunkType>();
+      p << "thunk<" << thunk.getElementType() << ">";
+  }
+  else if (type.isa<UntypedType>()) { p << "untyped"; }
   else if (type.isa<ValueType>()) { p << "value"; }
   else if (type.isa<HaskFnType>()) {
       HaskFnType fnty = type.cast<HaskFnType>();

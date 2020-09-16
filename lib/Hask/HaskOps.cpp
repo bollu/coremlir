@@ -197,7 +197,7 @@ ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
         result.addTypes(fnty.getResultType());
     } else {
         if (parser.parseRParen()) return failure();
-        result.addTypes(parser.getBuilder().getType<ThunkType>());
+        result.addTypes(parser.getBuilder().getType<ThunkType>(parser.getBuilder().getType<UntypedType>()));
     }
 
     return success();
@@ -625,7 +625,7 @@ ParseResult HaskConstructOp::parse(OpAsmParser &parser, OperationState &result) 
                 result.attributes)) { return failure(); }
 
     if (succeeded(parser.parseOptionalRParen())) { 
-        result.addTypes(parser.getBuilder().getType<ThunkType>());
+        result.addTypes(parser.getBuilder().getType<ThunkType>(parser.getBuilder().getType<UntypedType>()));
         return success();
     }
     if(parser.parseComma()) { return failure(); }
@@ -639,7 +639,7 @@ ParseResult HaskConstructOp::parse(OpAsmParser &parser, OperationState &result) 
 
         // either we need a close right paren, or a comma.
         if (succeeded(parser.parseOptionalRParen())) { 
-            result.addTypes(parser.getBuilder().getType<ThunkType>());
+            result.addTypes(parser.getBuilder().getType<ThunkType>(parser.getBuilder().getType<UntypedType>()));
             return success();
 
         }
@@ -810,7 +810,7 @@ void ThunkifyOp::print(OpAsmPrinter &p) {
 void ThunkifyOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value scrutinee) {
   state.addOperands(scrutinee);
-  state.addTypes(builder.getType<ThunkType>());
+  state.addTypes(builder.getType<ThunkType>(builder.getType<UntypedType>()));
 }
 
 
