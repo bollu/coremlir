@@ -66,8 +66,8 @@ ParseResult HaskReturnOp::parse(OpAsmParser &parser, OperationState &result) {
         return failure();
     }
 
-    if (!(type.isa<ValueType>() || type.isa<ThunkType>() || type.isa<HaskFnType>())) {
-        return parser.emitError(in.location, "expected value, thunk, or function type");
+    if (!(type.isa<ValueType>() || type.isa<ThunkType>() || type.isa<HaskFnType>() || type.isa<UntypedType>())) {
+        return parser.emitError(in.location, "expected value, thunk, untyped, or function type");
     }
 
     parser.resolveOperand(in, type, result.operands);
@@ -386,8 +386,8 @@ ParseResult HaskRefOp::parse(OpAsmParser &parser,
         parser.parseColonType(ty)) { return failure(); }
 
     // TODO: extract this out as a separate function or something.
-    if (!(ty.isa<ValueType>() || ty.isa<ThunkType>() || ty.isa<HaskFnType>())) {
-        return parser.emitError(parser.getCurrentLocation(), "expected value, thunk, or function type");
+    if (!(ty.isa<ValueType>() || ty.isa<ThunkType>() || ty.isa<HaskFnType>() || ty.isa<UntypedType>())) {
+        return parser.emitError(parser.getCurrentLocation(), "expected value, thunk, function, or untyped type");
     }
     
     result.addTypes(ty);
@@ -633,13 +633,13 @@ ParseResult HaskConstructOp::parse(OpAsmParser &parser, OperationState &result) 
     while(1) {
         OpAsmParser::OperandType param;
         if(parser.parseOperand(param)) { return failure(); }
-        if(parser.resolveOperand(param, 
-                    parser.getBuilder().getType<ValueType>(), 
-                    result.operands)) { return failure(); }
+        if (parser.parseColon()) { return failure(); }
+        Type t; if (parser.parseType(t)) { return failure(); }
+        if(parser.resolveOperand(param, t, result.operands)) { return failure(); }
 
         // either we need a close right paren, or a comma.
         if (succeeded(parser.parseOptionalRParen())) { 
-            result.addTypes(parser.getBuilder().getType<ThunkType>(parser.getBuilder().getType<UntypedType>()));
+            result.addTypes(parser.getBuilder().getType<UntypedType>());
             return success();
 
         }
@@ -653,7 +653,7 @@ void HaskConstructOp::print(OpAsmPrinter &p) {
     p.printSymbolName(this->getDataConstructorName());
     if (this->getNumOperands() > 0) { p << ", "; }
     for(int i = 0; i < this->getNumOperands(); ++i) {
-        p << this->getOperand(i);
+        p << this->getOperand(i) << " : " << this->getOperand(i).getType();
         if (i +1 < this->getNumOperands()) { p << ", "; }
     }
     p << ")";
