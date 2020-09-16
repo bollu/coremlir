@@ -566,7 +566,11 @@ int main(int argc, char **argv) {
   void *result = mainfn(NULL);
   llvm::errs() << "main:  " << __LINE__ << "\n";
   llvm::errs() << "(void*)main(nullptr) = " << (size_t)result << "\n";
-  llvm::errs() << "(Constructor 1*)main(nullptr) = " << (size_t)(((Constructor*)result)->args[0]) << "\n";
+  // answer = 
+  const size_t result2int = (size_t)(((Constructor*)result)->args[0]);
+  llvm::errs() << "(Constructor 1*)main(nullptr) = " <<  result2int << "\n";
+
+  printf("%d\n", result2int);
   return 0;
 }
 
