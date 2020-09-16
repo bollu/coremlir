@@ -1,5 +1,3 @@
-// Main
-// Core2MLIR: GenMLIR BeforeCorePrep
 module {
   // hask.make_data_constructor @"+#"
   // hask.make_data_constructor @"-#"

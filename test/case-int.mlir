@@ -1,3 +1,6 @@
+// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm -jit | FileCheck %s
+// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm -jit |  FileCheck %s
+// CHECK: 41
 // Test that case of int works.
 module {
   hask.func @prec {
@@ -15,19 +18,19 @@ module {
      }]
      hask.return (%ret) : !hask.value
     }
-    hask.return (%lam): !hask.fn<!hask.value, !hask.value>
+    hask.return (%lam): !hask.fn<(!hask.value) -> !hask.value>
   }
 
   hask.func @main {
-    %lambda = hask.lambdaSSA(%_: !hask.thunk) {
+    %lambda = hask.lambdaSSA(%_: !hask.thunk<!hask.untyped>) {
       %lit_42 = hask.make_i64(42)
-      %prec = hask.ref(@prec)  : !hask.fn<!hask.value, !hask.value>
-      %out_v = hask.apSSA(%prec : !hask.fn<!hask.value, !hask.value>, %lit_42)
+      %prec = hask.ref(@prec)  : !hask.fn<(!hask.value) -> !hask.value>
+      %out_v = hask.apSSA(%prec : !hask.fn<(!hask.value) -> !hask.value>, %lit_42)
       %out_v_forced = hask.force(%out_v : !hask.value): !hask.value
       %x = hask.construct(@X, %out_v_forced)
-      hask.return(%x) : !hask.thunk
+      hask.return(%x) : !hask.thunk<!hask.untyped>
     }
-    hask.return(%lambda) :!hask.fn<!hask.thunk, !hask.thunk>
+    hask.return(%lambda) :!hask.fn<(!hask.thunk<!hask.untyped>) -> !hask.thunk<!hask.untyped>>
   }
     
 }
