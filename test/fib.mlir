@@ -1,4 +1,6 @@
-// Fib
+// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s
+// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s
+// CHECK: 8
 // Core2MLIR: GenMLIR BeforeCorePrep
 module {
   // should it be Attr Attr, with the "list" embedded as an attribute,
