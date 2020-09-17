@@ -18,14 +18,14 @@ module {
     hask.return(%0) : !hask.fn<(!hask.value) -> !hask.value>
   }
   hask.func @main {
-    %0 = hask.lambdaSSA(%arg0:!hask.thunk<!hask.untyped>) {
+    %0 = hask.lambdaSSA(%arg0:!hask.thunk<!hask.value>) {
       %1 = hask.make_i64(42 : i64)
       %2 = hask.ref(@prec) : !hask.fn<(!hask.value) -> !hask.value>
       %3 = hask.apSSA(%2 :!hask.fn<(!hask.value) -> !hask.value>, %1)
-      %4 = hask.force(%3 :!hask.value):!hask.value
-      %5 = hask.construct(@X, %4)
-      hask.return(%5) : !hask.thunk<!hask.untyped>
+      %4 = hask.force(%3):!hask.value
+      %5 = hask.construct(@X, %4 : !hask.value)
+      hask.return(%5) : !hask.adt<@X>
     }
-    hask.return(%0) : !hask.fn<(!hask.thunk<!hask.untyped>) -> !hask.thunk<!hask.untyped>>
+    hask.return(%0) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.adt<@X>>
   }
 }

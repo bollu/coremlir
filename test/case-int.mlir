@@ -3,6 +3,7 @@
 // CHECK: 41
 // Test that case of int works.
 module {
+  // strict function
   hask.func @prec {
     %lam = hask.lambdaSSA(%ihash: !hask.value) {
      // do we know that %ihash is an int here?
@@ -22,15 +23,15 @@ module {
   }
 
   hask.func @main {
-    %lambda = hask.lambdaSSA(%_: !hask.thunk<!hask.untyped>) {
+    %lambda = hask.lambdaSSA(%_: !hask.thunk<!hask.value>) {
       %lit_42 = hask.make_i64(42)
       %prec = hask.ref(@prec)  : !hask.fn<(!hask.value) -> !hask.value>
       %out_v = hask.apSSA(%prec : !hask.fn<(!hask.value) -> !hask.value>, %lit_42)
-      %out_v_forced = hask.force(%out_v : !hask.value): !hask.value
-      %x = hask.construct(@X, %out_v_forced)
-      hask.return(%x) : !hask.thunk<!hask.untyped>
+      %out_v_forced = hask.force(%out_v): !hask.value
+      %x = hask.construct(@X, %out_v_forced:!hask.value)
+      hask.return(%x) : !hask.adt<@X>
     }
-    hask.return(%lambda) :!hask.fn<(!hask.thunk<!hask.untyped>) -> !hask.thunk<!hask.untyped>>
+    hask.return(%lambda) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.adt<@X>>
   }
     
 }
