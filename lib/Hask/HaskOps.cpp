@@ -66,10 +66,6 @@ ParseResult HaskReturnOp::parse(OpAsmParser &parser, OperationState &result) {
         return failure();
     }
 
-    if (!(type.isa<ValueType>() || type.isa<ThunkType>() || type.isa<HaskFnType>() || type.isa<UntypedType>())) {
-        return parser.emitError(in.location, "expected value, thunk, untyped, or function type");
-    }
-
     parser.resolveOperand(in, type, result.operands);
     return success();
 };
@@ -167,37 +163,22 @@ ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
         std::vector<Type> paramtys = fnty.getInputTypes(); 
         Type retty = fnty.getResultType();
 
-        llvm::errs() << result.operands[0] << ": (";
-        for(int i = 0; i < paramtys.size() ; ++i) {
-            llvm::errs() << i << "=" << paramtys[i]  << " ";
-        }
-        llvm::errs() << ") -> " << retty << "\n";
-
-        // ["," <arg>]
-        int nargs = 0;
-        while(succeeded(parser.parseOptionalComma())) {
+        for(int i = 0; i < paramtys.size(); ++i) {
+            if(parser.parseComma()) { return failure(); }
             OpAsmParser::OperandType op;
             if (parser.parseOperand(op)) return failure();
-            if (nargs > paramtys.size()) {
-                InFlightDiagnostic diag = parser.emitError(parser.getCurrentLocation());
-                diag << "expected |" << paramtys.size() << "| parameters based on |" << fnty << "|";
-                return diag;
-            }
-            if(parser.resolveOperand(op, paramtys[nargs], result.operands)) {
+            if(parser.resolveOperand(op, paramtys[i], result.operands)) {
                 return failure();
             }
-            nargs++;
         }
 
         //)
         if (parser.parseRParen()) return failure();
-
-        // ensure fully saturated calls
-        assert(nargs == paramtys.size());
-        result.addTypes(fnty.getResultType());
+        result.addTypes(parser.getBuilder().getType<ThunkType>(fnty.getResultType()));
     } else {
-        if (parser.parseRParen()) return failure();
-        result.addTypes(parser.getBuilder().getType<ThunkType>(parser.getBuilder().getType<UntypedType>()));
+        InFlightDiagnostic err = parser.emitError(parser.getCurrentLocation(), "expected function type, got non function type: [");
+        err << ratorty << "]";
+        return failure();
     }
 
     return success();
@@ -233,7 +214,7 @@ void ApOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
     }
 
     state.addOperands(params);
-    state.addTypes(fnty.getResultType());
+    state.addTypes(builder.getType<ThunkType>(fnty.getResultType()));
 };
 
 
@@ -245,9 +226,12 @@ void ApOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 ParseResult CaseOp::parse(OpAsmParser &parser, OperationState &result) {
     OpAsmParser::OperandType scrutinee;
 
+    StringAttr constructorName;
+    if(parser.parseSymbolName(constructorName, "constructorName", result.attributes)) { return failure(); };
+
     if(parser.parseOperand(scrutinee)) return failure();
     if(parser.resolveOperand(scrutinee, 
-                parser.getBuilder().getType<ValueType>(), result.operands)) {
+                parser.getBuilder().getType<ADTType>(constructorName), result.operands)) {
         return failure();
     }
 
@@ -386,9 +370,14 @@ ParseResult HaskRefOp::parse(OpAsmParser &parser,
         parser.parseColonType(ty)) { return failure(); }
 
     // TODO: extract this out as a separate function or something.
-    if (!(ty.isa<ValueType>() || ty.isa<ThunkType>() || ty.isa<HaskFnType>() || ty.isa<UntypedType>())) {
-        return parser.emitError(parser.getCurrentLocation(), "expected value, thunk, function, or untyped type");
+    if (!ty.isa<HaskType>()) {
+        return parser.emitError(parser.getCurrentLocation(), "expected a haskell type");
     }
+
+
+    // if (!(ty.isa<ValueType>() || ty.isa<ThunkType>() || ty.isa<HaskFnType>() || ty.isa<UntypedType>())) {
+    //     return parser.emitError(parser.getCurrentLocation(), "expected value, thunk, function, or untyped type");
+    // }
     
     result.addTypes(ty);
     return success();
@@ -421,7 +410,7 @@ LogicalResult HaskRefOp::verify() {
         llvm::errs() << "ERROR at HaskRefOp type verification:" <<
             "\n-mismatch of types at ref." <<
             "\n-Found from global" <<
-            " " << fn.getLoc() << " " << "name:" << this->getRef() << 
+            " " << global.getLoc() << " " << "name:" << this->getRef() << 
             " [" << global.getType() << "]\n"
             "-Declared at ref as [" << this->getLoc() << " " <<  *this << "]\n";
         return failure();
@@ -625,26 +614,24 @@ ParseResult HaskConstructOp::parse(OpAsmParser &parser, OperationState &result) 
                 result.attributes)) { return failure(); }
 
     if (succeeded(parser.parseOptionalRParen())) { 
-        result.addTypes(parser.getBuilder().getType<ThunkType>(parser.getBuilder().getType<UntypedType>()));
-        return success();
-    }
-    if(parser.parseComma()) { return failure(); }
-
-    while(1) {
-        OpAsmParser::OperandType param;
-        if(parser.parseOperand(param)) { return failure(); }
-        if (parser.parseColon()) { return failure(); }
-        Type t; if (parser.parseType(t)) { return failure(); }
-        if(parser.resolveOperand(param, t, result.operands)) { return failure(); }
-
-        // either we need a close right paren, or a comma.
-        if (succeeded(parser.parseOptionalRParen())) { 
-            result.addTypes(parser.getBuilder().getType<UntypedType>());
-            return success();
-
-        }
+        // empty
+    } else {
         if(parser.parseComma()) { return failure(); }
+        while(1) {
+            OpAsmParser::OperandType param;
+            if(parser.parseOperand(param)) { return failure(); }
+            if (parser.parseColon()) { return failure(); }
+            Type t; if (parser.parseType(t)) { return failure(); }
+            if(parser.resolveOperand(param, t, result.operands)) { return failure(); }
+
+            // either we need a close right paren, or a comma.
+            if (succeeded(parser.parseOptionalRParen())) { break; 
+            }
+            if(parser.parseComma()) { return failure(); }
+        }
     }
+    result.addTypes(parser.getBuilder().getType<ADTType>(nameAttr));
+    return success();
 }
 
 void HaskConstructOp::print(OpAsmPrinter &p) {
@@ -809,8 +796,8 @@ void ThunkifyOp::print(OpAsmPrinter &p) {
 
 void ThunkifyOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value scrutinee) {
-  state.addOperands(scrutinee);
-  state.addTypes(builder.getType<ThunkType>(builder.getType<UntypedType>()));
+    state.addOperands(scrutinee);
+    state.addTypes(builder.getType<ThunkType>(scrutinee.getType()));
 }
 
 

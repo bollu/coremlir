@@ -11,6 +11,7 @@
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/Pass/Pass.h"
+#include <llvm/ADT/ArrayRef.h>
 
 
 namespace mlir {
@@ -54,13 +55,35 @@ public:
   HaskDialect &getDialect();
 };
 
+// Follow what ArrayAttributeStorage does:
+// https://github.com/llvm/llvm-project/blob/master/mlir/lib/IR/AttributeDetail.h#L50
+struct ADTTypeStorage : public TypeStorage {
+  ADTTypeStorage(ArrayRef<StringAttr> const name) : name(name) {}
 
-class UntypedType : public mlir::Type::TypeBase<UntypedType, HaskType,
-                                               TypeStorage> {
+  /// The hash key used for uniquing.
+  using KeyTy = ArrayRef<StringAttr>;
+  bool operator==(const KeyTy &key) const {
+    return key == name;
+  }
+
+  /// Construction.
+  static ADTTypeStorage *construct(TypeStorageAllocator &allocator,
+                                        const KeyTy &key) {
+    return new (allocator.allocate<ADTTypeStorage>())ADTTypeStorage(allocator.copyInto(key));
+  }
+  ArrayRef<StringAttr> name;
+
+};
+
+
+
+class ADTType : public mlir::Type::TypeBase<ADTType, HaskType, ADTTypeStorage> {
 public:
   using Base::Base;
-  static UntypedType get(MLIRContext *context) { return Base::get(context); }
+  static ADTType get(MLIRContext *context, StringAttr name) { return Base::get(context, name); }
+  StringAttr getName() { return this->getImpl()->name[0]; }
 };
+
 
 class ValueType : public mlir::Type::TypeBase<ValueType, HaskType,
                                                TypeStorage> {
@@ -138,7 +161,7 @@ public:
   }
 
   ArrayRef<Type> getInputTypes() { return this->getImpl()->getInputs(); }
-  Type getResultType() { return *this->getImpl()->getResult().data(); }
+  Type getResultType() { return this->getImpl()->getResult()[0]; }
 };
 
 struct DataConstructorAttributeStorage : public AttributeStorage {

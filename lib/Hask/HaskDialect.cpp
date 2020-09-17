@@ -54,7 +54,7 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
   MakeStringOp, HaskFuncOp, ForceOp, HaskGlobalOp, HaskADTOp,
   HaskConstructOp,
   HaskPrimopAddOp, HaskPrimopSubOp, CaseIntOp, ThunkifyOp>();
-  addTypes<UntypedType, ThunkType, ValueType, HaskFnType>();
+  addTypes<ThunkType, ValueType, HaskFnType, ADTType>();
   addAttributes<DataConstructorAttr>();
 }
 
@@ -70,8 +70,15 @@ mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
     
   } else if(succeeded(parser.parseOptionalKeyword("value"))) {
     return ValueType::get(parser.getBuilder().getContext());
-  } else if (succeeded(parser.parseOptionalKeyword("untyped"))) {
-    return UntypedType::get(parser.getBuilder().getContext());
+  } else if (succeeded(parser.parseOptionalKeyword("adt"))) {
+      FlatSymbolRefAttr name;
+      if (parser.parseLess() || parser.parseAttribute<mlir::FlatSymbolRefAttr>(name) || parser.parseGreater()) {
+          parser.emitError(parser.getCurrentLocation(),
+                  "unable to parse ADT type. Missing `<`");
+          return Type();
+      }
+    return ADTType::get(parser.getBuilder().getContext(),
+            parser.getBuilder().getStringAttr(name.getValue()));
   } else if (succeeded(parser.parseOptionalKeyword("fn"))) {
       SmallVector<Type, 4> params; Type res;
       if (parser.parseLess()) { 
@@ -146,7 +153,10 @@ void HaskDialect::printType(mlir::Type type,
       ThunkType thunk = type.cast<ThunkType>();
       p << "thunk<" << thunk.getElementType() << ">";
   }
-  else if (type.isa<UntypedType>()) { p << "untyped"; }
+  else if (type.isa<ADTType>()) { 
+      ADTType adt = type.cast<ADTType>();
+      p << "adt<" << adt.getName() << ">";
+  }
   else if (type.isa<ValueType>()) { p << "value"; }
   else if (type.isa<HaskFnType>()) {
       HaskFnType fnty = type.cast<HaskFnType>();
