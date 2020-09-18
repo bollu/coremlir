@@ -13,7 +13,6 @@
 #include "mlir/Pass/Pass.h"
 #include <llvm/ADT/ArrayRef.h>
 
-
 namespace mlir {
 namespace standalone {
 
@@ -25,7 +24,8 @@ public:
   mlir::Type parseType(mlir::DialectAsmParser &parser) const override;
   void printType(mlir::Type type,
                  mlir::DialectAsmPrinter &printer) const override;
-  mlir::Attribute parseAttribute(mlir::DialectAsmParser &parser, Type type) const override;
+  mlir::Attribute parseAttribute(mlir::DialectAsmParser &parser,
+                                 Type type) const override;
   void printAttribute(Attribute attr,
                       DialectAsmPrinter &printer) const override;
   static llvm::StringRef getDialectNamespace() { return "hask"; }
@@ -62,62 +62,58 @@ struct ADTTypeStorage : public TypeStorage {
 
   /// The hash key used for uniquing.
   using KeyTy = ArrayRef<FlatSymbolRefAttr>;
-  bool operator==(const KeyTy &key) const {
-    return key == name;
-  }
+  bool operator==(const KeyTy &key) const { return key == name; }
 
   /// Construction.
   static ADTTypeStorage *construct(TypeStorageAllocator &allocator,
-                                        const KeyTy &key) {
-    return new (allocator.allocate<ADTTypeStorage>())ADTTypeStorage(allocator.copyInto(key));
+                                   const KeyTy &key) {
+    return new (allocator.allocate<ADTTypeStorage>())
+        ADTTypeStorage(allocator.copyInto(key));
   }
   ArrayRef<FlatSymbolRefAttr> name;
-
 };
-
-
 
 class ADTType : public mlir::Type::TypeBase<ADTType, HaskType, ADTTypeStorage> {
 public:
   using Base::Base;
-  static ADTType get(MLIRContext *context, FlatSymbolRefAttr name) { return Base::get(context, name); }
+  static ADTType get(MLIRContext *context, FlatSymbolRefAttr name) {
+    return Base::get(context, name);
+  }
   FlatSymbolRefAttr getName() { return this->getImpl()->name[0]; }
 };
 
-
-class ValueType : public mlir::Type::TypeBase<ValueType, HaskType,
-                                               TypeStorage> {
+class ValueType
+    : public mlir::Type::TypeBase<ValueType, HaskType, TypeStorage> {
 public:
   using Base::Base;
   static ValueType get(MLIRContext *context) { return Base::get(context); }
 };
-
 
 struct ThunkTypeStorage : public TypeStorage {
   ThunkTypeStorage(ArrayRef<Type> const t) : t(t) {}
 
   /// The hash key used for uniquing.
   using KeyTy = ArrayRef<Type>;
-  bool operator==(const KeyTy &key) const {
-    return key == t;
-  }
+  bool operator==(const KeyTy &key) const { return key == t; }
 
   /// Construction.
   static ThunkTypeStorage *construct(TypeStorageAllocator &allocator,
-                                        const KeyTy &key) {
-    return new (allocator.allocate<ThunkTypeStorage>())ThunkTypeStorage(allocator.copyInto(key));
+                                     const KeyTy &key) {
+    return new (allocator.allocate<ThunkTypeStorage>())
+        ThunkTypeStorage(allocator.copyInto(key));
   }
 
   ArrayRef<Type> getElementType() const { return t; }
   ArrayRef<Type> const t;
 };
 
-
-class ThunkType : public mlir::Type::TypeBase<ThunkType, HaskType,
-                                               ThunkTypeStorage> {
+class ThunkType
+    : public mlir::Type::TypeBase<ThunkType, HaskType, ThunkTypeStorage> {
 public:
   using Base::Base;
-  static ThunkType get(MLIRContext *context, Type elemty) { return Base::get(context, elemty); }
+  static ThunkType get(MLIRContext *context, Type elemty) {
+    return Base::get(context, elemty);
+  }
   Type getElementType() { return *this->getImpl()->getElementType().data(); }
 };
 
@@ -125,7 +121,7 @@ public:
 // https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/lib/IR/TypeDetail.h#L83
 struct HaskFnTypeStorage : public TypeStorage {
   HaskFnTypeStorage(ArrayRef<Type> const inputs, ArrayRef<Type> const result)
-      : inputs(inputs), result(result) {};
+      : inputs(inputs), result(result){};
 
   /// The hash key used for uniquing.
   using KeyTy = std::pair<ArrayRef<Type>, ArrayRef<Type>>;
@@ -135,10 +131,9 @@ struct HaskFnTypeStorage : public TypeStorage {
 
   /// Construction.
   static HaskFnTypeStorage *construct(TypeStorageAllocator &allocator,
-                                        const KeyTy &key) {
-    return new (allocator.allocate<HaskFnTypeStorage>())
-        HaskFnTypeStorage(allocator.copyInto(key.first), 
-                allocator.copyInto(key.second));
+                                      const KeyTy &key) {
+    return new (allocator.allocate<HaskFnTypeStorage>()) HaskFnTypeStorage(
+        allocator.copyInto(key.first), allocator.copyInto(key.second));
   }
 
   ArrayRef<Type> getInputs() const { return inputs; }
@@ -147,17 +142,17 @@ struct HaskFnTypeStorage : public TypeStorage {
   ArrayRef<Type> const result;
 };
 
-//https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/include/mlir/IR/Types.h#L239
-//https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/lib/IR/Types.cpp#L36
-//https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/lib/IR/TypeDetail.h#L83
-class HaskFnType : 
-    public mlir::Type::TypeBase<HaskFnType, HaskType, HaskFnTypeStorage> {
+// https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/include/mlir/IR/Types.h#L239
+// https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/lib/IR/Types.cpp#L36
+// https://github.com/llvm/llvm-project/blob/7a06b166b1afb457a7df6ad73a6710b4dde4db68/mlir/lib/IR/TypeDetail.h#L83
+class HaskFnType
+    : public mlir::Type::TypeBase<HaskFnType, HaskType, HaskFnTypeStorage> {
 public:
   using Base::Base;
-  static HaskFnType get(MLIRContext *context, 
-          ArrayRef<Type> argTy, ArrayRef<Type> resultTy) { 
-      std::pair<ArrayRef<Type>, ArrayRef<Type>> data(argTy, resultTy);
-      return Base::get(context, data);
+  static HaskFnType get(MLIRContext *context, ArrayRef<Type> argTy,
+                        ArrayRef<Type> resultTy) {
+    std::pair<ArrayRef<Type>, ArrayRef<Type>> data(argTy, resultTy);
+    return Base::get(context, data);
   }
 
   ArrayRef<Type> getInputTypes() { return this->getImpl()->getInputs(); }
@@ -176,21 +171,20 @@ struct DataConstructorAttributeStorage : public AttributeStorage {
   bool operator==(const KeyTy &key) const { return key == value; }
 
   /// Construct a DataConstructorAttributeStorage storage instance.
-  static DataConstructorAttributeStorage *construct(AttributeStorageAllocator &allocator,
-                                          const KeyTy &key) {
+  static DataConstructorAttributeStorage *
+  construct(AttributeStorageAllocator &allocator, const KeyTy &key) {
     // https://github.com/llvm/llvm-project/blob/a517191a474f7d6867621d0f8e8cc454c27334bf/mlir/lib/IR/AttributeDetail.h#L281
-     return new (allocator.allocate<DataConstructorAttributeStorage>())
-           DataConstructorAttributeStorage(
-            std::make_pair(allocator.copyInto(std::get<0>(key)), allocator.copyInto(std::get<1>(key))));
+    return new (allocator.allocate<DataConstructorAttributeStorage>())
+        DataConstructorAttributeStorage(
+            std::make_pair(allocator.copyInto(std::get<0>(key)),
+                           allocator.copyInto(std::get<1>(key))));
   }
   KeyTy value;
 };
 
-
-class DataConstructorAttr :
-    public mlir::Attribute::AttrBase<DataConstructorAttr,
-                                     mlir::Attribute,
-                                     DataConstructorAttributeStorage> {
+class DataConstructorAttr
+    : public mlir::Attribute::AttrBase<DataConstructorAttr, mlir::Attribute,
+                                       DataConstructorAttributeStorage> {
 protected:
 public:
   // The usual story, pull stuff from AttrBase.
@@ -203,8 +197,7 @@ public:
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
     return correct;
   }*/
-  static DataConstructorAttr get(MLIRContext *context,
-                                 SymbolRefAttr Name,
+  static DataConstructorAttr get(MLIRContext *context, SymbolRefAttr Name,
                                  ArrayAttr ArgTys) {
     std::pair<SymbolRefAttr, ArrayAttr> data(Name, ArgTys);
     return Base::get(context, data);
@@ -213,7 +206,8 @@ public:
   ArrayRef<SymbolRefAttr> getName() { return this->getImpl()->value.first; }
   ArrayRef<ArrayAttr> getArgTys() { return this->getImpl()->value.second; }
 
-//  static UntypedType get(MLIRContext *context) { return Base::get(context); }
+  //  static UntypedType get(MLIRContext *context) { return Base::get(context);
+  //  }
 };
 
 Attribute parseDataConstructorAttribute(DialectAsmParser &parser, Type type);
