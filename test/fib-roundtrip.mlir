@@ -11,7 +11,7 @@ module {
         %4 = hask.caseSSA @SimpleInt %3 [@SimpleInt ->  {
         ^bb0(%arg3: !hask.value):  // no predecessors
           %5 = hask.primop_add(%arg2,%arg3)
-          %6 = hask.construct(@SimpleInt, %5 : !hask.value)
+          %6 = hask.construct(@SimpleInt, %5 : !hask.value) : !hask.adt<@SimpleInt>
           hask.return(%6) : !hask.adt<@SimpleInt>
         }]
 
@@ -31,7 +31,7 @@ module {
         %4 = hask.caseSSA @SimpleInt %3 [@SimpleInt ->  {
         ^bb0(%arg3: !hask.value):  // no predecessors
           %5 = hask.primop_sub(%arg2,%arg3)
-          %6 = hask.construct(@SimpleInt, %5 : !hask.value)
+          %6 = hask.construct(@SimpleInt, %5 : !hask.value) : !hask.adt<@SimpleInt>
           hask.return(%6) : !hask.adt<@SimpleInt>
         }]
 
@@ -45,7 +45,7 @@ module {
   hask.func @zero {
     %0 = hask.lambdaSSA() {
       %1 = hask.make_i64(0 : i64)
-      %2 = hask.construct(@SimpleInt, %1 : !hask.value)
+      %2 = hask.construct(@SimpleInt, %1 : !hask.value) : !hask.adt<@SimpleInt>
       hask.return(%2) : !hask.adt<@SimpleInt>
     }
     hask.return(%0) : !hask.fn<() -> !hask.adt<@SimpleInt>>
@@ -53,7 +53,7 @@ module {
   hask.func @one {
     %0 = hask.lambdaSSA() {
       %1 = hask.make_i64(1 : i64)
-      %2 = hask.construct(@SimpleInt, %1 : !hask.value)
+      %2 = hask.construct(@SimpleInt, %1 : !hask.value) : !hask.adt<@SimpleInt>
       hask.return(%2) : !hask.adt<@SimpleInt>
     }
     hask.return(%0) : !hask.fn<() -> !hask.adt<@SimpleInt>>
@@ -61,7 +61,7 @@ module {
   hask.func @two {
     %0 = hask.lambdaSSA() {
       %1 = hask.make_i64(2 : i64)
-      %2 = hask.construct(@SimpleInt, %1 : !hask.value)
+      %2 = hask.construct(@SimpleInt, %1 : !hask.value) : !hask.adt<@SimpleInt>
       hask.return(%2) : !hask.adt<@SimpleInt>
     }
     hask.return(%0) : !hask.fn<() -> !hask.adt<@SimpleInt>>
@@ -69,7 +69,7 @@ module {
   hask.func @eight {
     %0 = hask.lambdaSSA() {
       %1 = hask.make_i64(8 : i64)
-      %2 = hask.construct(@SimpleInt, %1 : !hask.value)
+      %2 = hask.construct(@SimpleInt, %1 : !hask.value) : !hask.adt<@SimpleInt>
       hask.return(%2) : !hask.adt<@SimpleInt>
     }
     hask.return(%0) : !hask.fn<() -> !hask.adt<@SimpleInt>>
@@ -124,7 +124,7 @@ module {
   hask.func @main {
     %0 = hask.lambdaSSA(%arg0:!hask.thunk<!hask.adt<@SimpleInt>>) {
       %1 = hask.make_i64(6 : i64)
-      %2 = hask.construct(@SimpleInt, %1 : !hask.value)
+      %2 = hask.construct(@SimpleInt, %1 : !hask.value) : !hask.adt<@SimpleInt>
       %3 = hask.thunkify(%2 :!hask.adt<@SimpleInt>):!hask.thunk<!hask.adt<@SimpleInt>>
       %4 = hask.ref(@fib) : !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
       %5 = hask.apSSA(%4 :!hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>, %3)

@@ -33,7 +33,7 @@ module {
       %lit_42 = hask.make_i64(42)
       // TODO: I need a think to transmute to different types.
       // Because we may want to "downcast" a ADT to a raw value
-      %x = hask.construct(@X, %lit_42 : !hask.value)
+      %x = hask.construct(@X, %lit_42 : !hask.value): !hask.adt<@X>
       %x_v = hask.transmute(%x : !hask.adt<@X>): !hask.value
       %x_t = hask.thunkify(%x_v : !hask.value) :!hask.thunk<!hask.value>
 

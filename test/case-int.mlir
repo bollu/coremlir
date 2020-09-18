@@ -28,7 +28,7 @@ module {
       %prec = hask.ref(@prec)  : !hask.fn<(!hask.value) -> !hask.value>
       %out_v = hask.apSSA(%prec : !hask.fn<(!hask.value) -> !hask.value>, %lit_42)
       %out_v_forced = hask.force(%out_v): !hask.value
-      %x = hask.construct(@X, %out_v_forced:!hask.value)
+      %x = hask.construct(@X, %out_v_forced:!hask.value): !hask.adt<@X>
       hask.return(%x) : !hask.adt<@X>
     }
     hask.return(%lambda) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.adt<@X>>

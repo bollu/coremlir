@@ -23,7 +23,7 @@ module {
       %2 = hask.ref(@prec) : !hask.fn<(!hask.value) -> !hask.value>
       %3 = hask.apSSA(%2 :!hask.fn<(!hask.value) -> !hask.value>, %1)
       %4 = hask.force(%3):!hask.value
-      %5 = hask.construct(@X, %4 : !hask.value)
+      %5 = hask.construct(@X, %4 : !hask.value) : !hask.adt<@X>
       hask.return(%5) : !hask.adt<@X>
     }
     hask.return(%0) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.adt<@X>>

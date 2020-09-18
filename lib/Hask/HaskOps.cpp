@@ -649,11 +649,12 @@ void HaskConstructOp::print(OpAsmPrinter &p) {
     p << "("; 
     p.printSymbolName(this->getDataConstructorName());
     if (this->getNumOperands() > 0) { p << ", "; }
+
     for(int i = 0; i < this->getNumOperands(); ++i) {
         p << this->getOperand(i) << " : " << this->getOperand(i).getType();
         if (i +1 < this->getNumOperands()) { p << ", "; }
     }
-    p << ") : " << this->getResult().getType();
+    p << ") : " << this->getOperation()->getResult(0).getType();
 }
 
 // === PRIMOP ADD OP ===
@@ -662,7 +663,7 @@ void HaskConstructOp::print(OpAsmPrinter &p) {
 // === PRIMOP ADD OP ===
 // === PRIMOP ADD OP ===
 
-
+                                        
 ParseResult HaskPrimopAddOp::parse(OpAsmParser &parser, OperationState &result) {
     OpAsmParser::OperandType lhs, rhs;
     if (parser.parseLParen() ||

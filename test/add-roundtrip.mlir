@@ -11,7 +11,7 @@ module {
         %4 = hask.caseSSA @SimpleInt %3 [@SimpleInt ->  {
         ^bb0(%arg3: !hask.value):  // no predecessors
           %5 = hask.primop_add(%arg2,%arg3)
-          %6 = hask.construct(@SimpleInt, %5 : !hask.value)
+          %6 = hask.construct(@SimpleInt, %5 : !hask.value) : !hask.adt<@SimpleInt>
           hask.return(%6) : !hask.adt<@SimpleInt>
         }]
 
@@ -25,7 +25,7 @@ module {
   hask.func @one {
     %0 = hask.lambdaSSA() {
       %1 = hask.make_i64(1 : i64)
-      %2 = hask.construct(@SimpleInt, %1 : !hask.value)
+      %2 = hask.construct(@SimpleInt, %1 : !hask.value) : !hask.adt<@SimpleInt>
       hask.return(%2) : !hask.adt<@SimpleInt>
     }
     hask.return(%0) : !hask.fn<() -> !hask.adt<@SimpleInt>>
@@ -33,7 +33,7 @@ module {
   hask.func @two {
     %0 = hask.lambdaSSA() {
       %1 = hask.make_i64(2 : i64)
-      %2 = hask.construct(@SimpleInt, %1 : !hask.value)
+      %2 = hask.construct(@SimpleInt, %1 : !hask.value) : !hask.adt<@SimpleInt>
       hask.return(%2) : !hask.adt<@SimpleInt>
     }
     hask.return(%0) : !hask.fn<() -> !hask.adt<@SimpleInt>>
