@@ -120,6 +120,8 @@ public:
   FlatSymbolRefAttr getAltLHS(int i) { 
       return getAltLHSs().get("alt" + std::to_string(i)).cast<FlatSymbolRefAttr>();
   }
+
+  static const char *getCaseTypeKey() { return "constructorName"; }
   void print(OpAsmPrinter &p);
   llvm::Optional<int> getDefaultAltIndex();
 
@@ -249,14 +251,20 @@ public:
 
 class HaskConstructOp : public Op<HaskConstructOp,
                 OpTrait::OneResult,
-                OpTrait::ZeroRegion,
-                SymbolOpInterface::Trait> {
+                OpTrait::ZeroRegion> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.construct"; };
+  static const char *getDataConstructorAttrName() { return "dataconstructor"; }
+  static const char *getDataTypeAttrName() { return "datatype"; }
   StringRef getDataConstructorName() { 
-    return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName()).getValue();
+    return getAttrOfType<FlatSymbolRefAttr>(getDataConstructorAttrName()).getValue();
   }
+
+  StringRef getDataTypeName() { 
+    return getAttrOfType<FlatSymbolRefAttr>(getDataTypeAttrName()).getValue();
+  }
+
   int getNumOperands() { this->getOperation()->getNumOperands(); }
   Value getOperand(int i) { return this->getOperation()->getOperand(i); }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
@@ -287,6 +295,16 @@ public:
   static StringRef getOperationName() { return "hask.thunkify"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   Value getScrutinee() { this->getOperation()->getOperand(0); }
+  void print(OpAsmPrinter &p);
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    Value scrutinee);
+};
+
+class TransmuteOp : public Op<TransmuteOp, OpTrait::OneResult, OpTrait::OneOperand> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.transmute"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value scrutinee);

@@ -53,7 +53,7 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
   ApOp, CaseOp, HaskRefOp, LambdaOp,
   MakeStringOp, HaskFuncOp, ForceOp, HaskGlobalOp, HaskADTOp,
   HaskConstructOp,
-  HaskPrimopAddOp, HaskPrimopSubOp, CaseIntOp, ThunkifyOp>();
+  HaskPrimopAddOp, HaskPrimopSubOp, CaseIntOp, ThunkifyOp, TransmuteOp>();
   addTypes<ThunkType, ValueType, HaskFnType, ADTType>();
   addAttributes<DataConstructorAttr>();
 }
@@ -77,8 +77,7 @@ mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
                   "unable to parse ADT type. Missing `<`");
           return Type();
       }
-    return ADTType::get(parser.getBuilder().getContext(),
-            parser.getBuilder().getStringAttr(name.getValue()));
+    return ADTType::get(parser.getBuilder().getContext(), name);
   } else if (succeeded(parser.parseOptionalKeyword("fn"))) {
       SmallVector<Type, 4> params; Type res;
       if (parser.parseLess()) { 
@@ -155,7 +154,7 @@ void HaskDialect::printType(mlir::Type type,
   }
   else if (type.isa<ADTType>()) { 
       ADTType adt = type.cast<ADTType>();
-      p << "adt<" << adt.getName() << ">";
+      p << "adt<@" << adt.getName().getValue() << ">";
   }
   else if (type.isa<ValueType>()) { p << "value"; }
   else if (type.isa<HaskFnType>()) {

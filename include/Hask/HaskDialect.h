@@ -58,10 +58,10 @@ public:
 // Follow what ArrayAttributeStorage does:
 // https://github.com/llvm/llvm-project/blob/master/mlir/lib/IR/AttributeDetail.h#L50
 struct ADTTypeStorage : public TypeStorage {
-  ADTTypeStorage(ArrayRef<StringAttr> const name) : name(name) {}
+  ADTTypeStorage(ArrayRef<FlatSymbolRefAttr> const name) : name(name) {}
 
   /// The hash key used for uniquing.
-  using KeyTy = ArrayRef<StringAttr>;
+  using KeyTy = ArrayRef<FlatSymbolRefAttr>;
   bool operator==(const KeyTy &key) const {
     return key == name;
   }
@@ -71,7 +71,7 @@ struct ADTTypeStorage : public TypeStorage {
                                         const KeyTy &key) {
     return new (allocator.allocate<ADTTypeStorage>())ADTTypeStorage(allocator.copyInto(key));
   }
-  ArrayRef<StringAttr> name;
+  ArrayRef<FlatSymbolRefAttr> name;
 
 };
 
@@ -80,8 +80,8 @@ struct ADTTypeStorage : public TypeStorage {
 class ADTType : public mlir::Type::TypeBase<ADTType, HaskType, ADTTypeStorage> {
 public:
   using Base::Base;
-  static ADTType get(MLIRContext *context, StringAttr name) { return Base::get(context, name); }
-  StringAttr getName() { return this->getImpl()->name[0]; }
+  static ADTType get(MLIRContext *context, FlatSymbolRefAttr name) { return Base::get(context, name); }
+  FlatSymbolRefAttr getName() { return this->getImpl()->name[0]; }
 };
 
 

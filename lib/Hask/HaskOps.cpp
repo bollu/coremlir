@@ -226,8 +226,8 @@ void ApOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 ParseResult CaseOp::parse(OpAsmParser &parser, OperationState &result) {
     OpAsmParser::OperandType scrutinee;
 
-    StringAttr constructorName;
-    if(parser.parseSymbolName(constructorName, "constructorName", result.attributes)) { return failure(); };
+    FlatSymbolRefAttr constructorName;
+    if(parser.parseAttribute<FlatSymbolRefAttr>(constructorName, CaseOp::getCaseTypeKey(), result.attributes)) { return failure(); };
 
     if(parser.parseOperand(scrutinee)) return failure();
     if(parser.resolveOperand(scrutinee, 
@@ -273,7 +273,8 @@ void CaseOp::print(OpAsmPrinter &p) {
     p << getOperationName() << " ";
     // p << "[ " << this->getOperation()->getNumOperands() << " | " << this->getNumAlts() << "] ";
     // p << this->getOperation()->getOperand(0);
-    p <<  this->getScrutinee();
+    p << this->getOperation()->getAttrOfType<FlatSymbolRefAttr>(this->getCaseTypeKey());
+    p << " " << this->getScrutinee();
     // p.printOptionalAttrDict(this->getAltLHSs().getValue());
     for(int i = 0; i < this->getNumAlts(); ++i) {
         p <<" [" << this->getAltLHS(i) <<" -> ";
@@ -503,16 +504,17 @@ LambdaOp HaskFuncOp::getLambda() {
 
 ParseResult ForceOp::parse(OpAsmParser &parser, OperationState &result) {
     OpAsmParser::OperandType scrutinee;
-    mlir::Type type, retty;
+    mlir::Type retty;
     
     if(parser.parseLParen() || parser.parseOperand(scrutinee) ||
-       parser.parseColon() || parser.parseType(type) || parser.parseRParen() ||
+        parser.parseRParen() ||
        parser.parseColon() || parser.parseType(retty)) {
         return failure();
     }
 
+
     SmallVector<Value, 4> results;
-    if(parser.resolveOperand(scrutinee, type, results)) return failure();
+    if(parser.resolveOperand(scrutinee, parser.getBuilder().getType<ThunkType>(retty), results)) return failure();
     result.addOperands(results);
     result.addTypes(retty);
     return success();
@@ -520,14 +522,17 @@ ParseResult ForceOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void ForceOp::print(OpAsmPrinter &p) {
-    p << "hask.force(" << this->getScrutinee() << " :" << this->getScrutinee().getType() << ")" <<
+    p << "hask.force(" << this->getScrutinee()  << ")" <<
         ":" << this->getResult().getType();
 };
 
 void ForceOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value scrutinee) {
+
+  assert(scrutinee.getType().isa<ThunkType>());
+  ThunkType t = scrutinee.getType().cast<ThunkType>();
   state.addOperands(scrutinee);
-  state.addTypes(builder.getType<ValueType>());
+  state.addTypes(t.getElementType());
 }
 
 
@@ -601,17 +606,13 @@ void HaskGlobalOp::print(OpAsmPrinter &p) {
 
 // do I even need this? I'm not sure. Don't think so?
 ParseResult HaskConstructOp::parse(OpAsmParser &parser, OperationState &result) {
-    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-    if (parser.parseLParen()) {
-        return failure();
-    }
-    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-
+    // (<constructor name>, arg1, ..., argn) : hask.adt<type>
+    if (parser.parseLParen()) { return failure(); }
 
     // get constructor name.
-    StringAttr nameAttr;
-    if (parser.parseSymbolName(nameAttr, ::mlir::SymbolTable::getSymbolAttrName(),
-                result.attributes)) { return failure(); }
+    FlatSymbolRefAttr constructor;
+    if (parser.parseAttribute<FlatSymbolRefAttr>(constructor, 
+                getDataConstructorAttrName(), result.attributes)) { return failure(); }
 
     if (succeeded(parser.parseOptionalRParen())) { 
         // empty
@@ -630,7 +631,16 @@ ParseResult HaskConstructOp::parse(OpAsmParser &parser, OperationState &result) 
             if(parser.parseComma()) { return failure(); }
         }
     }
-    result.addTypes(parser.getBuilder().getType<ADTType>(nameAttr));
+    // : <type>
+    Type ty;
+    if (parser.parseColon() || parser.parseType(ty)) { return failure(); }
+    if (!ty.isa<ADTType>()) {
+        InFlightDiagnostic err = parser.emitError(parser.getCurrentLocation(), "expected ADT type, found: [");
+        err << ty << "]";
+        return failure();
+    }
+
+    result.addTypes(ty);
     return success();
 }
 
@@ -643,7 +653,7 @@ void HaskConstructOp::print(OpAsmPrinter &p) {
         p << this->getOperand(i) << " : " << this->getOperand(i).getType();
         if (i +1 < this->getNumOperands()) { p << ", "; }
     }
-    p << ")";
+    p << ") : " << this->getResult().getType();
 }
 
 // === PRIMOP ADD OP ===
@@ -799,6 +809,38 @@ void ThunkifyOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
     state.addOperands(scrutinee);
     state.addTypes(builder.getType<ThunkType>(scrutinee.getType()));
 }
+
+
+// === TRANSMUTE OP ===
+// === TRANSMUTE OP ===
+// === TRANSMUTE OP ===
+// === TRANSMUTE OP ===
+// === TRANSMUTE OP ===
+
+
+ParseResult TransmuteOp::parse(OpAsmParser &parser, OperationState &result) {
+    OpAsmParser::OperandType scrutinee;
+    mlir::Type type, retty;
+    
+    if(parser.parseLParen() || parser.parseOperand(scrutinee) ||
+       parser.parseColon() || parser.parseType(type) || parser.parseRParen() ||
+       parser.parseColon() || parser.parseType(retty)) {
+        return failure();
+    }
+
+    SmallVector<Value, 4> results;
+    if(parser.resolveOperand(scrutinee, type, results)) return failure();
+    result.addOperands(results);
+    result.addTypes(retty);
+    return success();
+
+};
+
+void TransmuteOp::print(OpAsmPrinter &p) {
+    p << getOperationName() << "(" << this->getOperand() << " :" << this->getOperand().getType() << ")" <<
+        ":" << this->getResult().getType();
+};
+
 
 
 // ==REWRITES==
@@ -1913,6 +1955,22 @@ public:
   }
 };
 
+class TransmuteOpConversionPattern : public ConversionPattern {
+public:
+  explicit TransmuteOpConversionPattern(MLIRContext *context)
+      : ConversionPattern(TransmuteOp::getOperationName(), 1, context) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    llvm::errs() << "running ThunkifyOpConversionPattern on: " << op->getName() << " | " << op->getLoc() << "\n";
+
+    TransmuteOp transmute = cast<TransmuteOp>(op);
+    rewriter.replaceOp(transmute, transmute.getOperand());
+    return success();
+  }
+};
+
 
 // === LowerHaskToLLVMPass ===
 // === LowerHaskToLLVMPass ===
@@ -1980,6 +2038,7 @@ void LowerHaskToStandardPass::runOnOperation() {
     patterns.insert<HaskPrimopSubOpConversionPattern>(&getContext());
     patterns.insert<CaseIntOpConversionPattern>(&getContext());
     patterns.insert<ThunkifyOpConversionPattern>(&getContext());
+    patterns.insert<TransmuteOpConversionPattern>(&getContext());
 
     //llvm::errs() << "===Enabling Debugging...===\n";
     //::llvm::DebugFlag = true;
