@@ -7,6 +7,10 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Friday, Sep 18th 2020
+
+- [Link to google doc](https://docs.google.com/document/d/1nkcM3o3D7G6stkxdCbJIEXdgbqRMdiL38x-oJiA6fJQ/edit?usp=sharing)
+
 # Monday, Sep 14th 2020
 
 - I need to fix functions/globals ASAP. I think it should be like this:
