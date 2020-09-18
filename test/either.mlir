@@ -11,27 +11,33 @@ module {
 
 
 
-  hask.global @one {
-      %v = hask.make_i64(1)
-      %boxed = hask.construct(@SimpleInt, %v:!hask.value) :!hask.adt<@SimpleInt>
-      hask.return(%boxed): !hask.untyped
+  hask.func @one {
+      %lam = hask.lambdaSSA() {
+          %v = hask.make_i64(1)
+          %boxed = hask.construct(@SimpleInt, %v:!hask.value) :!hask.adt<@SimpleInt>
+          hask.return(%boxed): !hask.adt<@SimpleInt>
+      }
+      hask.return(%lam): !hask.fn<() -> !hask.adt<@SimpleInt>>
   }
 
   hask.func @leftOne {
     %lam = hask.lambdaSSA() {
-        %o = hask.ref(@one) : !hask.value
-        %l = hask.construct(@Left, %o:!hask.value) :!hask.adt<@Either>
+        %ofn = hask.ref(@one) : !hask.fn<() -> !hask.adt<@SimpleInt>>
+        %o = hask.apSSA(%ofn  : !hask.fn<() -> !hask.adt<@SimpleInt>>)
+
+        %l = hask.construct(@Left, %o: !hask.thunk<!hask.adt<@SimpleInt>>) :!hask.adt<@Either>
         hask.return(%l) :!hask.adt<@Either>
     }
-    hask.returm(%lam) :!hask.fn<() -> !hask.adt<@Either>>
+    hask.return(%lam) :!hask.fn<() -> !hask.adt<@Either>>
   }
 
   hask.func @rightLeftOne {
     %lam = hask.lambdaSSA() {
-      %l = hask.ref(@leftOne): !hask.fn<() -> !hask.adt<@Either>>
-      %l_t = hask.thunkify(%l: !hask.untyped):!hask.thunk<!hask.adt<@Either>>
+      %lfn = hask.ref(@leftOne): !hask.fn<() -> !hask.adt<@Either>>
+      %l_t = hask.apSSA(%lfn: !hask.fn<() -> !hask.adt<@Either>>)
+
       %r = hask.construct(@Right, %l_t :!hask.thunk<!hask.adt<@Either>>) :!hask.adt<@Either>
-      %r_t = hask.thunkify(%r :!hask.untyped):!hask.thunk<!hask.adt<@Either>>
+      %r_t = hask.thunkify(%r :!hask.adt<@Either>):!hask.thunk<!hask.adt<@Either>>
       hask.return(%r):!hask.adt<@Either>
     }
     hask.return(%lam)  :!hask.fn<() -> !hask.adt<@Either>>
@@ -39,15 +45,14 @@ module {
 
   // 1 + 2 = 3
   hask.func@main {
-    %lam = hask.lambdaSSA(%_: !hask.thunk<!hask.untyped>) {
+    %lam = hask.lambdaSSA(%_: !hask.thunk<!hask.value>) {
       %input = hask.ref(@rightLeftOne) : !hask.fn<() -> !hask.adt<@Either>>
-      %input_closure = hask.apSSA(%input: !hask.fn<() -> !hask.adt@Either>) :!hask.thunk<!hask.adt<@Either>> 
+      %input_closure = hask.apSSA(%input: !hask.fn<() -> !hask.adt<@Either>>)
 
       %v = hask.make_i64(42)
-      %output_v = hask.construct(@MkSimpleInt, %v:!hask.value)
-      %output_t = hask.thunkify(%output_v :!hask.untyped):!hask.thunk<!hask.untyped>
-      hask.return(%output_t) : !hask.thunk<!hask.untyped>
+      %output_v = hask.construct(@SimpleInt, %v:!hask.value) :!hask.adt<@SimpleInt>
+      hask.return(%output_v) : !hask.adt<@SimpleInt>
     }
-    hask.return (%lam) : !hask.fn<(!hask.thunk<!hask.untyped>) -> !hask.thunk<!hask.untyped>>
+    hask.return (%lam) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.adt<@SimpleInt>>
   }
 }
