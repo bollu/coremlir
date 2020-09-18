@@ -1,7 +1,7 @@
 // Check that constructors let us build left and right.
 // RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s
 // RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s
-// CHECK: 42
+// CHECK: 1
 module {
   // should it be Attr Attr, with the "list" embedded as an attribute,
   // or should it be Attr [Attr]? Who really knows :(
@@ -10,6 +10,24 @@ module {
   hask.adt @SimpleInt [#hask.data_constructor<@MkSimpleInt[@"Int#"]>]
 
 
+  // extract e = case e of @Right e2-> case e2 of @Left v -> v
+  hask.func @extract {
+    %lam = hask.lambdaSSA(%t: !hask.thunk<!hask.adt<@Either>>) {
+       %v = hask.force(%t) : !hask.adt<@Either>
+       %ret = hask.caseSSA @Either %v 
+           [@Right -> { ^entry(%t2: !hask.thunk<!hask.adt<@Either>>):
+               %v2 = hask.force(%t2) : !hask.adt<@Either>
+               %ret2 = hask.caseSSA @Either %v2
+                   [@Left -> { ^entry(%t3: !hask.thunk<!hask.value>):
+                       %v3 = hask.force(%t3) : !hask.value
+                       hask.return(%v3):!hask.value
+                   }]
+              hask.return(%ret2):!hask.value
+           }]
+        hask.return(%ret):!hask.value
+    } 
+    hask.return(%lam):  !hask.fn<(!hask.thunk<!hask.adt<@Either>>) -> !hask.value>
+  }
 
   hask.func @one {
       %lam = hask.lambdaSSA() {
@@ -46,13 +64,15 @@ module {
   // 1 + 2 = 3
   hask.func@main {
     %lam = hask.lambdaSSA(%_: !hask.thunk<!hask.value>) {
-      %input = hask.ref(@rightLeftOne) : !hask.fn<() -> !hask.adt<@Either>>
-      %input_closure = hask.apSSA(%input: !hask.fn<() -> !hask.adt<@Either>>)
+      %rlo = hask.ref(@rightLeftOne): !hask.fn<() -> !hask.adt<@Either>>
+      %input = hask.apSSA(%rlo : !hask.fn<() -> !hask.adt<@Either>>)
+      %extract = hask.ref(@extract) :!hask.fn<(!hask.thunk<!hask.adt<@Either>>) -> !hask.value>
 
-      %v = hask.make_i64(42)
-      %output_v = hask.construct(@SimpleInt, %v:!hask.value) :!hask.adt<@SimpleInt>
-      hask.return(%output_v) : !hask.adt<@SimpleInt>
+      %extract_t = hask.apSSA(%extract:!hask.fn<(!hask.thunk<!hask.adt<@Either>>) -> !hask.value>, %input)
+      %extract_v = hask.force(%extract_t) :!hask.value
+      hask.return(%extract_v):!hask.value
+
     }
-    hask.return (%lam) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.adt<@SimpleInt>>
+    hask.return (%lam) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.value>
   }
 }
