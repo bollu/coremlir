@@ -310,11 +310,11 @@ llvm::Optional<int> CaseOp::getDefaultAltIndex() {
   return llvm::Optional<int>();
 }
 
-// === LAMBDASSA OP ===
-// === LAMBDASSA OP ===
-// === LAMBDASSA OP ===
-// === LAMBDASSA OP ===
-// === LAMBDASSA OP ===
+// === LAMBDA OP ===
+// === LAMBDA OP ===
+// === LAMBDA OP ===
+// === LAMBDA OP ===
+// === LAMBDA OP ===
 
 ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
 
@@ -371,7 +371,7 @@ ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void LambdaOp::print(OpAsmPrinter &p) {
-  p << "hask.lambdaSSA";
+  p << "hask.lambda";
   p << "(";
   for (int i = 0; i < this->getNumInputs(); ++i) {
     p << this->getInput(i);
@@ -1477,9 +1477,9 @@ public:
   }
 };
 
-class LambdaSSAOpConversionPattern : public ConversionPattern {
+class LambdaOpConversionPattern : public ConversionPattern {
 public:
-  explicit LambdaSSAOpConversionPattern(MLIRContext *context)
+  explicit LambdaOpConversionPattern(MLIRContext *context)
       : ConversionPattern(standalone::LambdaOp::getOperationName(), 1,
                           context) {}
 
@@ -1488,7 +1488,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto lam = cast<LambdaOp>(op);
     assert(lam);
-    llvm::errs() << "running LambdaSSAOpConversionPattern on: " << op->getName()
+    llvm::errs() << "running LambdaOpConversionPattern on: " << op->getName()
                  << " | " << op->getLoc() << "\n";
 
     return failure();
@@ -2096,7 +2096,7 @@ void LowerHaskToStandardPass::runOnOperation() {
   patterns.insert<HaskFuncOpConversionPattern>(&getContext());
   patterns.insert<HaskGlobalOpConversionPattern>(&getContext());
   patterns.insert<CaseOpConversionPattern>(&getContext());
-  // patterns.insert<LambdaSSAOpConversionPattern>(&getContext());
+  // patterns.insert<LambdaOpConversionPattern>(&getContext());
   patterns.insert<MakeI64OpConversionPattern>(&getContext());
   patterns.insert<HaskReturnOpConversionPattern>(&getContext());
   patterns.insert<HaskRefOpConversionPattern>(&getContext());

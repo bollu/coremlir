@@ -9,7 +9,7 @@ module {
       %2 = hask.caseSSA @Either %1 [@Right ->  {
       ^bb0(%arg1: !hask.thunk<!hask.adt<@Either>>):  // no predecessors
         %3 = hask.force(%arg1):!hask.adt<@Either>
-        %4 = hask.caseSSA @Either %3 [@Right ->  {
+        %4 = hask.caseSSA @Either %3 [@Left ->  {
         ^bb0(%arg2: !hask.thunk<!hask.value>):  // no predecessors
           %5 = hask.force(%arg2):!hask.value
           hask.return(%5) : !hask.value

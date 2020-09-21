@@ -79,7 +79,7 @@ class ApOp
     : public Op<ApOp, OpTrait::OneResult, MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "hask.apSSA"; };
+  static StringRef getOperationName() { return "hask.ap"; };
   Value getFn() { return this->getOperation()->getOperand(0); };
   int getNumFnArguments() {
     return this->getOperation()->getNumOperands() - 1;
@@ -110,7 +110,7 @@ public:
 class CaseOp : public Op<CaseOp, OpTrait::OneResult> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "hask.caseSSA"; };
+  static StringRef getOperationName() { return "hask.case"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   Value getScrutinee() { this->getOperation()->getOperand(0); }
   int getNumAlts() { return this->getOperation()->getNumRegions(); }
@@ -161,7 +161,7 @@ public:
 class LambdaOp : public Op<LambdaOp, OpTrait::OneResult, OpTrait::OneRegion> {
 public:
   using Op::Op;
-  static StringRef getOperationName() { return "hask.lambdaSSA"; };
+  static StringRef getOperationName() { return "hask.lambda"; };
   Region &getBody() {
     assert(this->getOperation()->getNumRegions() == 1);
     return this->getOperation()->getRegion(0);

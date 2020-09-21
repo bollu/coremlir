@@ -1,6 +1,6 @@
 # Yes I hate myself, but this is far too convenient to be able to write
 # pipelines which involve tee and allow such pipelines to fail.
-targets = fib add case-int  fib-strict k-lazy either playground test-ops
+targets = fib add case-int fib-strict k-lazy either playground test-ops
 
 all: $(targets)
 

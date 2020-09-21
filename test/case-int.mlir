@@ -5,7 +5,7 @@
 module {
   // strict function
   hask.func @prec {
-    %lam = hask.lambdaSSA(%ihash: !hask.value) {
+    %lam = hask.lambda(%ihash: !hask.value) {
      // do we know that %ihash is an int here?
      %ret = hask.caseint %ihash 
      [0 -> { ^entry(%ival: !hask.value): 
@@ -23,10 +23,10 @@ module {
   }
 
   hask.func @main {
-    %lambda = hask.lambdaSSA(%_: !hask.thunk<!hask.value>) {
+    %lambda = hask.lambda(%_: !hask.thunk<!hask.value>) {
       %lit_42 = hask.make_i64(42)
       %prec = hask.ref(@prec)  : !hask.fn<(!hask.value) -> !hask.value>
-      %out_v = hask.apSSA(%prec : !hask.fn<(!hask.value) -> !hask.value>, %lit_42)
+      %out_v = hask.ap(%prec : !hask.fn<(!hask.value) -> !hask.value>, %lit_42)
       %out_v_forced = hask.force(%out_v): !hask.value
       %x = hask.construct(@X, %out_v_forced:!hask.value): !hask.adt<@X>
       hask.return(%x) : !hask.adt<@X>

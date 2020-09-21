@@ -12,12 +12,12 @@ module {
 
   // extract e = case e of @Right e2-> case e2 of @Left v -> v
   hask.func @extract {
-    %lam = hask.lambdaSSA(%t: !hask.thunk<!hask.adt<@Either>>) {
+    %lam = hask.lambda(%t: !hask.thunk<!hask.adt<@Either>>) {
        %v = hask.force(%t) : !hask.adt<@Either>
-       %ret = hask.caseSSA @Either %v 
+       %ret = hask.case @Either %v 
            [@Right -> { ^entry(%t2: !hask.thunk<!hask.adt<@Either>>):
                %v2 = hask.force(%t2) : !hask.adt<@Either>
-               %ret2 = hask.caseSSA @Either %v2
+               %ret2 = hask.case @Either %v2
                    [@Left -> { ^entry(%t3: !hask.thunk<!hask.value>):
                        %v3 = hask.force(%t3) : !hask.value
                        hask.return(%v3):!hask.value
@@ -30,7 +30,7 @@ module {
   }
 
   hask.func @one {
-      %lam = hask.lambdaSSA() {
+      %lam = hask.lambda() {
           %v = hask.make_i64(1)
           %boxed = hask.construct(@SimpleInt, %v:!hask.value) :!hask.adt<@SimpleInt>
           hask.return(%boxed): !hask.adt<@SimpleInt>
@@ -39,9 +39,9 @@ module {
   }
 
   hask.func @leftOne {
-    %lam = hask.lambdaSSA() {
+    %lam = hask.lambda() {
         %ofn = hask.ref(@one) : !hask.fn<() -> !hask.adt<@SimpleInt>>
-        %o = hask.apSSA(%ofn  : !hask.fn<() -> !hask.adt<@SimpleInt>>)
+        %o = hask.ap(%ofn  : !hask.fn<() -> !hask.adt<@SimpleInt>>)
 
         %l = hask.construct(@Left, %o: !hask.thunk<!hask.adt<@SimpleInt>>) :!hask.adt<@Either>
         hask.return(%l) :!hask.adt<@Either>
@@ -50,9 +50,9 @@ module {
   }
 
   hask.func @rightLeftOne {
-    %lam = hask.lambdaSSA() {
+    %lam = hask.lambda() {
       %lfn = hask.ref(@leftOne): !hask.fn<() -> !hask.adt<@Either>>
-      %l_t = hask.apSSA(%lfn: !hask.fn<() -> !hask.adt<@Either>>)
+      %l_t = hask.ap(%lfn: !hask.fn<() -> !hask.adt<@Either>>)
 
       %r = hask.construct(@Right, %l_t :!hask.thunk<!hask.adt<@Either>>) :!hask.adt<@Either>
       %r_t = hask.thunkify(%r :!hask.adt<@Either>):!hask.thunk<!hask.adt<@Either>>
@@ -63,12 +63,12 @@ module {
 
   // 1 + 2 = 3
   hask.func@main {
-    %lam = hask.lambdaSSA(%_: !hask.thunk<!hask.value>) {
+    %lam = hask.lambda(%_: !hask.thunk<!hask.value>) {
       %rlo = hask.ref(@rightLeftOne): !hask.fn<() -> !hask.adt<@Either>>
-      %input = hask.apSSA(%rlo : !hask.fn<() -> !hask.adt<@Either>>)
+      %input = hask.ap(%rlo : !hask.fn<() -> !hask.adt<@Either>>)
       %extract = hask.ref(@extract) :!hask.fn<(!hask.thunk<!hask.adt<@Either>>) -> !hask.value>
 
-      %extract_t = hask.apSSA(%extract:!hask.fn<(!hask.thunk<!hask.adt<@Either>>) -> !hask.value>, %input)
+      %extract_t = hask.ap(%extract:!hask.fn<(!hask.thunk<!hask.adt<@Either>>) -> !hask.value>, %input)
       %extract_v = hask.force(%extract_t) :!hask.value
       hask.return(%extract_v):!hask.value
 
