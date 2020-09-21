@@ -16,6 +16,7 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Support/LogicalResult.h"
 #include <sstream>
 
@@ -1016,6 +1017,135 @@ void ApOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                        MLIRContext *context) {
   // results.insert<UncurryApplicationPattern>(context);
 }
+
+// ===== FORCE OP REWRITES =====
+
+// clone the basic block toBeCloned into `beforeInDest`, before location `before`, using `args
+// for the arguments.
+// https://github.com/llvm/llvm-project/blob/f91f28c350df6815d37c521e8f3dc0641a3ca467/mlir/lib/IR/Region.cpp#L79
+Block *cloneBlock(Block &toBeCloned) {
+  BlockAndValueMapping mapper;
+  Block *newBlock = new Block();
+  mapper.map(&toBeCloned, newBlock);
+  for (BlockArgument &arg : toBeCloned.getArguments()) {
+      mapper.map(arg, newBlock->addArgument(arg.getType()));
+  }
+
+  // Clone and remap the operations within this block.
+    for (auto &op : toBeCloned) {
+    newBlock->push_back(op.clone(mapper));
+  }
+
+  auto remapOperands = [&](Operation &op) {
+    for (auto &operand : op.getOpOperands())
+      if (auto mappedOp = mapper.lookupOrNull(operand.get()))
+        operand.set(mappedOp);
+    for (auto &succOp : op.getBlockOperands())
+      if (auto *mappedOp = mapper.lookupOrNull(succOp.get()))
+        succOp.set(mappedOp);
+  };
+
+  for (Operation &op : *newBlock) {
+    remapOperands(op);
+  }
+
+  return newBlock;
+};
+
+//https://github.com/llvm/llvm-project/blob/1372e23c7d4b25fd23689842246e66f70c949b46/mlir/lib/IR/PatternMatch.cpp#L136
+Block *cloneBlockBefore(mlir::PatternRewriter &rewriter, Operation *beforeAtDest, Block &src,
+                        ValueRange argValues = llvm::None) {
+  assert(beforeAtDest);
+  Block *newbb = cloneBlock(src);
+  rewriter.mergeBlockBefore(&src, beforeAtDest, argValues);
+  return newbb;
+}
+
+struct ForceOfKnownApCanonicalizationPattern : public mlir::OpRewritePattern<ForceOp> {
+  /// We register this pattern to match every toy.transpose in the IR.
+  /// The "benefit" is used by the framework to order the patterns and process
+  /// them in order of profitability.
+  ForceOfKnownApCanonicalizationPattern(mlir::MLIRContext *context)
+      : OpRewritePattern<ForceOp>(context, /*benefit=*/1) { }
+
+
+  mlir::LogicalResult
+  matchAndRewrite(ForceOp force, mlir::PatternRewriter &rewriter) const override {
+      ModuleOp mod = force.getParentOfType<ModuleOp>();
+      HaskFuncOp fn = force.getParentOfType<HaskFuncOp>();
+
+      ApOp ap = force.getOperand().getDefiningOp<ApOp>();
+      if (!ap) { return success(); }
+      HaskRefOp ref = ap.getFn().getDefiningOp<HaskRefOp>();
+      if (!ref) { return success(); }
+
+      llvm::errs() << "\nref: " << ref  << "\n"
+          << "\nap: " << ap << "\n"
+          << "\nforce: " << force <<" \n";
+
+      HaskFuncOp parent = force.getParentOfType<HaskFuncOp>();
+      assert(parent && "expected legal parent");
+      if (parent.getFuncName() == ref.getRef()) {
+        llvm::errs() << "Recursive forcing. Quitting.\n";
+          //assert(false && "found recursive forcing");
+        return success();
+      }
+
+      HaskFuncOp forcedFn = mod.lookupSymbol<HaskFuncOp>(ref.getRef());
+      Block &forcedFnBB = forcedFn.getLambda().getBodyBB();
+
+
+      llvm::errs() << "\nforced fn body:\n-------\n";
+      forcedFnBB.dump();
+
+      llvm::errs() << "\nforce parent(original):\n----\n";
+      force.getParentOfType<HaskFuncOp>().dump();
+
+      Block *clonedBB = cloneBlock(forcedFnBB);
+      clonedBB->insertBefore(force.getOperation()->getBlock());
+      llvm::errs() << "\nforced called fn(cloned BB):\n----\n";
+      clonedBB->dump();
+      HaskReturnOp ret = dyn_cast<HaskReturnOp>(clonedBB->getTerminator());
+
+      llvm::errs() << "\nforce parent(inlined):\n-----------\n";
+      force.getParentOfType<HaskFuncOp>().dump();
+      llvm::errs() << "\n";
+
+      llvm::errs() << "\nforce parent(inlined+merged):\n-----------\n";
+      rewriter.mergeBlockBefore(clonedBB, force.getOperation(), ap.getFnArguments());
+      force.getParentOfType<HaskFuncOp>().dump();
+      llvm::errs() << "\n";
+
+
+
+      llvm::errs() << "\nreturnop:\n------\n" << ret << "\n";
+
+      llvm::errs() << "\nforce parent(inlined+merged+force-replaced):\n-----------\n";
+      rewriter.replaceOp(force, ret.getOperand());
+      rewriter.eraseOp(ret);
+      fn.dump();
+      llvm::errs() << "\n";
+
+//      assert(false && "cloned the block");
+
+
+
+      //      llvm::errs() << "forced function:\n" << forcedFn << "\n";
+//      assert(false && "found forced function");
+      return success();
+
+  }
+
+};
+
+
+void ForceOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                       MLIRContext *context) {
+  results.insert<ForceOfKnownApCanonicalizationPattern>(context);
+}
+
+
+
 
 struct DefaultCaseToForcePattern : public mlir::OpRewritePattern<CaseOp> {
   DefaultCaseToForcePattern(mlir::MLIRContext *context)

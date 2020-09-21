@@ -166,6 +166,7 @@ public:
     assert(this->getOperation()->getNumRegions() == 1);
     return this->getOperation()->getRegion(0);
   }
+  Block &getBodyBB() { return this->getBody().front(); }
   Block::BlockArgListType inputRange() {
     this->getBody().begin()->getArguments();
   }
@@ -210,7 +211,7 @@ public:
 };
 
 // replace case x of name { default -> ... } with name = force(x);
-class ForceOp : public Op<ForceOp, OpTrait::OneResult> {
+class ForceOp : public Op<ForceOp, OpTrait::OneResult, OpTrait::OneOperand> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.force"; };
@@ -219,6 +220,8 @@ public:
   void print(OpAsmPrinter &p);
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value scrutinee);
+  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context);
 };
 
 class HaskADTOp
