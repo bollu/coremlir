@@ -7,6 +7,14 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Notes on GHC
+
+- smallest size is `32` bit word. Can't pack stuff!
+- GHC plugin that strictifies/unboxes most things and prints out the new
+  file.
+- IORefs are bad.
+
+
 # Friday, Sep 18th 2020
 
 - [Link to google doc](https://docs.google.com/document/d/1nkcM3o3D7G6stkxdCbJIEXdgbqRMdiL38x-oJiA6fJQ/edit?usp=sharing)

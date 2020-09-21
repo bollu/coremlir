@@ -578,6 +578,11 @@ void ForceOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
   state.addTypes(t.getElementType());
 }
 
+
+
+
+
+
 // === ADT OP ===
 // === ADT OP ===
 // === ADT OP ===
@@ -924,99 +929,6 @@ void TransmuteOp::print(OpAsmPrinter &p) {
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/mlir/ToyCombine.cpp
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/mlir/Dialect.cpp
-struct UncurryApplicationPattern : public mlir::OpRewritePattern<ApOp> {
-  /// We register this pattern to match every toy.transpose in the IR.
-  /// The "benefit" is used by the framework to order the patterns and process
-  /// them in order of profitability.
-  UncurryApplicationPattern(mlir::MLIRContext *context)
-      : OpRewritePattern<ApOp>(context, /*benefit=*/1) {}
-
-  /// This method is attempting to match a pattern and rewrite it. The rewriter
-  /// argument is the orchestrator of the sequence of rewrites. It is expected
-  /// to interact with it to perform any changes to the IR from here.
-  /// rewrite:
-  ///   %f2 = APOP(%f1, v1) // ap1
-  ///   %out = APOP(%f2, v2) // ap2
-  /// into:
-  ///   %out = APOP(%f1, v1, v2)
-  /// ie rewrite:
-  mlir::LogicalResult
-  matchAndRewrite(ApOp ap2, mlir::PatternRewriter &rewriter) const override {
-
-    Value f2 = ap2.getFn();
-    if (!f2) {
-      return failure();
-    }
-    ApOp ap1 = f2.getDefiningOp<ApOp>();
-    if (!ap1) {
-      return failure();
-    }
-
-    SmallVector<Value, 4> args;
-
-    for (int i = 0; i < ap1.getNumFnArguments(); ++i) {
-      args.push_back(ap1.getFnArgument(i));
-    }
-    for (int i = 0; i < ap2.getNumFnArguments(); ++i) {
-      args.push_back(ap2.getFnArgument(i));
-    }
-
-    llvm::errs() << "\n====\n";
-    llvm::errs() << "running on:\n- ap1|" << ap1 << " |\n- ap2"
-                 << "|" << ap2 << "|\n";
-
-    llvm::errs() << "-[";
-    for (int i = 0; i < args.size(); ++i) {
-      llvm::errs() << args[i] << ", ";
-    }
-    llvm::errs() << "]\n";
-    Value calledVal = ap1.getFn();
-    llvm::errs() << "-calledVal: " << calledVal << "\n";
-    // ApOp replacement = rewriter.create<ApOp>(ap2.getLoc(), calledVal, args);
-    // llvm::errs() << "-replacement: " << replacement << "|" << __LINE__ <<
-    // "\n";
-    rewriter.replaceOpWithNewOp<ApOp>(ap2, calledVal, args);
-    llvm::errs() << "\n====\n";
-
-    /*
-    Value fn_b = out.getFn();
-    if (!fn_b) {
-        llvm::errs() << "no match: |" << out << "|\n";
-        return failure();
-    }
-
-    ApOp fn_b_op = fn_b.getDefiningOp<ApOp>();
-    if (!fn_b_op) {
-        llvm::errs() << "no match: |" << out << "|\n";
-        return failure();
-    }
-
-    llvm::errs() << "found suitable op: |"  << out << " | fn_as_apOp: " <<
-    fn_b_op << "\n"; SmallVector<Value, 4> args;
-    // we have all args.
-    for(int i = 0; i < fn_b_op.getNumFnArguments(); ++i) {
-        args.push_back(fn_b_op.getFnArgument(i));
-    }
-    for(int i  = 0; i < out.getNumFnArguments(); ++i) {
-        args.push_back(out.getFnArgument(i));
-    }
-
-    if (Value fncall = fn_b_op.getFn()) {
-        rewriter.replaceOpWithNewOp<ApOp>(out, fncall, args);
-    } else {
-        assert(fn_b_op.fnSymbolName() && "we must have symbol if we don't have
-    Value"); rewriter.replaceOpWithNewOp<ApOp>(out, fn_b_op.fnSymbolName(),
-    args);
-    }
-    */
-    return success();
-  }
-};
-
-void ApOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                       MLIRContext *context) {
-  // results.insert<UncurryApplicationPattern>(context);
-}
 
 // ===== FORCE OP REWRITES =====
 
@@ -1075,9 +987,9 @@ struct ForceOfKnownApCanonicalizationPattern : public mlir::OpRewritePattern<For
       HaskFuncOp fn = force.getParentOfType<HaskFuncOp>();
 
       ApOp ap = force.getOperand().getDefiningOp<ApOp>();
-      if (!ap) { return success(); }
+      if (!ap) { return failure(); }
       HaskRefOp ref = ap.getFn().getDefiningOp<HaskRefOp>();
-      if (!ref) { return success(); }
+      if (!ref) { return failure(); }
 
       llvm::errs() << "\nref: " << ref  << "\n"
           << "\nap: " << ap << "\n"
@@ -1125,112 +1037,41 @@ struct ForceOfKnownApCanonicalizationPattern : public mlir::OpRewritePattern<For
       rewriter.eraseOp(ret);
       fn.dump();
       llvm::errs() << "\n";
-
-//      assert(false && "cloned the block");
-
-
-
-      //      llvm::errs() << "forced function:\n" << forcedFn << "\n";
-//      assert(false && "found forced function");
       return success();
 
   }
 
 };
 
+struct ForceOfThunkifyCanonicalizationPattern : public mlir::OpRewritePattern<ForceOp> {
+  /// We register this pattern to match every toy.transpose in the IR.
+  /// The "benefit" is used by the framework to order the patterns and process
+  /// them in order of profitability.
+  ForceOfThunkifyCanonicalizationPattern(mlir::MLIRContext *context)
+      : OpRewritePattern<ForceOp>(context, /*benefit=*/1) { }
+
+
+  mlir::LogicalResult
+  matchAndRewrite(ForceOp force, mlir::PatternRewriter &rewriter) const override {
+      HaskFuncOp fn = force.getParentOfType<HaskFuncOp>();
+      ThunkifyOp thunkify = force.getOperand().getDefiningOp<ThunkifyOp>();
+      if (!thunkify) { return failure(); }
+      rewriter.replaceOp(force, thunkify.getOperand());
+      return success();
+  }
+
+};
+
+
 
 void ForceOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                        MLIRContext *context) {
+  results.insert<ForceOfThunkifyCanonicalizationPattern>(context);
   results.insert<ForceOfKnownApCanonicalizationPattern>(context);
 }
 
 
 
-
-struct DefaultCaseToForcePattern : public mlir::OpRewritePattern<CaseOp> {
-  DefaultCaseToForcePattern(mlir::MLIRContext *context)
-      : OpRewritePattern<CaseOp>(context, /*benefit=*/1) {}
-
-  // CONVERT
-  // --------
-  // %x = case %scrutinee of
-  //         default -> { ^entry(%default_name):
-  //                              ...
-  //                              %hask.return(%retval)
-  //                    }
-  // %y = f(%x)
-  //
-  // INTO
-  // ----
-  //
-  // %forced_x = force(%scrutinee)
-  // < replace %default_name with %forced_x>
-  // ... < inlined BB, without %hask.return>
-  // <replace %x with %retval>
-  // %y = f(%retval)
-  mlir::LogicalResult
-  matchAndRewrite(CaseOp caseop,
-                  mlir::PatternRewriter &rewriter) const override {
-    if (caseop.getNumAlts() != 1) {
-      return success();
-    }
-    // we have only one case, convert to a force.
-
-    Operation *toplevel = caseop.getParentOp();
-    llvm::errs() << "---" << __FUNCTION__ << "---\n";
-    llvm::errs() << "---caseParentBB:--\n"
-                 << *caseop.getParentOp() << "\t---\n";
-
-    llvm::errs() << "---case:---\n" << caseop;
-    llvm::errs() << "\t---\n";
-
-    Block *caseParentBB = caseop.getOperation()->getBlock();
-    Block &caseRhsBB = caseop.getAltRHS(0).getBlocks().front();
-    assert(caseRhsBB.getTerminator() && "caseRhsBB must have legal terminator");
-
-    HaskReturnOp ret = dyn_cast<HaskReturnOp>(caseRhsBB.getTerminator());
-    assert(ret && "expected to have ret");
-    Value retval = ret.getInput();
-    assert(retval && "expected legal ret value");
-
-    rewriter.setInsertionPoint(caseop);
-    ForceOp forceScrutinee =
-        rewriter.create<ForceOp>(caseop.getLoc(), caseop.getScrutinee());
-
-    Operation *opAfterCase = caseop.getOperation()->getNextNode();
-    rewriter.mergeBlockBefore(&caseRhsBB, opAfterCase,
-                              forceScrutinee.getResult());
-
-    rewriter.eraseOp(ret);
-    llvm::errs() << "---retval: ";
-    retval.print(llvm::errs());
-    llvm::errs() << "---\n";
-    //    rewriter.replaceOp(caseop, retval);
-
-    llvm::errs() << "---caseParentOp[after insertion]---\n";
-    caseop.getParentOp()->print(llvm::errs());
-    llvm::errs() << "--\n";
-    llvm::errs() << "---ret: ";
-    ret.getOperation()->print(llvm::errs());
-    llvm::errs() << "--\n";
-    llvm::errs() << "---retval:";
-    retval.print(llvm::errs());
-    llvm::errs() << "--\n";
-    rewriter.replaceOp(caseop, retval);
-
-    llvm::errs() << __FUNCTION__ << ": " << __LINE__ << "\n";
-    llvm::errs() << "---caseParentOp[after replacement]---\n";
-    llvm::errs() << *toplevel << "\n";
-    //    assert(false);
-
-    return success();
-  }
-};
-
-void CaseOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                         MLIRContext *context) {
-  // results.insert<DefaultCaseToForcePattern>(context);
-}
 
 // === LOWERING ===
 // === LOWERING ===

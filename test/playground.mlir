@@ -1,26 +1,13 @@
 module {
-  hask.func @k {
-    %lambda = hask.lambdaSSA(%x: !hask.thunk, %y: !hask.thunk) {
-      hask.return(%x) : !hask.thunk
+  hask.adt @X [#hask.data_constructor<@MkX []>]
+  hask.func @main {
+    %0 = hask.lambda(%arg0:!hask.thunk<!hask.value>) {
+      %1 = hask.make_i64(42 : i64)
+      %2 = hask.construct(@X, %1 : !hask.value) : !hask.adt<@X>
+      %3 = hask.transmute(%2 :!hask.adt<@X>):!hask.value
+      %4 = hask.thunkify(%3 :!hask.value):!hask.thunk<!hask.value>
+      hask.return(%1) : !hask.value
     }
-    hask.return(%lambda) :!hask.fn<!hask.thunk, !hask.fn<!hask.thunk, !hask.thunk>>
+    hask.return(%0) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.value>
   }
-
-  // loop a = loop a
-  hask.func @loop {
-    %lambda = hask.lambdaSSA(%a: !hask.thunk) {
-      %loop = hask.ref(@loop) : !hask.fn<!hask.thunk, !hask.thunk>
-      %out = hask.apSSA(%loop : !hask.fn<!hask.thunk, !hask.thunk>, %a)
-      hask.return(%out) : !hask.thunk
-    }
-    hask.return(%lambda) : !hask.fn<!hask.thunk, !hask.thunk>
-  }
-
-  // hask.func @main {
-  //   %lambda = hask.lambdaSSA(%_: !hask.thunk) {
-  //     %x = hask.construct(@X)
-  //     hask.return(%x): !hask.thunk
-  //   }
-  //   hask.return(%lambda):!hask.fn<!hask.thunk, !hask.thunk>
-  // }
 }

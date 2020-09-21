@@ -351,41 +351,45 @@ int main(int argc, char **argv) {
   module->print(llvm::errs());
   llvm::errs() << "\n===\n";
 
-  {
-    mlir::PassManager pm(&context);
-    // Apply any generic pass manager command line options and run the pipeline.
-    applyPassManagerCLOptions(pm);
+  for(int i = 0; i < 3; ++i) {
+      llvm::errs() << "=====Module: simplyfing [" << i << "]=====\n";
 
-    // Add a run of the canonicalizer to optimize the mlir module.
-    // pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
-    pm.addPass(mlir::createCanonicalizerPass());
-    llvm::errs() << "===Module: running canonicalization...===\n";
-    if (mlir::failed(pm.run(*module))) {
-      llvm::errs() << "===Run of canonicalizer failed.===\n";
-      return 4;
-    }
-    llvm::errs() << "==canonicalization succeeded!===\n";
-  }
+      {
+          mlir::PassManager pm(&context);
+          // Apply any generic pass manager command line options and run the pipeline.
+          applyPassManagerCLOptions(pm);
 
-  module->print(llvm::errs());
-  llvm::errs() << "\n===\n";
+          // Add a run of the canonicalizer to optimize the mlir module.
+          // pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
+          pm.addPass(mlir::createCanonicalizerPass());
+          llvm::errs() << "===Module: running canonicalization...===\n";
+          if (mlir::failed(pm.run(*module))) {
+              llvm::errs() << "===Run of canonicalizer failed.===\n";
+              return 4;
+          }
+          llvm::errs() << "==canonicalization succeeded!===\n";
+      }
 
-  {
+      module->print(llvm::errs());
+      llvm::errs() << "\n===\n";
 
-    mlir::PassManager pm(&context);
-    // Apply any generic pass manager command line options and run the pipeline.
-    applyPassManagerCLOptions(pm);
-    pm.addPass(mlir::createCSEPass());
-    llvm::errs() << "===Module: running CSE...===\n";
-    if (mlir::failed(pm.run(*module))) {
-      llvm::errs() << "===CSE failed.===\n";
-      return 4;
-    }
-    llvm::errs() << "===CSE succeeded!===\n";
+      {
 
-    llvm::errs() << "===Module===\n";
-    module->print(llvm::errs());
-    llvm::errs() << "\n===\n";
+          mlir::PassManager pm(&context);
+          // Apply any generic pass manager command line options and run the pipeline.
+          applyPassManagerCLOptions(pm);
+          pm.addPass(mlir::createCSEPass());
+          llvm::errs() << "===Module: running CSE...===\n";
+          if (mlir::failed(pm.run(*module))) {
+              llvm::errs() << "===CSE failed.===\n";
+              return 4;
+          }
+          llvm::errs() << "===CSE succeeded!===\n";
+
+          llvm::errs() << "===Module===\n";
+          module->print(llvm::errs());
+          llvm::errs() << "\n===\n";
+      }
   }
 
   // Lowering code to standard (?) Do I even need to (?)

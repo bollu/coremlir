@@ -43,7 +43,8 @@ public:
 };
 
 class MakeI64Op
-    : public Op<MakeI64Op, OpTrait::OneResult, OpTrait::ZeroSuccessor> {
+    : public Op<MakeI64Op, OpTrait::OneResult, OpTrait::ZeroSuccessor, 
+    MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.make_i64"; };
@@ -53,10 +54,14 @@ public:
     return this->getOperation()->getAttrOfType<IntegerAttr>("value");
   }
   void print(OpAsmPrinter &p);
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
 };
 
 class MakeStringOp
-    : public Op<MakeStringOp, OpTrait::OneResult, OpTrait::ZeroSuccessor> {
+    : public Op<MakeStringOp, OpTrait::OneResult, OpTrait::ZeroSuccessor,
+    MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.make_string"; };
@@ -64,16 +69,10 @@ public:
 
   Attribute getValue() { return this->getOperation()->getAttr("value"); }
   void print(OpAsmPrinter &p);
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
 };
-
-/*
-class DeclareDataConstructorOp : public Op<DeclareDataConstructorOp,
-OpTrait::ZeroResult> { public: using Op::Op; static StringRef getOperationName()
-{ return "hask.declare_data_constructor"; }; llvm::StringRef
-getDataConstructorName(); static ParseResult parse(OpAsmParser &parser,
-OperationState &result); void print(OpAsmPrinter &p);
-};
-*/
 
 class ApOp
     : public Op<ApOp, OpTrait::OneResult, MemoryEffectOpInterface::Trait> {
@@ -103,11 +102,10 @@ public:
                     Value fn, SmallVectorImpl<Value> &params);
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
-  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                          MLIRContext *context);
 };
 
-class CaseOp : public Op<CaseOp, OpTrait::OneResult> {
+class CaseOp : public Op<CaseOp, OpTrait::OneResult,
+    MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.case"; };
@@ -127,12 +125,13 @@ public:
   static const char *getCaseTypeKey() { return "constructorName"; }
   void print(OpAsmPrinter &p);
   llvm::Optional<int> getDefaultAltIndex();
-
-  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                          MLIRContext *context);
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
 };
 
-class CaseIntOp : public Op<CaseIntOp, OpTrait::OneResult> {
+class CaseIntOp : public Op<CaseIntOp, OpTrait::OneResult,
+    MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.caseint"; };
@@ -156,6 +155,9 @@ public:
   void print(OpAsmPrinter &p);
   llvm::Optional<int> getDefaultAltIndex();
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
 };
 
 class LambdaOp : public Op<LambdaOp, OpTrait::OneResult, OpTrait::OneRegion> {
@@ -180,7 +182,8 @@ public:
 };
 
 class HaskRefOp
-    : public Op<HaskRefOp, OpTrait::OneResult, OpTrait::ZeroOperands> {
+    : public Op<HaskRefOp, OpTrait::OneResult, OpTrait::ZeroOperands,
+   MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.ref"; };
@@ -193,6 +196,9 @@ public:
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
   LogicalResult verify();
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
 };
 
 class HaskFuncOp : public Op<HaskFuncOp, OpTrait::ZeroOperands,
@@ -211,7 +217,8 @@ public:
 };
 
 // replace case x of name { default -> ... } with name = force(x);
-class ForceOp : public Op<ForceOp, OpTrait::OneResult, OpTrait::OneOperand> {
+class ForceOp : public Op<ForceOp, OpTrait::OneResult, OpTrait::OneOperand,
+   MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.force"; };
@@ -220,8 +227,12 @@ public:
   void print(OpAsmPrinter &p);
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value scrutinee);
+
   static void getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context);
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
 };
 
 class HaskADTOp
@@ -255,7 +266,8 @@ public:
 };
 
 class HaskConstructOp
-    : public Op<HaskConstructOp, OpTrait::OneResult, OpTrait::ZeroRegion> {
+    : public Op<HaskConstructOp, OpTrait::OneResult, OpTrait::ZeroRegion,
+   MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.construct"; };
@@ -274,27 +286,37 @@ public:
   Value getOperand(int i) { return this->getOperation()->getOperand(i); }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
 };
 
 class HaskPrimopAddOp : public Op<HaskPrimopAddOp, OpTrait::OneResult,
-                                  OpTrait::NOperands<2>::Impl> {
+                                  OpTrait::NOperands<2>::Impl,
+                                  MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.primop_add"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
+  void getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
 };
 
 class HaskPrimopSubOp : public Op<HaskPrimopSubOp, OpTrait::OneResult,
-                                  OpTrait::NOperands<2>::Impl> {
+                                  OpTrait::NOperands<2>::Impl,
+                                  MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.primop_sub"; };
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
+  void getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>> &effects) {}
 };
 
-class ThunkifyOp : public Op<ThunkifyOp, OpTrait::OneResult> {
+class ThunkifyOp
+    : public Op<ThunkifyOp, OpTrait::OneResult, OpTrait::OneOperand,
+                                  MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.thunkify"; };
@@ -303,10 +325,13 @@ public:
   void print(OpAsmPrinter &p);
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value scrutinee);
+  void getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
 };
 
 class TransmuteOp
-    : public Op<TransmuteOp, OpTrait::OneResult, OpTrait::OneOperand> {
+    : public Op<TransmuteOp, OpTrait::OneResult, OpTrait::OneOperand,
+                                  MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.transmute"; };
@@ -314,6 +339,9 @@ public:
   void print(OpAsmPrinter &p);
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value scrutinee);
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
 };
 
 // lower hask to standard.

@@ -26,8 +26,7 @@ module {
       %4 = hask.thunkify(%3 :!hask.value):!hask.thunk<!hask.value>
       %5 = hask.ref(@loop) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.value>
       %6 = hask.ref(@k) : !hask.fn<(!hask.thunk<!hask.value>, !hask.thunk<!hask.value>) -> !hask.value>
-      %7 = hask.force(%4):!hask.value
-      hask.return(%7) : !hask.value
+      hask.return(%3) : !hask.value
     }
     hask.return(%0) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.value>
   }
