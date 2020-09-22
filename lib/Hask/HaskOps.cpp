@@ -1381,6 +1381,7 @@ public:
 
     rewriter.setInsertionPoint(caseop);
     // TODO: get block of current caseop?
+
     Block *prevBB = rewriter.getInsertionBlock();
     for (int i = 0; i < caseop.getNumAlts(); ++i) {
       if (default_ix && i == *default_ix) {
@@ -1848,6 +1849,10 @@ static FlatSymbolRefAttr getOrInsertIsIntEq(PatternRewriter &rewriter,
   return SymbolRefAttr::get(name, rewriter.getContext());
 }
 
+Block *splitBlockAfter(PatternRewriter &rewriter, Block::iterator after) {
+  return rewriter.splitBlock(after->getBlock(), ++after);
+}
+
 class CaseIntOpConversionPattern : public ConversionPattern {
 public:
   explicit CaseIntOpConversionPattern(MLIRContext *context)
@@ -1859,94 +1864,82 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     using namespace mlir::LLVM;
     auto caseop = cast<CaseIntOp>(op);
-    ModuleOp mod = op->getParentOfType<ModuleOp>();
+
+
     const Optional<int> default_ix = caseop.getDefaultAltIndex();
 
     llvm::errs() << "running CaseIntOpConversionPattern on: " << op->getName()
                  << " | " << op->getLoc() << "\n";
     llvm::errs() << caseop << "\n";
 
-    // delete the use of the case.
-    // TODO: Change the IR so that we create a landing pad BB where the
-    // case uses all wind up.
-    for (Operation *user : op->getUsers()) {
-      rewriter.eraseOp(user);
-    }
-    Value scrutinee = caseop.getScrutinee();
-
-    rewriter.setInsertionPoint(caseop);
     Value scrutineeInt = rewriter.create<LLVM::PtrToIntOp>(
         caseop.getLoc(), LLVM::LLVMType::getInt64Ty(rewriter.getContext()),
-        scrutinee);
+        caseop.getScrutinee());
+    Type caseRetty = caseop.getResult().getType();
+
+    Block *prevBB = caseop.getOperation()->getBlock();
+    Block *afterCaseBB = splitBlockAfter(rewriter, caseop.getOperation()->getIterator());
+
+    afterCaseBB->addArgument(caseRetty);
+
+    // Type result, IntegerAttr predicate, Value lhs, Value rhs
+    auto I64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
+    auto I8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
 
     // TODO: get block of current caseop?
+    llvm::errs() << __LINE__ << "\n";
     for (int i = 0; i < caseop.getNumAlts(); ++i) {
-      Block *prevBB = rewriter.getInsertionBlock();
 
-      if (default_ix && i == *default_ix) {
-        continue;
-      }
-      // Type result, IntegerAttr predicate, Value lhs, Value rhs
-      auto I64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
+      if (default_ix && i == *default_ix) { continue; }
+
+      Block *thenBB =
+          rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
+      Block *elseBB =
+          rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
 
       LLVM::ConstantOp altLhsInt = rewriter.create<LLVM::ConstantOp>(
           caseop.getLoc(), I64Ty, *caseop.getAltLHS(i));
 
+      // prev -> {then, else}
+      rewriter.setInsertionPointToEnd(prevBB);
       Value scrut_eq_alt = rewriter.create<LLVM::ICmpOp>(
           caseop.getLoc(), LLVM::ICmpPredicate::eq, scrutineeInt, altLhsInt);
 
-      auto I8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
-
-      /*
-      mlir::CmpIOp scrutinee_eq_val =
-          rewriter.create<mlir::CmpIOp>(rewriter.getUnknownLoc(),
-                                        rewriter.getI1Type(),
-                                        mlir::CmpIPredicate::eq,
-                                        lhsConstant,
-                                        caseop.getScrutinee());
-      */
-
-      Block *thenBB =
-          rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
-
-      rewriter.setInsertionPointToEnd(thenBB);
-      Block &altRhs = caseop.getAltRHS(i).getBlocks().front();
-      llvm::errs() << "--MERGE BLOCKS (CaseInt)--\n";
-      rewriter.mergeBlocks(&altRhs, thenBB, scrutineeInt);
-      llvm::errs() << "--MERGE BLOCKS (CaseInt)--\n";
-
-      Block *elseBB =
-          rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
-
-      rewriter.setInsertionPointToEnd(elseBB);
-
-      rewriter.setInsertionPointToEnd(prevBB);
       rewriter.create<LLVM::CondBrOp>(rewriter.getUnknownLoc(), scrut_eq_alt,
                                       thenBB, elseBB);
 
-      // llvm::errs() << "---op---\n";
-      // llvm::errs() << *thenBB->getParentOp();
-      // llvm::errs() << "---^^---\n";
+      // then -> code
+      rewriter.setInsertionPointToEnd(thenBB);
+      Block &altRhs = caseop.getAltRHS(i).getBlocks().front();
+      HaskReturnOp altRhsRet = cast<HaskReturnOp>(altRhs.getTerminator());
+      rewriter.replaceOpWithNewOp<LLVM::BrOp>(altRhsRet, altRhsRet.getOperand(),
+                                              afterCaseBB);
+      rewriter.mergeBlocks(&altRhs, thenBB, scrutineeInt);
 
-      // rewriter.mergeBlocks(&caseop.getAltRHS(i).front(), thenBB,
-      // caseop.getScrutinee());
-      rewriter.setInsertionPointToStart(elseBB);
+      // next
+      prevBB = elseBB;
     }
 
     // we have a default block
     if (default_ix) {
       // default block should have have no parameters?
+      Block &defaultRhsBlock = caseop.getAltRHS(*default_ix).front();
+      HaskReturnOp defaultRet = cast<HaskReturnOp>(defaultRhsBlock.getTerminator());
+      rewriter.mergeBlocks(&defaultRhsBlock,
+                           prevBB, {});
+      rewriter.replaceOpWithNewOp<LLVM::BrOp>(defaultRet,
+                                              defaultRet.getOperand(),
+                                              afterCaseBB);
 
-      llvm::errs() << "--MERGE BLOCKS (CaseIntOp/default)--\n";
-      rewriter.mergeBlocks(&caseop.getAltRHS(*default_ix).front(),
-                           rewriter.getInsertionBlock(), {});
-      llvm::errs() << "--MERGE BLOCKS (CaseIntOp/default)--\n";
     } else {
+      rewriter.setInsertionPointToEnd(prevBB);
       rewriter.create<mlir::LLVM::UnreachableOp>(rewriter.getUnknownLoc());
     }
-    rewriter.eraseOp(caseop);
+
+    rewriter.replaceOp(caseop, afterCaseBB->getArgument(0));
     return success();
   }
+
 };
 
 static FlatSymbolRefAttr getOrInsertMkClosureThunkify(PatternRewriter &rewriter,
