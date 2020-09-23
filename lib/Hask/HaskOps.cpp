@@ -1151,12 +1151,14 @@ Value transmuteToInt(Value v, ConversionPatternRewriter &rewriter,
 // https://mlir.llvm.org/docs/DialectConversion/#type-converter
 class HaskToLLVMTypeConverter : public mlir::TypeConverter {
 public:
-
   // https://github.com/llvm/llvm-project/blob/8e84972ab7060ace889bb383e76dc2c835a47c06/mlir/lib/Dialect/SPIRV/SPIRVLowering.cpp#L410
   // https://github.com/llvm/llvm-project/blob/8e84972ab7060ace889bb383e76dc2c835a47c06/mlir/include/mlir/Dialect/SPIRV/SPIRVLowering.h#L40
   HaskToLLVMTypeConverter(MLIRContext *context) : context(context) {
     // All other cases failed. Then we cannot convert this type.
-     addConversion([](Type type) { assert(false && "unknown type conversion");  return llvm::None; });
+    addConversion([](Type type) {
+      assert(false && "unknown type conversion");
+      return llvm::None;
+    });
     addConversion([](ValueType type) {
       return mlir::LLVM::LLVMType::getInt8PtrTy(type.getContext());
     });
@@ -1171,36 +1173,69 @@ public:
       assert(false && "unknown bit-width for lowering");
     });
 
-    addTargetMaterialization([](OpBuilder &builder, LLVM::LLVMPointerType, ValueRange vals, Location loc) {
+    addTargetMaterialization([](OpBuilder &builder, LLVM::LLVMPointerType ptrty,
+                                ValueRange vals, Location loc) {
+      llvm::errs() << "---target materialization " << vals[0] << " -> "
+                   << " pointer:" << ptrty << "\n";
+
       if (vals.size() > 1) {
         assert(false && "trying to lower more than 1 value into an integer");
       }
       Value in = vals[0];
-      Value out = builder.create<LLVM::IntToPtrOp>(loc, LLVM::LLVMType::getInt8PtrTy(builder.getContext()), in).getResult();
+      Value out =
+          builder
+              .create<LLVM::IntToPtrOp>(
+                  loc, LLVM::LLVMType::getInt8PtrTy(builder.getContext()), in)
+              .getResult();
+      //      assert(false && "want to see backtrace");
       return out;
-
     });
 
-    addTargetMaterialization([](OpBuilder &builder, LLVM::LLVMIntegerType, ValueRange vals, Location loc) {
+    addTargetMaterialization([](OpBuilder &builder, LLVM::LLVMIntegerType retty,
+                                ValueRange vals, Location loc) {
+      llvm::errs() << "---target materialization " << vals[0] << " -> "
+                   << " int:" << retty << "\n";
       if (vals.size() > 1) {
         assert(false && "trying to lower more than 1 value into an integer");
       }
       Value in = vals[0];
-      Value out = builder.create<LLVM::PtrToIntOp>(loc, LLVM::LLVMType::getInt64Ty(builder.getContext()), in).getResult();
+      Value out =
+          builder
+              .create<LLVM::PtrToIntOp>(
+                  loc, LLVM::LLVMType::getInt64Ty(builder.getContext()), in)
+              .getResult();
       return out;
     });
 
+    // WTF? Why would I need something like this? x(
+    // Oh, is it because I don't know how to legalize a lambda?
+    // https://github.com/llvm/llvm-project/blob/deb99610ab002702f43de79d818c2ccc80371569/mlir/lib/Dialect/SPIRV/Transforms/LowerABIAttributesPass.cpp#L236
+    /*
+    addSourceMaterialization(
+        [](OpBuilder &builder, Type ty, ValueRange vals, Location loc) {
+          llvm::errs() << "---source materialization " << vals[0] << ": " << vals[0].getType() << " -> "
+                       << ty << "\n";
+
+          assert(vals.size() == 1);
+          Value in = vals[0];
+          if (in.getType() == ty) { return in; }
+
+          assert(false && "unable to source materialize");
+          mlir::LLVM::BitcastOp ret =
+              builder.create<mlir::LLVM::BitcastOp>(loc, ty, in);
+          return ret.getResult();
+        });*/
   }
 
   /// Return the context
-  /// Literally the only reason we need this here is because we use it to initialize
-  /// the ConversionPattern? This is a fucking travesty.
+  /// Literally the only reason we need this here is because we use it to
+  /// initialize the ConversionPattern? This is a fucking travesty.
   MLIRContext *getContext() { return context; }
+
 private:
   // TODO: I fucking hate this. This has no place being here. I should refactor
   // the `ConversionPattern`s to take a `context` as parameter.
   MLIRContext *context;
-
 };
 
 mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
@@ -1616,10 +1651,18 @@ public:
                  << " | " << op->getLoc() << "\n";
     MakeI64Op makei64 = cast<MakeI64Op>(op);
     auto I64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
+
+    rewriter.replaceOpWithNewOp<mlir::LLVM::ConstantOp>(makei64, I64Ty,
+                                                        makei64.getValue());
+    return success();
+
     Value v = rewriter.create<mlir::LLVM::ConstantOp>(makei64.getLoc(), I64Ty,
                                                       makei64.getValue());
-    auto I8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
-    rewriter.replaceOpWithNewOp<LLVM::IntToPtrOp>(makei64, I8PtrTy, v);
+
+    rewriter.replaceOp(makei64, v);
+
+    // auto I8PtrTy = LLVM::LLVMType::getInt8PtrTy(rewriter.getContext());
+    // rewriter.replaceOpWithNewOp<LLVM::IntToPtrOp>(makei64, I8PtrTy, v);
     //    rewriter.replaceOpWithNewOp<mlir::ConstantOp>(op,rewriter.getI64Type(),
     //    makei64.getValue());
     return success();
@@ -1680,7 +1723,12 @@ public:
     llvm::errs() << "running HaskReturnOpConversionPattern on: "
                  << op->getName() << " | " << op->getLoc() << "\n";
     using namespace mlir::LLVM;
-    rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(ret, ret.getInput());
+    Value input = ret.getInput();
+    Value inputRemapped = rewriter.getRemappedValue(input);
+    llvm::errs() << "\t ret input: " << input << " | inputRemapped: " << inputRemapped << "\n";
+    rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(ret, inputRemapped);
+
+    llvm::errs() << "===mod (after)\n" << *ret.getParentOp() << "\n";
     return success();
   }
 };
@@ -1688,8 +1736,8 @@ public:
 class HaskRefOpConversionPattern : public ConversionPattern {
 public:
   explicit HaskRefOpConversionPattern(HaskToLLVMTypeConverter &typeConverter)
-      : ConversionPattern(HaskRefOp::getOperationName(), 1, typeConverter, typeConverter.getContext())
-  {}
+      : ConversionPattern(HaskRefOp::getOperationName(), 1, typeConverter,
+                          typeConverter.getContext()) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -1998,8 +2046,8 @@ public:
       rewriter.create<mlir::LLVM::UnreachableOp>(rewriter.getUnknownLoc());
     }
 
-//    rewriter.replaceOp(op, afterCaseBB->getArgument(0));
-     rewriter.eraseOp(caseop);
+    //    rewriter.replaceOp(op, afterCaseBB->getArgument(0));
+    rewriter.eraseOp(caseop);
     //    llvm::errs() << "final module:\n=====\n";
     //    mod.dump();
     //    llvm::errs() << "==========\n";
@@ -2133,34 +2181,47 @@ public:
 class TransmuteOpConversionPattern : public ConversionPattern {
 public:
   explicit TransmuteOpConversionPattern(HaskToLLVMTypeConverter &converter)
-      : ConversionPattern(TransmuteOp::getOperationName(), 1, converter, converter.getContext()) {}
+      : ConversionPattern(TransmuteOp::getOperationName(), 1, converter,
+                          converter.getContext()) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     llvm::errs() << "running TransmuteOpConversionPattern on: " << op->getName()
                  << " | " << op->getLoc() << "\n";
+
     TransmuteOp transmute = cast<TransmuteOp>(op);
+
+    llvm::errs() << "===mod (before):==\n";
+    llvm::errs() << *transmute.getParentOp() << "\n";
+
     Type retty = transmute.getResult().getType();
     Type rettyRemapped = getTypeConverter()->convertType(retty);
 
     Value in = transmute.getOperand();
+    Value inRemapped = rewriter.getRemappedValue(in);
+    // rewriter.getContext()->getDiagEngine().
 
-    //rewriter.getContext()->getDiagEngine().
+    assert(typeConverter && "type converter exists");
 
-    assert(typeConverter &&  "type converter exists");
-
-    llvm::errs() << "transmute:"  << transmute << "\n";
+    llvm::errs() << "transmute:" << transmute << "\n";
     llvm::errs() << "in: " << in << "\n";
+    llvm::errs() << "inRemapped: " << inRemapped << "\n";
     llvm::errs() << "inType:" << in.getType() << "\n";
-    llvm::errs() << "convert(inType):" <<  getTypeConverter()->convertType(in.getType()) << "\n";
+    llvm::errs() << "convert(inType):"
+                 << getTypeConverter()->convertType(in.getType()) << "\n";
     llvm::errs() << "retty:" << retty << "\n";
     llvm::errs() << "rettyRemapped:" << rettyRemapped << "\n";
 
-    Value ret = typeConverter->materializeTargetConversion(rewriter, in.getLoc(), rettyRemapped, in);
-    llvm::errs() << "return type: |" << ret << "\n";
-    rewriter.replaceOp(transmute, ret);
-//    rewriter.eraseOp(transmute);
+    Value ret = typeConverter->materializeTargetConversion(
+        rewriter, in.getLoc(), rettyRemapped, in);
+    llvm::errs() << "ret: " << ret << "\n";
+    rewriter.replaceOp(transmute, {ret});
+
+    llvm::errs() << "===mod (after):==\n";
+    llvm::errs() << *transmute.getParentOp() << "\n";
+
+    //    rewriter.eraseOp(transmute);
     return success();
   };
 };
@@ -2210,11 +2271,11 @@ void LowerHaskToStandardPass::runOnOperation() {
   target.addLegalOp<HaskADTOp>();
   target.addLegalOp<LambdaOp>();
   // target.addLegalOp<HaskGlobalOp>();
-  target.addLegalOp<HaskReturnOp>();
+  //  target.addLegalOp<HaskReturnOp>();
   // target.addLegalOp<CaseOp>();
   target.addLegalOp<ApOp>();
   target.addLegalOp<HaskConstructOp>();
-  target.addLegalOp<MakeI64Op>();
+  //  target.addLegalOp<MakeI64Op>();
 
   // target.addLegalOp<ForceOp>();
 
@@ -2223,8 +2284,8 @@ void LowerHaskToStandardPass::runOnOperation() {
   //  patterns.insert<HaskGlobalOpConversionPattern>(&getContext());
   // patterns.insert<CaseOpConversionPattern>(&getContext());
   // patterns.insert<LambdaOpConversionPattern>(&getContext());
-  //  patterns.insert<MakeI64OpConversionPattern>(&getContext());
-  //  patterns.insert<HaskReturnOpConversionPattern>(&getContext());
+  patterns.insert<MakeI64OpConversionPattern>(&getContext());
+  patterns.insert<HaskReturnOpConversionPattern>(&getContext());
   // patterns.insert<HaskRefOpConversionPattern>(typeConverter);
   //  patterns.insert<HaskConstructOpConversionPattern>(&getContext());
   //  patterns.insert<ForceOpConversionPattern>(&getContext());
@@ -2233,7 +2294,7 @@ void LowerHaskToStandardPass::runOnOperation() {
   //  patterns.insert<HaskPrimopSubOpConversionPattern>(&getContext());
   patterns.insert<CaseIntOpConversionPattern>(typeConverter);
   //  patterns.insert<ThunkifyOpConversionPattern>(&getContext());
-   patterns.insert<TransmuteOpConversionPattern>(typeConverter);
+  patterns.insert<TransmuteOpConversionPattern>(typeConverter);
 
   // llvm::errs() << "===Enabling Debugging...===\n";
   //::llvm::DebugFlag = true;
