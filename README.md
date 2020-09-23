@@ -218,6 +218,8 @@ bool ConversionPatternRewriterImpl::isOpIgnored(Operation *op) const {
 }
 ```
 
+- OK, whatever, I give up for today. For whatever reason, it doesn't seem to choose to recursively convert 
+  the inner region. 
 # Monday, Sep 21 2020
 
 I vote `replaceOpWithNewOp` to be the worst named function in MLIR! 

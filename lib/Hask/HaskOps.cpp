@@ -89,7 +89,6 @@ ParseResult MakeI64Op::parse(OpAsmParser &parser, OperationState &result) {
   // SmallVector<Value, 1> vi;
   // parser.resolveOperand(i, parser.getBuilder().getIntegerType(32), vi);
 
-  // TODO: convert this to emitParserError, etc.
   // assert (attr.getType().isSignedInteger() && "expected parameter to make_i32
   // to be integer");
 
@@ -403,7 +402,6 @@ ParseResult HaskRefOp::parse(OpAsmParser &parser, OperationState &result) {
     return failure();
   }
 
-  // TODO: extract this out as a separate function or something.
   if (!ty.isa<HaskType>()) {
     return parser.emitError(parser.getCurrentLocation(),
                             "expected a haskell type");
@@ -462,7 +460,6 @@ LogicalResult HaskRefOp::verify() {
     llvm::errs() << "ERROR at HaskRefOpVerification:"
                  << "\n-unable to find referenced function/global |"
                  << this->getRef() << "|\n";
-    // TODO: forward declare stuff like +#
     return failure();
   }
 }
@@ -485,7 +482,7 @@ ParseResult MakeStringOp::parse(OpAsmParser &parser, OperationState &result) {
   // SmallVector<Value, 1> vi;
   // parser.resolveOperand(i, parser.getBuilder().getIntegerType(32), vi);
 
-  // TODO: check if attr is string.
+
 
   result.addTypes(parser.getBuilder().getType<ValueType>());
   return success();
@@ -532,7 +529,6 @@ LambdaOp HaskFuncOp::getLambda() {
   assert(this->getOperation()->getNumRegions() == 1 &&
          "func needs exactly one region");
   Region &region = this->getRegion();
-  // TODO: put this in a `verify` block.
   assert(region.getBlocks().size() == 1 && "func has more than one BB");
   Block &entry = region.front();
   HaskReturnOp ret = cast<HaskReturnOp>(entry.getTerminator());
@@ -1131,24 +1127,36 @@ Value transmuteToInt(Value v, ConversionPatternRewriter &rewriter,
   }
 }
 
-// Value transmuteFromVoidPtr(Value v, LLVM::LLVMType desired,
-// ConversionPatternRewriter &rewriter) {
-//     assert(vty.isPointerTy());
-//     LLVM::LLVMType vty = v.getType().cast<LLVM::LLVMType>();
-//
-//     if (desired.isPointerTy()) {
-//         return rewriter.create<LLVM::BitcastOp>(
-//                 LLVM::LLVMType::getInt8PtrTy(rewriter.getContext()), v);
-//     } else if (vty.isIntegerTy()) {
-//
-//         return rewriter.create<LLVM::IntToPtrOp>(
-//                 LLVM::LLVMType::getInt8PtrTy(rewriter.getContext()), v);
-//     }
-//     else {
-//         assert(false && "unable to transmute into void pointer");
-//     }
-//
-// }
+// whether we should treat functions as void*, or as the "correct" LLVM
+// lowering of the function type
+//enum class LowerFunctionType { VoidPtrTy, FnTy};
+LLVM::LLVMType transmuteToLLVMType(Type higherType) {
+  if (higherType.isa<LLVM::LLVMType>()) {
+    return higherType.cast<LLVM::LLVMType>();
+  }
+  if (higherType.isa<ValueType>()) {
+    return LLVM::LLVMType::getInt64Ty(higherType.getContext());
+  }
+  if (higherType.isa<ThunkType>()) {
+    return LLVM::LLVMType::getInt8PtrTy(higherType.getContext());
+  }
+  else if (higherType.isa<HaskFnType>()) {
+    assert(false && "don't know how to lower a function type!");
+  } else {
+    assert(false && "unknown haskell type");
+  }
+}
+// srcType is a source language type. We need to lower v to be of type
+// lower(srcType)
+Value transmuteToLLVM(Type srcType, Value v, ConversionPatternRewriter &rewriter,
+                     Location loc) {
+  LLVM::LLVMType lowerType = transmuteToLLVMType(srcType);
+  if (lowerType.isIntegerTy()) {
+    return transmuteToInt(v, rewriter, loc);
+  } else if (lowerType.isPointerTy()) {
+    return transmuteToVoidPtr(v, rewriter, loc);
+  }
+}
 
 // https://mlir.llvm.org/docs/DialectConversion/#type-converter
 class HaskToLLVMTypeConverter : public mlir::TypeConverter {
@@ -1242,7 +1250,7 @@ private:
   MLIRContext *context;
 };
 
-mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
+mlir::LLVM::LLVMType transmuteToLLVMType(MLIRContext *context, Type t) {
   using namespace mlir::LLVM;
 
   llvm::errs() << __FUNCTION__ << "(" << t << ")\n";
@@ -1259,9 +1267,9 @@ mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
     std::vector<LLVMType> llvmArgTys;
     for (Type arg : argTys) {
       llvmArgTys.push_back(LLVMType::getInt8PtrTy(context));
-      // llvmArgTys.push_back(haskToLLVMType(context, arg));
+      // llvmArgTys.push_back(transmuteToLLVMType(context, arg));
     }
-    return LLVMType::getFunctionTy(haskToLLVMType(context, retty), llvmArgTys,
+    return LLVMType::getFunctionTy(transmuteToLLVMType(context, retty), llvmArgTys,
                                    /*isVaridic=*/false);
   } else {
     assert(false && "unknown haskell type");
@@ -1331,6 +1339,7 @@ public:
     auto fn = cast<HaskFuncOp>(op);
     LambdaOp lam = fn.getLambda();
 
+
     SmallVector<LLVM::LLVMType, 4> fnArgTys;
     // TODO: fixup types.
     auto I8PtrTy = LLVMType::getInt8PtrTy(rewriter.getContext());
@@ -1342,30 +1351,33 @@ public:
         rewriter.create<LLVMFuncOp>(fn.getLoc(), fn.getFuncName().str(),
                                     LLVMFunctionType::get(I8PtrTy, fnArgTys));
 
-    Region &lamBody = lam.getBody();
     Block *llvmfnEntry = llvmfn.addEntryBlock();
-    rewriter.cloneRegionBefore(lamBody, llvmfnEntry);
-    /*
-    Block &lamEntry = lamBody.getBlocks().front();
 
-    llvm::errs() << "converting lambda:\n";
-    llvm::errs() << *lamBody.getParentOp() << "\n";
-    rewriter.mergeBlocks(&lamBody.getBlocks().front(), llvmfnEntry,
-                         llvmfnEntry->getArguments());
-    */
+
+    rewriter.setInsertionPointToEnd(llvmfnEntry);
+    Region &lamBody = lam.getBody();
+
+    // convert arguments of the fn into the appropriate LLVM type
+    SmallVector<Value, 4> args;
+    for(int i = 0; i < lam.getNumInputs(); ++i) {
+       args.push_back(transmuteToLLVM(lam.getInput(i).getType(), llvmfnEntry->getArgument(i), rewriter, lam.getInput(i).getLoc()));
+    }
+
+    // convert arguments of lamBody into the appropriate LLVM type
+    for(int i = 0; i < lam.getNumInputs(); ++i) {
+      lamBody.getArgument(i).setType(transmuteToLLVMType(lam.getInput(i).getType()));
+    }
+
+    // TODO: This relies on a minor miracle that we can pun i8* and i64. Should
+    // fix this.
+
+    rewriter.create<BrOp>(lam.getLoc(), args, &lamBody.front());
+    rewriter.inlineRegionBefore(lamBody, llvmfn.body(), llvmfn.body().end());
 
     rewriter.eraseOp(op);
-    // llvm::errs() << *module << "\n";
-    // assert(false);
-    // assert(false);
+    rewriter.eraseOp(lam);
 
-    /*
-    FuncOp stdFunc = ::mlir::FuncOp::create(fn.getLoc(),
-            fn.getFuncName().str(),
-            FunctionType::get({}, {rewriter.getI64Type()},
-    rewriter.getContext())); rewriter.inlineRegionBefore(lam.getBody(),
-    stdFunc.getBody(), stdFunc.end()); rewriter.insert(stdFunc);
-    */
+
 
     return success();
   }
@@ -1601,7 +1613,7 @@ public:
 
     llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
     LLVMType kparamty =
-        haskToLLVMType(rewriter.getContext(), ap.getResult().getType());
+        transmuteToLLVMType(rewriter.getContext(), ap.getResult().getType());
 
     // Wow, in what order does the conversion happen? I have no idea.
     // LLVMFuncOp parent = ap.getParentOfType<LLVMFuncOp>();
@@ -1771,7 +1783,7 @@ public:
       LLVMType llvmty;
       if (HaskFuncOp fn = mod.lookupSymbol<HaskFuncOp>(ref.getRef())) {
         llvmty =
-            haskToLLVMType(rewriter.getContext(), ref.getResult().getType());
+            transmuteToLLVMType(rewriter.getContext(), ref.getResult().getType());
 
       } else if (mod.lookupSymbol<HaskGlobalOp>(ref.getRef())) {
         llvmty = LLVMType::getFunctionTy(I8PtrTy, {}, /*isVaridic=*/false);
@@ -1969,7 +1981,7 @@ public:
     const auto I64Ty = LLVM::LLVMType::getInt64Ty(rewriter.getContext());
     auto caseop = cast<CaseIntOp>(op);
     Type caseRetty =
-        haskToLLVMType(rewriter.getContext(), caseop.getResult().getType());
+        transmuteToLLVMType(rewriter.getContext(), caseop.getResult().getType());
     const Optional<int> default_i = caseop.getDefaultAltIndex();
 
     Block *prevBB = caseop.getOperation()->getBlock();
@@ -2194,41 +2206,16 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
+    assert(false);
     llvm::errs() << "running TransmuteOpConversionPattern on: " << op->getName()
                  << " | " << op->getLoc() << "\n";
 
     TransmuteOp transmute = cast<TransmuteOp>(op);
+    rewriter.setInsertionPoint(transmute);
+    Value lower = transmuteToLLVM(transmute.getResult().getType(),
+        transmute.getOperand(), rewriter, transmute.getLoc());
+    rewriter.replaceOp(transmute, lower);
 
-    llvm::errs() << "===mod (before):==\n";
-    llvm::errs() << *transmute.getParentOp() << "\n";
-
-    Type retty = transmute.getResult().getType();
-    Type rettyRemapped = getTypeConverter()->convertType(retty);
-
-    Value in = transmute.getOperand();
-    Value inRemapped = rewriter.getRemappedValue(in);
-    // rewriter.getContext()->getDiagEngine().
-
-    assert(typeConverter && "type converter exists");
-
-    llvm::errs() << "transmute:" << transmute << "\n";
-    llvm::errs() << "in: " << in << "\n";
-    llvm::errs() << "inRemapped: " << inRemapped << "\n";
-    llvm::errs() << "inType:" << in.getType() << "\n";
-    llvm::errs() << "convert(inType):"
-                 << getTypeConverter()->convertType(in.getType()) << "\n";
-    llvm::errs() << "retty:" << retty << "\n";
-    llvm::errs() << "rettyRemapped:" << rettyRemapped << "\n";
-
-    Value ret = typeConverter->materializeTargetConversion(
-        rewriter, in.getLoc(), rettyRemapped, in);
-    llvm::errs() << "ret: " << ret << "\n";
-    rewriter.replaceOp(transmute, {ret});
-
-    llvm::errs() << "===mod (after):==\n";
-    llvm::errs() << *transmute.getParentOp() << "\n";
-
-    //    rewriter.eraseOp(transmute);
     return success();
   };
 };
@@ -2261,34 +2248,41 @@ struct LowerHaskToStandardPass : public Pass {
 // http://localhost:8000/ConvertSPIRVToLLVMPass_8cpp_source.html#l00031
 void LowerHaskToStandardPass::runOnOperation() {
   ConversionTarget target(getContext());
+
   // do I not need a pointer to the dialect? I am so confused :(
   HaskToLLVMTypeConverter typeConverter(&getContext());
-  target.addLegalDialect<mlir::StandardOpsDialect>();
+//  target.addLegalDialect<mlir::StandardOpsDialect>();
+
   target.addLegalDialect<mlir::LLVM::LLVMDialect>();
-  target.addLegalDialect<mlir::scf::SCFDialect>();
-  target.addLegalOp<mlir::LLVM::UnreachableOp>();
+//  target.addLegalDialect<mlir::scf::SCFDialect>();
+//  target.addLegalOp<mlir::LLVM::UnreachableOp>();
 
   // Why do I need this? Isn't adding StandardOpsDialect enough?
-  target.addLegalOp<mlir::FuncOp>();
+//  target.addLegalOp<mlir::FuncOp>();
   target.addLegalOp<mlir::ModuleOp>();
   target.addLegalOp<mlir::ModuleTerminatorOp>();
 
   target.addIllegalDialect<standalone::HaskDialect>();
-  target.addLegalOp<HaskPrimopSubOp>();
-  target.addLegalOp<HaskADTOp>();
-  target.addLegalOp<LambdaOp>();
+//  target.addLegalOp<HaskPrimopSubOp>();
+//  target.addLegalOp<HaskADTOp>();
+//  target.addLegalOp<LambdaOp>();
   // target.addLegalOp<HaskGlobalOp>();
   //  target.addLegalOp<HaskReturnOp>();
   // target.addLegalOp<CaseOp>();
-  target.addLegalOp<CaseIntOp>();
-  target.addLegalOp<TransmuteOp>();
-  target.addLegalOp<ApOp>();
-  target.addLegalOp<HaskConstructOp>();
+//  target.addLegalOp<CaseIntOp>();
+//  target.addLegalOp<TransmuteOp>();
+//  target.addLegalOp<ApOp>();
+//  target.addLegalOp<HaskConstructOp>();
   //  target.addLegalOp<MakeI64Op>();
 
   // target.addLegalOp<ForceOp>();
 
   OwningRewritePatternList patterns;
+
+  mlir::LLVMTypeConverter LLVMTypeConverter(&getContext());
+  mlir::populateStdToLLVMConversionPatterns(LLVMTypeConverter, patterns);
+
+
   patterns.insert<HaskFuncOpConversionPattern>(typeConverter);
   //  patterns.insert<HaskGlobalOpConversionPattern>(&getContext());
   // patterns.insert<CaseOpConversionPattern>(&getContext());
@@ -2308,7 +2302,7 @@ void LowerHaskToStandardPass::runOnOperation() {
   // llvm::errs() << "===Enabling Debugging...===\n";
   //::llvm::DebugFlag = true;
 
-  if (failed(applyPartialConversion(this->getOperation(), target, patterns))) {
+  if (failed(applyFullConversion(this->getOperation(), target, patterns))) {
     llvm::errs() << "===Partial conversion failed===\n";
     getOperation()->print(llvm::errs());
     llvm::errs() << "\n===\n";

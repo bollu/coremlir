@@ -203,7 +203,6 @@ public:
 
 class HaskFuncOp : public Op<HaskFuncOp, OpTrait::ZeroOperands,
                              OpTrait::ZeroResult, OpTrait::OneRegion,
-                             OpTrait::IsIsolatedFromAbove,
                              // OpTrait::AffineScope,
                              // CallableOpInterface::Trait,
                              SymbolOpInterface::Trait> {

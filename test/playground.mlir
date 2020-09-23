@@ -4,12 +4,14 @@
 // Test that case of int works.
 module {
   hask.func @main {
-      %lam = hask.lambda() {
-        %lit_42 = hask.make_i64(42)
-        %ival = hask.transmute(%lit_42 : !hask.value): i64
-        hask.return(%ival) : i64
+      %lam = hask.lambda(%x: !hask.value) {
+        %lit_42 = std.constant 42 : i64
+        // hask.return(%lit_42) : i64
+        %ival = hask.transmute(%lit_42 : i64): !hask.value
+        hask.return(%ival) : !hask.value
       }
-      hask.return(%lam): !hask.fn<() -> i64>
+      hask.return(%lam): !hask.fn<(!hask.value) -> !hask.value>
+      // hask.return(%lam): !hask.fn<(!hask.value) -> i64>
   }
     
 }
