@@ -329,6 +329,7 @@ public:
                  &effects) {}
 };
 
+
 class TransmuteOp
     : public Op<TransmuteOp, OpTrait::OneResult, OpTrait::OneOperand,
                                   MemoryEffectOpInterface::Trait> {
@@ -343,6 +344,7 @@ public:
   getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
                  &effects) {}
 };
+
 
 // lower hask to standard.
 std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass();

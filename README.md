@@ -14,6 +14,94 @@ Convert GHC Core to MLIR.
   file.
 - IORefs are bad.
 
+# Wednesday, Sep 23 2020
+
+
+```
+%0 = hask.lambda(%arg0:!hask.value) {
+  %1 = hask.transmute(%arg0 :!hask.value):i64
+  %2 = hask.caseint %1 [0 : i64 ->  {
+  ^bb0(%arg1: i64):  // no predecessors
+    %3 = hask.transmute(%1 :i64):!hask.value
+    hask.return(%3) : !hask.value
+  }]
+  ...
+running TransmuteOpConversionPattern on: hask.transmute | loc("./case-int-roundtrip.mlir":7:12)
+transmute:%0 = hask.transmute(<<UNKNOWN SSA VALUE>> :!hask.value):i64
+in: <block argument>
+inRemapped: <block argument>
+inType:!hask.value
+```
+
+- I find this `<<UNKNOWN SSA VALUE>>` thing extremely tiresome.
+  It makes debugging way harder than it ought to be.
+- Strangely, when I try to print the `in`put directly, it says `<block argument>`
+  which is SO MUCH MORE HELPFUL! It would be evern more helpful if it says *which block* argument.
+- I also don't understand how to print _regions_ in MLIR. Region can't be `llvm::errs() << region`,
+  nor do they have a `dump()` method. This is garbage.
+- I also don't understand how to print a basic block correctly. You can't
+  `llvm::errs() << *bb`. Fortunately, at least basic block has a `dump()`. 
+- Unfortunately, this `dump()` is less than helpful when you are moving BBs around. For exmple,
+  on trying to print:
+
+```cpp
+Block *bb = new Block();
+llvm::errs() << "newBB:"; bb->dump();
+``` 
+
+it says:
+
+```
+newBB: <<UNLINKED BLOCK>>
+```
+
+what the hell kind of answer is that? just print the BB! So, if one has a block that's unlinked to a Region, you can't
+even _print_ the block! 
+
+- It doesn't [seem like `addTargetMaterialization` is used a lot?](https://github.com/llvm/llvm-project/search?q=addTargetMaterialization)
+  only one "real" use in `StandardToLLVM.cpp`. I have strange errors:
+  
+```
+case-int.mlir:10:14: error: failed to materialize conversion for result #0 of operation 'hask.transmute' that remained live after conversion
+     %ival = hask.transmute(%ihash : !hask.value): i64
+             ^
+case-int.mlir:10:14: note: see current operation: %1 = "hask.transmute"(<<UNKNOWN SSA VALUE>>) : (!hask.value) -> i64
+case-int.mlir:10:14: note: see existing live user here: %6 = llvm.inttoptr %1 : i64 to !llvm.ptr<i8>
+```
+
+The materialization code is:
+
+```cpp
+    addTargetMaterialization([](OpBuilder &builder, LLVM::LLVMIntegerType, ValueRange vals, Location loc) {
+      if (vals.size() > 1) {
+        assert(false && "trying to lower more than 1 value into an integer");
+      }
+      Value in = vals[0];
+      Value out = builder.create<LLVM::PtrToIntOp>(loc, LLVM::LLVMType::getInt64Ty(builder.getContext()), in).getResult();
+      return out;
+    });
+```
+- I'm quite confused abot why the result is live after conversion, isn't the fucking framework supposed to kill the result?
+
+# Monday, Sep 21 2020
+
+I vote `replaceOpWithNewOp` to be the worst named function in MLIR! 
+This fucking thing depnds on the state of the `Rewriter`. I feel
+like any sane human being would assume it would create a new
+`Op` **at the location of the old `Op`**. FML, I wasted
+two hours on trying to debug this!
+
+```cpp
+// replace altRhsRet with a BrOp that is created
+// **AT THE LOCATION** of the rewriter.
+ rewriter.replaceOpWithNewOp<LLVM::BrOp>(altRhsRet, altRhsRet.getOperand(),
+                                              afterCaseBB);
+
+```
+
+Seriously, **fuck the entire MLIR API design.** Why does
+everything have to carry so much state? Didn't we learn from
+LLVM?
 
 # Friday, Sep 18th 2020
 
