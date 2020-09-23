@@ -160,7 +160,7 @@ public:
                  &effects) {}
 };
 
-class LambdaOp : public Op<LambdaOp, OpTrait::OneResult, OpTrait::OneRegion> {
+class LambdaOp : public Op<LambdaOp, OpTrait::OneResult, OpTrait::OneRegion, OpTrait::IsIsolatedFromAbove> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.lambda"; };
@@ -168,7 +168,7 @@ public:
     assert(this->getOperation()->getNumRegions() == 1);
     return this->getOperation()->getRegion(0);
   }
-  Block &getBodyBB() { return this->getBody().front(); }
+  // Block &getBodyBB() { return this->getBody().front(); }
   Block::BlockArgListType inputRange() {
     this->getBody().begin()->getArguments();
   }
@@ -203,6 +203,7 @@ public:
 
 class HaskFuncOp : public Op<HaskFuncOp, OpTrait::ZeroOperands,
                              OpTrait::ZeroResult, OpTrait::OneRegion,
+                             OpTrait::IsIsolatedFromAbove,
                              // OpTrait::AffineScope,
                              // CallableOpInterface::Trait,
                              SymbolOpInterface::Trait> {

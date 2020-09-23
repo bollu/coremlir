@@ -1005,15 +1005,16 @@ struct ForceOfKnownApCanonicalizationPattern
     }
 
     HaskFuncOp forcedFn = mod.lookupSymbol<HaskFuncOp>(ref.getRef());
-    Block &forcedFnBB = forcedFn.getLambda().getBodyBB();
+    Region &forcedFnRegion = forcedFn.getLambda().getRegion();
 
-    llvm::errs() << "\nforced fn body:\n-------\n";
-    forcedFnBB.dump();
 
     llvm::errs() << "\nforce parent(original):\n----\n";
     force.getParentOfType<HaskFuncOp>().dump();
 
-    Block *clonedBB = cloneBlock(forcedFnBB);
+    BlockAndValueMapping mapper;
+    assert(false && "TODO: fixup");
+    /*
+    Region &clonedBB = forcedFnRegion.cloneInto(force.getParentRegion(), mapper);
     clonedBB->insertBefore(force.getOperation()->getBlock());
     llvm::errs() << "\nforced called fn(cloned BB):\n----\n";
     clonedBB->dump();
@@ -1037,7 +1038,8 @@ struct ForceOfKnownApCanonicalizationPattern
     rewriter.eraseOp(ret);
     fn.dump();
     llvm::errs() << "\n";
-    return success();
+     */
+    return failure();
   }
 };
 
@@ -1155,6 +1157,7 @@ public:
   // https://github.com/llvm/llvm-project/blob/8e84972ab7060ace889bb383e76dc2c835a47c06/mlir/include/mlir/Dialect/SPIRV/SPIRVLowering.h#L40
   HaskToLLVMTypeConverter(MLIRContext *context) : context(context) {
     // All other cases failed. Then we cannot convert this type.
+    /*
     addConversion([](Type type) {
       assert(false && "unknown type conversion");
       return llvm::None;
@@ -1206,6 +1209,7 @@ public:
               .getResult();
       return out;
     });
+    */
 
     // WTF? Why would I need something like this? x(
     // Oh, is it because I don't know how to legalize a lambda?
@@ -1328,9 +1332,9 @@ public:
     LambdaOp lam = fn.getLambda();
 
     SmallVector<LLVM::LLVMType, 4> fnArgTys;
+    // TODO: fixup types.
     auto I8PtrTy = LLVMType::getInt8PtrTy(rewriter.getContext());
     for (int i = 0; i < lam.getNumInputs(); ++i) {
-      // fnArgTys.push_back(LLVMType::getInt64Ty(rewriter.getContext()));
       fnArgTys.push_back(I8PtrTy);
     }
 
@@ -1340,12 +1344,15 @@ public:
 
     Region &lamBody = lam.getBody();
     Block *llvmfnEntry = llvmfn.addEntryBlock();
+    rewriter.cloneRegionBefore(lamBody, llvmfnEntry);
+    /*
     Block &lamEntry = lamBody.getBlocks().front();
 
     llvm::errs() << "converting lambda:\n";
     llvm::errs() << *lamBody.getParentOp() << "\n";
     rewriter.mergeBlocks(&lamBody.getBlocks().front(), llvmfnEntry,
                          llvmfnEntry->getArguments());
+    */
 
     rewriter.eraseOp(op);
     // llvm::errs() << *module << "\n";
@@ -2273,6 +2280,8 @@ void LowerHaskToStandardPass::runOnOperation() {
   // target.addLegalOp<HaskGlobalOp>();
   //  target.addLegalOp<HaskReturnOp>();
   // target.addLegalOp<CaseOp>();
+  target.addLegalOp<CaseIntOp>();
+  target.addLegalOp<TransmuteOp>();
   target.addLegalOp<ApOp>();
   target.addLegalOp<HaskConstructOp>();
   //  target.addLegalOp<MakeI64Op>();
@@ -2293,7 +2302,7 @@ void LowerHaskToStandardPass::runOnOperation() {
   //  patterns.insert<HaskPrimopAddOpConversionPattern>(&getContext());
   //  patterns.insert<HaskPrimopSubOpConversionPattern>(&getContext());
   patterns.insert<CaseIntOpConversionPattern>(typeConverter);
-  //  patterns.insert<ThunkifyOpConversionPattern>(&getContext());
+//    patterns.insert<ThunkifyOpConversionPattern>(&getContext());
   patterns.insert<TransmuteOpConversionPattern>(typeConverter);
 
   // llvm::errs() << "===Enabling Debugging...===\n";
