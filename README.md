@@ -14,6 +14,22 @@ Convert GHC Core to MLIR.
   file.
 - IORefs are bad.
 
+# Thursday, Sep 24 2020
+
+- [What optimizations can GHC be expected to perform reliably](https://stackoverflow.com/questions/12653787/what-optimizations-can-ghc-be-expected-to-perform-reliably)
+
+Also, it seems I was wrong. Haskell only guarantees non-strict (call by name),
+not lazy (call by need):
+
+> The language spec promises non-strict semantics; it does not promise anything
+> about whether or not superfluous work will be performed  ~ Dan Burton
+
+
+- [sketch of worker wrapper](reading/sep-24-worker-wrapper-sketch.md)
+
+
+
+
 # Wednesday, Sep 23 2020
 
 

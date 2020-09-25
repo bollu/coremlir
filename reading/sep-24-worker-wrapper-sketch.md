@@ -830,6 +830,11 @@ I'm not 100% sure how it converts the non-tail-call into an accumulator.
 Will need to read how it does so. I'm hoping MLIR can do this (at the Standard level).
 I'm not very hopeful, though. Will check soon.
 
+#### Thoughts
+
+- Our major "optimization" seems to come from _outlining_, which is an exact
+  _dual_ of the usual case, where we get performance from _inlining_.
+
 
 ## Revision 1
 
