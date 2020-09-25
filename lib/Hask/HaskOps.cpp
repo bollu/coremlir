@@ -973,6 +973,21 @@ Block *cloneBlockBefore(mlir::PatternRewriter &rewriter, Operation *beforeAtDest
   return newbb;
 }
 
+bool isFunctionRecursive(HaskFuncOp function) {
+    // https://mlir.llvm.org/docs/Tutorials/UnderstandingTheIRStructure/
+    llvm::errs() << "Checking: isFunctionRecursive? " << function.getFuncName() << "\n";
+
+    bool isRecursive = false;
+    function.walk([&](HaskRefOp ref) {
+        if (ref.getRef() == function.getFuncName()) {
+            isRecursive = true;
+            return WalkResult::interrupt();
+        }
+        return WalkResult::advance();
+    });
+    return isRecursive;
+}
+
 struct ForceOfKnownApCanonicalizationPattern : public mlir::OpRewritePattern<ForceOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
@@ -995,15 +1010,11 @@ struct ForceOfKnownApCanonicalizationPattern : public mlir::OpRewritePattern<For
           << "\nap: " << ap << "\n"
           << "\nforce: " << force <<" \n";
 
-      HaskFuncOp parent = force.getParentOfType<HaskFuncOp>();
-      assert(parent && "expected legal parent");
-      if (parent.getFuncName() == ref.getRef()) {
-        llvm::errs() << "Recursive forcing. Quitting.\n";
-          //assert(false && "found recursive forcing");
-        return success();
-      }
 
       HaskFuncOp forcedFn = mod.lookupSymbol<HaskFuncOp>(ref.getRef());
+
+      // cannot simplify a recursive function.
+      if (isFunctionRecursive(forcedFn)) { return failure(); }
       Block &forcedFnBB = forcedFn.getLambda().getBodyBB();
 
 
