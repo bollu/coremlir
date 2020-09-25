@@ -1,5 +1,573 @@
 # Worker-wrapper
 
+## Revision 3, Example 1: tail recursive function
+
+```cpp
+#include <stdio.h>
+#include <functional>
+struct SimpleInt { int v; SimpleInt(int v) : v(v) {} };
+int casedefault(SimpleInt s) { return s.v; }
+
+template<typename T>
+struct Thunk { std::function<T()> lzf; };
+template<typename T>
+T force(Thunk<T> thnk) { return thnk.lzf(); }
+
+template<typename T>
+Thunk<T> thunkify(T val) { return Thunk<T>{ .lzf=[val]() { return val; } }; }
+
+template<typename R, typename... Args> 
+Thunk<R> ap(std::function<R(Args...)> f, Args... args) { 
+    return Thunk<R>{ .lzf=[=]() { return f(args...); } };
+}
+
+template<typename R, typename... Args> 
+Thunk<R> ap(R(*f)(Args...), Args... args) { 
+    return Thunk<R>{ .lzf=[=]() { return f(args...); } };
+}
+
+template<typename R, typename... Args> 
+R apStrict(std::function<R(Args...)> f, Args... args) { 
+    return  return f(args...); 
+}
+
+template<typename R, typename... Args> 
+R apStrict(R(*f)(Args...), Args... args) { 
+    return return f(args...);
+}
+
+SimpleInt f(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    int ihash = casedefault(icons);
+    if (ihash <= 0) {
+        return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        SimpleInt siprev = SimpleInt(prev);
+        Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        SimpleInt f_prev_v = apStrict(f, siprev_t);
+        return f_prev_v;
+    }
+}
+
+int main() {
+    printf("%d\n", f(thunkify(SimpleInt(1))).v);
+}
+```
+
+#### Stage 1: outline everything after `force(i)` into `f2`:
+
+```cpp
+SimpleInt f2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    if (ihash <= 0) {
+        return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        SimpleInt siprev = SimpleInt(prev);
+        Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        SimpleInt f_prev_v = apStrict(f, siprev_t);
+        return f_prev_v;
+    }
+}
+
+SimpleInt f(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    SimpleInt ret = apStrict(f2, icons);
+    return ret;
+}
+```
+
+#### Stage 2: replace `apStrict(f, thunkify(siprev))` with `f2(siprev)`:
+
+- To do this, we will need to store that `f2` is a version of `f` that
+  forces its argument, so we can infer that rather than calling `f(thunkify(x))`,
+  we can just call `f2(x)`. This can be an MLIR attribute. Something like
+  `func @f { ... } { unwrapped = f2}` --- this tells us that `f2` is the unwrapped
+  version of `f`. Maybe there is a nicer design for this [and what I am hoping
+  to find].
+
+```cpp
+SimpleInt f2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    if (ihash <= 0) {
+        return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        SimpleInt siprev = SimpleInt(prev);
+        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        // SimpleInt f_prev_v = apStrict(f, siprev_t);
+        Thunk<SimpleInt> f_prev_v = apStrict(f2, siprev);
+        return f_prev_v;
+    }
+}
+
+SimpleInt f(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    SimpleInt ret = apStrict(f2, icons);
+    return ret;
+}
+```
+
+#### Stage 3: outline everything after `casedefault(icons)` into `f3`:
+
+- Once again, we can say that `f3` is the version of `f2` which unwraps
+  a `SimpleInt`. So, we will tag `func @f2 { ...} {unwrapped = f3}`.
+
+```cpp
+SimpleInt f3(int icons) {
+    if (ihash <= 0) {
+        return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        SimpleInt siprev = SimpleInt(prev);
+        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        // SimpleInt f_prev_v = apStrict(f, siprev_t);
+        Thunk<SimpleInt> f_prev_v = apStrict(f2, siprev);
+        return f_prev_v;
+    }
+}
+
+SimpleInt f2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    SimpleInt ret = apStrict(f3, ihash);
+    return ret;
+}
+
+SimpleInt f(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    SimpleInt ret = apStrict(f2, icons);
+    return ret;
+}
+```
+
+#### Stage 4: replace call `f2(SimpleInt(prev))` to `f3(prev)`:
+
+- Once again, we can say that `f3` is the version of `f2` which unwraps
+  a `SimpleInt`. So, we will tag `func @f2 { ...} {unwrapped = f3}`.
+
+```cpp
+SimpleInt f3(int icons) {
+    if (ihash <= 0) {
+        return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        // SimpleInt siprev = SimpleInt(prev);
+        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        // SimpleInt f_prev_v = apStrict(f, siprev_t);
+        // Thunk<SimpleInt> f_prev_v = apStrict(f2, siprev);
+        Thunk<SimpleInt> f_prev_v = apStrict(f3, prev);
+        return f_prev_v;
+    }
+}
+
+SimpleInt f2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    SimpleInt ret = apStrict(f3, ihash);
+    return ret;
+}
+
+SimpleInt f(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    SimpleInt ret = apStrict(f2, icons);
+    return ret;
+}
+```
+
+#### Stage 5: inline `f -> f2 -> f3 -> f3 -> ...`:
+
+- `f`:
+```cpp
+SimpleInt f(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    SimpleInt ret = apStrict(f2, icons);
+    return ret;
+}
+```
+- `f2:`
+
+```cpp
+SimpleInt f2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    SimpleInt ret = apStrict(f3, ihash);
+    return ret;
+}
+```
+
+- inlining `f2` into `f`:
+
+```cpp
+SimpleInt f(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    int ihash = casedefault(icons);
+    SimpleInt ret = apStrict(f3, ihash);
+    return ret;
+}
+```
+
+- the worker is `f3`:
+
+```cpp
+SimpleInt f3(int icons) {
+    if (ihash <= 0) {
+        return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        // SimpleInt siprev = SimpleInt(prev);
+        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        // SimpleInt f_prev_v = apStrict(f, siprev_t);
+        // Thunk<SimpleInt> f_prev_v = apStrict(f2, siprev);
+        Thunk<SimpleInt> f_prev_v = apStrict(f3, prev);
+        return f_prev_v;
+    }
+}
+```
+
+- Since this is tail-recursive, LLVM should be able to convert this into a 
+  while loop. Not sure if MLIR has passes to convert such tail calls into
+  loops. Will need to write one if it does not (?)
+
+## Revision 3, Example 2: `g`: non tail recursive function.
+
+```hs
+-- g 0 = 42; g x = (g (x - 1)) + 2
+g (Int 0) = Int 42
+g (Int x) = case g (Int (x-1)) of
+                Int y -> Int (y + 2)
+```
+
+- Encoded as C++:
+
+```cpp
+#include <stdio.h>
+#include <functional>
+struct SimpleInt { int v; SimpleInt(int v) : v(v) {} };
+int casedefault(SimpleInt s) { return s.v; }
+
+template<typename T>
+struct Thunk { std::function<T()> lzf; };
+template<typename T>
+T force(Thunk<T> thnk) { return thnk.lzf(); }
+
+template<typename T>
+Thunk<T> thunkify(T val) { return Thunk<T>{ .lzf=[val]() { return val; } }; }
+
+template<typename R, typename... Args> 
+Thunk<R> ap(std::function<R(Args...)> f, Args... args) { 
+    return Thunk<R>{ .lzf=[=]() { return f(args...); } };
+}
+
+template<typename R, typename... Args> 
+Thunk<R> ap(R(*f)(Args...), Args... args) { 
+    return Thunk<R>{ .lzf=[=]() { return f(args...); } };
+}
+
+template<typename R, typename... Args> 
+R apStrict(std::function<R(Args...)> f, Args... args) { 
+    return  return f(args...); 
+}
+
+template<typename R, typename... Args> 
+R apStrict(R(*f)(Args...), Args... args) { 
+    return return f(args...);
+}
+
+SimpleInt g(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    int ihash = casedefault(icons);
+    if (ihash <= 0) {
+        return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        SimpleInt siprev = SimpleInt(prev);
+        Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        SimpleInt g_prev_v = apStrict(g, siprev_t);
+        int g_prev_v_hash = casedefault(g_prev_v);
+        int rethash = g_prev_v_hash + 2;
+        SimpleInt ret = SimpleInt(rethash);
+        return ret;
+    }
+}
+
+int main() {
+    printf("%d\n", g(thunkify(SimpleInt(3))).v);
+}
+```
+
+#### Stage 1: outline everything after `force(i)` into `g2`:
+
+``cpp
+SimpleInt g(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    if (ihash <= 0) {
+        return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        SimpleInt siprev = SimpleInt(prev);
+        Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        SimpleInt g_prev_v = apStrict(g, siprev_t);
+        int g_prev_v_hash = casedefault(g_prev_v);
+        int rethash = g_prev_v_hash + 2;
+        SimpleInt ret = SimpleInt(rethash);
+        return ret;
+    }
+}
+
+SimpleInt g(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    return g2(icons);
+}
+```
+
+#### Stage 2: convert recursive call `g(thunkify(x))` into `g2(x)`:
+
+```cpp
+SimpleInt g2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    if (ihash <= 0) {
+        return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        SimpleInt siprev = SimpleInt(prev);
+        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        // SimpleInt g_prev_v = apStrict(g, siprev_t);
+        SimpleInt g_prev_v = apStrict(g2, siprev);
+        int g_prev_v_hash = casedefault(g_prev_v);
+        int rethash = g_prev_v_hash + 2;
+        SimpleInt ret = SimpleInt(rethash);
+        return ret;
+    }
+}
+
+SimpleInt g(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    return g2(icons);
+}
+```
+
+
+#### Stage 2: outline everything after `casedefault(icons)` into `g3`:
+
+```cpp
+SimpleInt g3(int ihash) {
+    if (ihash <= 0) {
+        return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        SimpleInt siprev = SimpleInt(prev);
+        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        // SimpleInt g_prev_v = apStrict(g, siprev_t);
+        SimpleInt g_prev_v = apStrict(g2, siprev);
+        int g_prev_v_hash = casedefault(g_prev_v);
+        int rethash = g_prev_v_hash + 2;
+        SimpleInt ret = SimpleInt(rethash);
+        return ret;
+    }
+}
+
+SimpleInt g2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    return g3(ihash);
+}
+
+SimpleInt g(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    return g2(icons);
+}
+```
+#### Stage 3: convert recursive call `g2(SimpleInt(prev))` into `g3(prev)`:
+
+```cpp
+SimpleInt g3(int ihash) {
+    if (ihash <= 0) {
+        return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        // SimpleInt siprev = SimpleInt(prev);
+        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        // SimpleInt g_prev_v = apStrict(g, siprev_t);
+        // SimpleInt g_prev_v = apStrict(g2, siprev);
+        SimpleInt g_prev_v = apStrict(g3, prev);
+        int g_prev_v_hash = casedefault(g_prev_v);
+        int rethash = g_prev_v_hash + 2;
+        SimpleInt ret = SimpleInt(rethash);
+        return ret;
+    }
+}
+
+SimpleInt g2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    return g3(ihash);
+}
+
+SimpleInt g(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    return g2(icons);
+}
+```
+
+#### Stage 4: pull constructor `SimpleInt(value)` to a common `return`:
+
+```cpp
+SimpleInt g3(int ihash) {
+    int retval;
+    if (ihash <= 0) {
+        retval = 42;
+        // return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        // SimpleInt siprev = SimpleInt(prev);
+        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        // SimpleInt g_prev_v = apStrict(g, siprev_t);
+        // SimpleInt g_prev_v = apStrict(g2, siprev);
+        SimpleInt g_prev_v = apStrict(g3, prev);
+        int g_prev_v_hash = casedefault(g_prev_v);
+        int rethash = g_prev_v_hash + 2;
+        retval = rethash;
+    }
+    return SimpleInt(retval);
+}
+
+SimpleInt g2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    return g3(ihash);
+}
+
+SimpleInt g(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    return g2(icons);
+}
+```
+
+#### Stage 5: outline everything *before* `return(SimpleInt(retval))` into `g4`:
+
+```cpp
+int g4(int ihash) {
+    int retval;
+    if (ihash <= 0) {
+        retval = 42;
+        // return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        // SimpleInt siprev = SimpleInt(prev);
+        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        // SimpleInt g_prev_v = apStrict(g, siprev_t);
+        // SimpleInt g_prev_v = apStrict(g2, siprev);
+        SimpleInt g_prev_v = apStrict(g3, prev);
+        int g_prev_v_hash = casedefault(g_prev_v);
+        int rethash = g_prev_v_hash + 2;
+        retval = rethash;
+    }
+    return retval;
+}
+
+SimpleInt g3(int ihash) {
+    int retval = g4(ihash);
+    return SimpleInt(retval);
+}
+
+SimpleInt g2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    return g3(ihash);
+}
+
+SimpleInt g(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    return g2(icons);
+}
+```
+
+#### Stage 6: convert recursive `casedefault(g3(prev))` into `g4(prev)`:
+
+```cpp
+int g4(int ihash) {
+    int retval;
+    if (ihash <= 0) {
+        retval = 42;
+        // return SimpleInt(42);
+    } else {
+        int prev = ihash - 1;
+        // SimpleInt siprev = SimpleInt(prev);
+        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+        // SimpleInt g_prev_v = apStrict(g, siprev_t);
+        // SimpleInt g_prev_v = apStrict(g2, siprev);
+        // SimpleInt g_prev_v = apStrict(g3, prev);
+        // int g_prev_v_hash = casedefault(g_prev_v);
+        int g_prev_v_hash = apStrict(g4, prev);
+        int rethash = g_prev_v_hash + 2;
+        retval = rethash;
+    }
+    return retval;
+}
+
+SimpleInt g3(int ihash) {
+    int retval = g4(ihash);
+    return SimpleInt(retval);
+}
+
+SimpleInt g2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    return g3(ihash);
+}
+
+SimpleInt g(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    return g2(icons);
+}
+```
+
+
+#### Stage 6: inline back `g -> g2 -> g3 -> g4 -> g4 -> ...`:
+
+```cpp
+SimpleInt g3(int ihash) {
+    int retval = g4(ihash);
+    return SimpleInt(retval);
+}
+
+SimpleInt g2(SimpleInt icons) {
+    int ihash = casedefault(icons);
+    return g3(ihash);
+}
+
+SimpleInt g(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    return g2(icons);
+}
+```
+
+- after inlining into `g`:
+
+```cpp
+SimpleInt g(Thunk<SimpleInt> i) {
+    SimpleInt icons = force(i);
+    int ihash = casedefault(icons);
+    int retval = g4(ihash);
+}
+```
+
+- We have the worker which is `g4`:
+
+```cpp
+int g4(int ihash) {
+    int retval;
+    if (ihash <= 0) {
+        retval = 42;
+    } else {
+        int prev = ihash - 1;
+        int g_prev_v_hash = apStrict(g4, prev);
+        int rethash = g_prev_v_hash + 2;
+        retval = rethash;
+    }
+    return retval;
+}
+```
+
+- How does LLVM actually optimise this? I don't know, need to find out.
+  I know that it code generates a nice loop.
+
+
+
 ## Revision 2, Example 1: tail recursive function:
 
 ```
