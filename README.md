@@ -14,6 +14,231 @@ Convert GHC Core to MLIR.
   file.
 - IORefs are bad.
 
+# Wednesday, Sep 23 2020
+
+
+```
+%0 = hask.lambda(%arg0:!hask.value) {
+  %1 = hask.transmute(%arg0 :!hask.value):i64
+  %2 = hask.caseint %1 [0 : i64 ->  {
+  ^bb0(%arg1: i64):  // no predecessors
+    %3 = hask.transmute(%1 :i64):!hask.value
+    hask.return(%3) : !hask.value
+  }]
+  ...
+running TransmuteOpConversionPattern on: hask.transmute | loc("./case-int-roundtrip.mlir":7:12)
+transmute:%0 = hask.transmute(<<UNKNOWN SSA VALUE>> :!hask.value):i64
+in: <block argument>
+inRemapped: <block argument>
+inType:!hask.value
+```
+
+- I find this `<<UNKNOWN SSA VALUE>>` thing extremely tiresome.
+  It makes debugging way harder than it ought to be.
+- Strangely, when I try to print the `in`put directly, it says `<block argument>`
+  which is SO MUCH MORE HELPFUL! It would be evern more helpful if it says *which block* argument.
+- I also don't understand how to print _regions_ in MLIR. Region can't be `llvm::errs() << region`,
+  nor do they have a `dump()` method. This is garbage.
+- I also don't understand how to print a basic block correctly. You can't
+  `llvm::errs() << *bb`. Fortunately, at least basic block has a `dump()`. 
+- Unfortunately, this `dump()` is less than helpful when you are moving BBs around. For exmple,
+  on trying to print:
+
+```cpp
+Block *bb = new Block();
+llvm::errs() << "newBB:"; bb->dump();
+``` 
+
+it says:
+
+```
+newBB: <<UNLINKED BLOCK>>
+```
+
+what the hell kind of answer is that? just print the BB! So, if one has a block that's unlinked to a Region, you can't
+even _print_ the block! 
+
+- It doesn't [seem like `addTargetMaterialization` is used a lot?](https://github.com/llvm/llvm-project/search?q=addTargetMaterialization)
+  only one "real" use in `StandardToLLVM.cpp`. I have strange errors:
+  
+```
+case-int.mlir:10:14: error: failed to materialize conversion for result #0 of operation 'hask.transmute' that remained live after conversion
+     %ival = hask.transmute(%ihash : !hask.value): i64
+             ^
+case-int.mlir:10:14: note: see current operation: %1 = "hask.transmute"(<<UNKNOWN SSA VALUE>>) : (!hask.value) -> i64
+case-int.mlir:10:14: note: see existing live user here: %6 = llvm.inttoptr %1 : i64 to !llvm.ptr<i8>
+```
+
+The materialization code is:
+
+```cpp
+    addTargetMaterialization([](OpBuilder &builder, LLVM::LLVMIntegerType, ValueRange vals, Location loc) {
+      if (vals.size() > 1) {
+        assert(false && "trying to lower more than 1 value into an integer");
+      }
+      Value in = vals[0];
+      Value out = builder.create<LLVM::PtrToIntOp>(loc, LLVM::LLVMType::getInt64Ty(builder.getContext()), in).getResult();
+      return out;
+    });
+```
+- I'm quite confused abot why the result is live after conversion, isn't the fucking framework supposed to kill the result?
+
+
+- OK, the sequence of calls is _very weird_. It's as follows:
+```
+---materialization %0 = hask.make_i64(42 : i64) ->  pointer
+running TransmuteOpConversionPattern on: hask.transmute | loc("playground.mlir":9:17)
+transmute:%2 = hask.transmute(%0 :!hask.value):i64
+in: %0 = hask.make_i64(42 : i64)
+inRemapped: %0 = hask.make_i64(42 : i64)
+inType:!hask.value
+convert(inType):!llvm.ptr<i8>
+retty:i64
+rettyRemapped:!llvm.i64
+---materialization %0 = hask.make_i64(42 : i64) ->  int
+ret: %2 = llvm.ptrtoint %0 : !hask.value to !llvm.i64
+===mod:==
+llvm.func @main() -> !llvm.ptr<i8> {
+  %0 = hask.make_i64(42 : i64)
+  %1 = llvm.inttoptr %0 : !hask.value to !llvm.ptr<i8>
+  %2 = llvm.ptrtoint %0 : !hask.value to !llvm.i64
+  %3 = hask.transmute(%0 :!hask.value):i64
+  hask.return(%3) : i64
+}
+playground.mlir:9:17: error: failed to materialize conversion for result #0 of operation 'hask.transmute' that remained live after conversion
+        %ival = hask.transmute(%lit_42 : !hask.value): i64
+                ^
+playground.mlir:9:17: note: see current operation: %3 = "hask.transmute"(%0) : (!hask.value) -> i64
+playground.mlir:10:9: note: see existing live user here: hask.return(%3) : i64
+        hask.return(%ival) : i64
+```
+
+So it: 
+
+1. tries to materialize `make_i64` using the target conversion pattern 
+2. THEN asks me to lower transmute
+3. where I lower the input using `%2 = llvm.ptrtoint %0 : !hask.value to !llvm.i64`
+4. I then call `replaceOp(transmute, ret)`, but for whatever reason, that doesn't take!
+5. It complains about `failed to materialize conversion for result #0 of operation 'hask.transmute'`??? what does that
+   fucking _mean_? You shouldn't even _have_ a `hask.transmute`! I asked you to _replace_ it! WTF.
+
+So even before I start to lower `transmute`, the target conversion pattern has decided that I need
+to lower the `i64`, because I don't have a `makeI64ConversionPattern` enabled? It then complains that the
+result 
+A backtrace shows:
+
+```
+#0  __GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:51
+#1  0x00007ffff661a8b1 in __GI_abort () at abort.c:79
+#2  0x00007ffff660a42a in __assert_fail_base (fmt=0x7ffff6791a38 "%s%s%s:%u: %s%sAssertion `%s' failed.\n%n", assertion=assertion@entry=0x555557e44738 "false && \"want to see backtrace\"",
+    file=file@entry=0x555557e44048 "/home/bollu/work/mlir/coremlir/lib/Hask/HaskOps.cpp", line=line@entry=1182,
+    function=function@entry=0x555557e4d200 <mlir::standalone::HaskToLLVMTypeConverter::HaskToLLVMTypeConverter(mlir::MLIRContext*)::{lambda(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange, mlir::Location)#5}::operator()(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange, mlir::Location) const::__PRETTY_FUNCTION__> "mlir::standalone::HaskToLLVMTypeConverter::HaskToLLVMTypeConverter(mlir::MLIRContext*)::<lambda(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange, mlir::Location)>") at assert.c:92
+#3  0x00007ffff660a4a2 in __GI___assert_fail (assertion=0x555557e44738 "false && \"want to see backtrace\"", file=0x555557e44048 "/home/bollu/work/mlir/coremlir/lib/Hask/HaskOps.cpp",
+    line=1182,
+    function=0x555557e4d200 <mlir::standalone::HaskToLLVMTypeConverter::HaskToLLVMTypeConverter(mlir::MLIRContext*)::{lambda(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange,
+mlir::Location)#5}::operator()(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange, mlir::Location) const::__PRETTY_FUNCTION__> "mlir::standalone::HaskToLLVMTypeConverter::HaskToLLVMTypeConverter(mlir::MLIRContext*)::<lambda(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange, mlir::Location)>") at assert.c:101
+#4  0x0000555556398f10 in mlir::standalone::HaskToLLVMTypeConverter::HaskToLLVMTypeConverter(mlir::MLIRContext*)::{lambda(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange, mlir::Location)#5}::operator()(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange, mlir::Location) const (__closure=0x7fffffffd440, builder=..., ptrty=..., vals=..., loc=...)
+    at /home/bollu/work/mlir/coremlir/lib/Hask/HaskOps.cpp:1182
+#5  0x00005555563a5948 in std::function<llvm::Optional<mlir::Value> (mlir::OpBuilder&, mlir::Type, mlir::ValueRange, mlir::Location)> mlir::TypeConverter::wrapMaterialization<mlir::LLVM::LLVMPointerType, mlir::standalone::HaskToLLVMTypeConverter::HaskToLLVMTypeConverter(mlir::MLIRContext*)::{lambda(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange, mlir::Location)#5}>(mlir::standalone::HaskToLLVMTypeConverter::HaskToLLVMTypeConverter(mlir::MLIRContext*)::{lambda(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange, mlir::Location)#5}&&)::{lambda(mlir::OpBuilder&, llvm::Optional<mlir::Value>, mlir::ValueRange, mlir::Location)#1}::operator()(mlir::OpBuilder&, llvm::Optional<mlir::Value>, mlir::ValueRange, mlir::Location) const
+    (__closure=0x7fffffffd440, builder=..., resultType=..., inputs=..., loc=...) at /usr/local/include/mlir/Transforms/DialectConversion.h:288
+#6  0x00005555563adfa5 in std::_Function_handler<llvm::Optional<mlir::Value> (mlir::OpBuilder&, mlir::Type, mlir::ValueRange, mlir::Location), std::function<llvm::Optional<mlir::Value> (mlir::OpBuilder&, mlir::Type, mlir::ValueRange, mlir::Location)> mlir::TypeConverter::wrapMaterialization<mlir::LLVM::LLVMPointerType, mlir::standalone::HaskToLLVMTypeConverter::HaskToLLVMTypeConverter(mlir::MLIRContext*)::{lambda(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange, mlir::Location)#5}>(mlir::standalone::HaskToLLVMTypeConverter::HaskToLLVMTypeConverter(mlir::MLIRContext*)::{lambda(mlir::OpBuilder&, mlir::LLVM::LLVMPointerType, mlir::ValueRange, mlir::Location)#5}&&)::{lambda(mlir::OpBuilder&, mlir::Type, mlir::ValueRange, mlir::Location)#1}>::_M_invoke(std::_Any_data const&, mlir::OpBuilder&, mlir::Type&&, mlir::ValueRange&&, mlir::Location&&) (__functor=..., __args#0=..., __args#1=..., __args#2=..., __args#3=...)
+    at /usr/include/c++/7/bits/std_function.h:302
+#7  0x0000555556617c0b in mlir::TypeConverter::materializeConversion(llvm::MutableArrayRef<std::function<llvm::Optional<mlir::Value> (mlir::OpBuilder&, mlir::Type, mlir::ValueRange, mlir::Location)> >, mlir::OpBuilder&, mlir::Location, mlir::Type, mlir::ValueRange) ()
+#8  0x000055555661e482 in mlir::detail::ConversionPatternRewriterImpl::remapValues(mlir::Location, mlir::PatternRewriter&, mlir::TypeConverter*, mlir::OperandRange, llvm::SmallVectorImpl<mlir::Value>&) ()
+#9  0x000055555661e712 in mlir::ConversionPattern::matchAndRewrite(mlir::Operation*, mlir::PatternRewriter&) const ()
+#10 0x000055555658668b in mlir::PatternApplicator::matchAndRewrite(mlir::Operation*, mlir::RewritePattern const&, mlir::PatternRewriter&, llvm::function_ref<bool (mlir::RewritePattern const&)>, llvm::function_ref<void (mlir::RewritePattern const&)>, llvm::function_ref<mlir::LogicalResult (mlir::RewritePattern const&)>) ()
+#11 0x000055555658699f in mlir::PatternApplicator::matchAndRewrite(mlir::Operation*, mlir::PatternRewriter&, llvm::function_ref<bool (mlir::RewritePattern const&)>, llvm::function_ref<void (mlir::RewritePattern const&)>, llvm::function_ref<mlir::LogicalResult (mlir::RewritePattern const&)>) ()
+#12 0x0000555556624e54 in (anonymous namespace)::OperationLegalizer::legalize(mlir::Operation*, mlir::ConversionPatternRewriter&) ()
+#13 0x0000555556627c3e in (anonymous namespace)::OperationConverter::convertOperations(llvm::ArrayRef<mlir::Operation*>) ()
+#14 0x000055555662a074 in mlir::applyPartialConversion(llvm::ArrayRef<mlir::Operation*>, mlir::ConversionTarget&, mlir::OwningRewritePatternList const&, llvm::DenseSet<mlir::Operation*, llvm::DenseMapInfo<mlir::Operation*> >*) ()
+#15 0x000055555662a1a1 in mlir::applyPartialConversion(mlir::Operation*, mlir::ConversionTarget&, mlir::OwningRewritePatternList const&, llvm::DenseSet<mlir::Operation*, llvm::DenseMapInfo<mlir::Operation*> >*) ()
+#16 0x000055555639409c in mlir::standalone::(anonymous namespace)::LowerHaskToStandardPass::runOnOperation (this=0x555559096370) at /home/bollu/work/mlir/coremlir/lib/Hask/HaskOps.cpp:2251
+#17 0x00005555565d9472 in mlir::Pass::run(mlir::Operation*, mlir::AnalysisManager) ()
+#18 0x00005555565d9552 in mlir::OpPassManager::run(mlir::Operation*, mlir::AnalysisManager) ()
+#19 0x00005555565e1e66 in mlir::PassManager::run(mlir::ModuleOp) ()
+#20 0x00005555557ef47e in main (argc=4, argv=0x7fffffffdd18) at /home/bollu/work/mlir/coremlir/hask-opt/hask-opt.cpp:408
+```
+
+
+- The error "failed to materialize conversion for result" is
+  [from `DialectConversion.cpp`](https://github.com/llvm/llvm-project/blob/deb99610ab002702f43de79d818c2ccc80371569/mlir/lib/Transforms/DialectConversion.cpp#L2321).
+- Reading the sources:
+
+```cpp
+LogicalResult OperationConverter::legalizeChangedResultType(
+    Operation *op, OpResult result, Value newValue,
+    TypeConverter *replConverter, ConversionPatternRewriter &rewriter,
+    ConversionPatternRewriterImpl &rewriterImpl) {
+  // Walk the users of this value to see if there are any live users that
+  // weren't replaced during conversion.
+  auto liveUserIt = llvm::find_if_not(result.getUsers(), [&](Operation *user) {
+    return rewriterImpl.isOpIgnored(user);
+  });
+  if (liveUserIt == result.user_end())
+    return success();
+
+  // If the replacement has a type converter, attempt to materialize a
+  // conversion back to the original type.
+  if (!replConverter) {
+    // TODO: We should emit an error here, similarly to the case where the
+    // result is replaced with null. Unfortunately a lot of existing
+    // patterns rely on this behavior, so until those patterns are updated
+    // we keep the legacy behavior here of just forwarding the new value.
+    return success();
+  }
+
+  // Track the number of created operations so that new ones can be legalized.
+  size_t numCreatedOps = rewriterImpl.createdOps.size();
+
+  // Materialize a conversion for this live result value.
+  Type resultType = result.getType();
+  Value convertedValue = replConverter->materializeSourceConversion(
+      rewriter, op->getLoc(), resultType, newValue);
+  if (!convertedValue) {
+    InFlightDiagnostic diag = op->emitError()
+                              << "failed to materialize conversion for result #"
+                              << result.getResultNumber() << " of operation '"
+                              << op->getName()
+                              << "' that remained live after conversion";
+    diag.attachNote(liveUserIt->getLoc())
+        << "see existing live user here: " << *liveUserIt;
+    return failure();
+  }
+```
+
+- I see no implementations of [`materializeSourceConversion`](https://github.com/llvm/llvm-project/search?q=materializeSourceConversion)
+  
+
+- [`IsOpIgnored`](https://github.com/llvm/llvm-project/blob/deb99610ab002702f43de79d818c2ccc80371569/mlir/lib/Transforms/DialectConversion.cpp#L1096)
+
+```cpp
+bool ConversionPatternRewriterImpl::isOpIgnored(Operation *op) const {
+  // Check to see if this operation was replaced or its parent ignored.
+  return replacements.count(op) || ignoredOps.count(op->getParentOp());
+}
+```
+
+- OK, whatever, I give up for today. For whatever reason, it doesn't seem to choose to recursively convert 
+  the inner region. 
+# Monday, Sep 21 2020
+
+I vote `replaceOpWithNewOp` to be the worst named function in MLIR! 
+This fucking thing depnds on the state of the `Rewriter`. I feel
+like any sane human being would assume it would create a new
+`Op` **at the location of the old `Op`**. FML, I wasted
+two hours on trying to debug this!
+
+```cpp
+// replace altRhsRet with a BrOp that is created
+// **AT THE LOCATION** of the rewriter.
+ rewriter.replaceOpWithNewOp<LLVM::BrOp>(altRhsRet, altRhsRet.getOperand(),
+                                              afterCaseBB);
+
+```
+
+Seriously, **fuck the entire MLIR API design.** Why does
+everything have to carry so much state? Didn't we learn from
+LLVM?
 
 # Friday, Sep 18th 2020
 
