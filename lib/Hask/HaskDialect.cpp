@@ -44,22 +44,11 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
 #define GET_OP_LIST
 #include "Hask/HaskOps.cpp.inc"
       >();
-  addOperations<HaskReturnOp, 
-                // MakeI64Op,
+  addOperations<HaskReturnOp, MakeI64Op,
                 // DeclareDataConstructorOp,
-                ApOp, 
-                CaseOp, 
-                HaskRefOp, 
-                LambdaOp, 
-                //MakeStringOp, 
-                HaskFuncOp,
-                ForceOp, 
-                // HaskGlobalOp, 
-                // HaskADTOp, 
-                HaskConstructOp,
-                //HaskPrimopAddOp, HaskPrimopSubOp, 
-                CaseIntOp, 
-                ThunkifyOp,
+                ApOp, CaseOp, HaskRefOp, LambdaOp, MakeStringOp, HaskFuncOp,
+                ForceOp, HaskGlobalOp, HaskADTOp, HaskConstructOp,
+                HaskPrimopAddOp, HaskPrimopSubOp, CaseIntOp, ThunkifyOp,
                 TransmuteOp>();
   addTypes<ThunkType, ValueType, HaskFnType, ADTType>();
   addAttributes<DataConstructorAttr>();

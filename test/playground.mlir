@@ -1,17 +1,13 @@
-// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm -jit | FileCheck %s
-// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm -jit |  FileCheck %s
-// CHECK: 42
-// Test that case of int works.
 module {
+  hask.adt @X [#hask.data_constructor<@MkX []>]
   hask.func @main {
-      %lam = hask.lambda(%x: !hask.value) {
-        %lit_42 = std.constant 42 : i64
-        // hask.return(%lit_42) : i64
-        %ival = hask.transmute(%lit_42 : i64): !hask.value
-        hask.return(%ival) : !hask.value
-      }
-      hask.return(%lam): !hask.fn<(!hask.value) -> !hask.value>
-      // hask.return(%lam): !hask.fn<(!hask.value) -> i64>
+    %0 = hask.lambda(%arg0:!hask.thunk<!hask.value>) {
+      %1 = hask.make_i64(42 : i64)
+      %2 = hask.construct(@X, %1 : !hask.value) : !hask.adt<@X>
+      %3 = hask.transmute(%2 :!hask.adt<@X>):!hask.value
+      %4 = hask.thunkify(%3 :!hask.value):!hask.thunk<!hask.value>
+      hask.return(%1) : !hask.value
+    }
+    hask.return(%0) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.value>
   }
-    
 }

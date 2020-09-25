@@ -351,8 +351,7 @@ int main(int argc, char **argv) {
   module->print(llvm::errs());
   llvm::errs() << "\n===\n";
 
-  static const int SIMPLIFIER_ITERATIONS = 1;
-  for(int i = 0; i < SIMPLIFIER_ITERATIONS; ++i) {
+  for(int i = 0; i < 3; ++i) {
       llvm::errs() << "=====Module: simplyfing [" << i << "]=====\n";
 
       {

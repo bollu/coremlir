@@ -160,7 +160,7 @@ public:
                  &effects) {}
 };
 
-class LambdaOp : public Op<LambdaOp, OpTrait::OneResult, OpTrait::OneRegion, OpTrait::IsIsolatedFromAbove> {
+class LambdaOp : public Op<LambdaOp, OpTrait::OneResult, OpTrait::OneRegion> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.lambda"; };
@@ -168,7 +168,7 @@ public:
     assert(this->getOperation()->getNumRegions() == 1);
     return this->getOperation()->getRegion(0);
   }
-  // Block &getBodyBB() { return this->getBody().front(); }
+  Block &getBodyBB() { return this->getBody().front(); }
   Block::BlockArgListType inputRange() {
     this->getBody().begin()->getArguments();
   }
@@ -329,7 +329,6 @@ public:
                  &effects) {}
 };
 
-
 class TransmuteOp
     : public Op<TransmuteOp, OpTrait::OneResult, OpTrait::OneOperand,
                                   MemoryEffectOpInterface::Trait> {
@@ -344,7 +343,6 @@ public:
   getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
                  &effects) {}
 };
-
 
 // lower hask to standard.
 std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass();

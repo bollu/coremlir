@@ -13,10 +13,6 @@ $(targets): %: %.mlir
 	../build/bin/hask-opt ./$@-roundtrip.mlir -lower-std -lower-llvm
 	../build/bin/hask-opt ./$@-roundtrip.mlir -lower-std -lower-llvm -jit
 
-# $(targets): %: %.mlir
-# 	make -C ~/work/mlir/coremlir/build
-# 	gdb -ex run --args ../build/bin/hask-opt $<.mlir -lower-std -lower-llvm
-
 
 
 

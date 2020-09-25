@@ -7,17 +7,14 @@ module {
   hask.func @prec {
     %lam = hask.lambda(%ihash: !hask.value) {
      // do we know that %ihash is an int here?
-     %ival = hask.transmute(%ihash : !hask.value): i64
-     %ret = hask.caseint %ival 
-     [0 -> { ^entry(%z: i64): 
-                %z_val = hask.transmute(%ival: i64): !hask.value
-                hask.return (%z_val): !hask.value      
+     %ret = hask.caseint %ihash 
+     [0 -> { ^entry(%ival: !hask.value): 
+                hask.return (%ival): !hask.value      
      }]
      [@default -> { ^entry: // ... or here?
-                     %lit_one = constant 42 : i64
-                     %pred = std.subi %ival, %lit_one: i64
-                     %pred_val = hask.transmute(%pred : i64): !hask.value
-                     hask.return(%pred_val): !hask.value
+                     %lit_one = hask.make_i64(1)
+                     %pred = hask.primop_sub(%ihash, %lit_one)
+                     hask.return(%pred): !hask.value
 
      }]
      hask.return (%ret) : !hask.value
