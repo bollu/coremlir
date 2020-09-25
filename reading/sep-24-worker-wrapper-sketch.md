@@ -826,9 +826,84 @@ return:                                           ; preds = %if.end.preheader, %
 }                                                        
 ```
 
+
 I'm not 100% sure how it converts the non-tail-call into an accumulator.
 Will need to read how it does so. I'm hoping MLIR can do this (at the Standard level).
 I'm not very hopeful, though. Will check soon.
+
+#### Step 9: inline `g1 -> g2 -> g3 -> g4 -> g4 -> ...`
+
+```
+hask.func @g{
+%lam = hask.lambda(%i: !hask.thunk<!hask.adt<@SimpleInt>>) {
+    %icons = hask.force(%i):!hask.adt<@SimpleInt>
+    %g2 = hask.ref(@g2)
+    %ret = hask.apEager(%g2, %icons)
+    hask.return(%ret)
+}
+hask.return (%lam): !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
+}
+```
+
+- inline `g2`:
+
+```
+hask.func @g2{
+%lam = hask.lambda(%icons: !hask.adt<@SimpleInt>) {
+    %ihash = hask.casedefault(@SimpleInt, %icons) : i64
+    %g3 = hask.ref(@g3)
+    %ret = hask.apEager(%g3, %icons)
+    hask.return(%ret)
+}
+hask.return (%lam): !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
+}
+```
+
+- after inlining `g2` into `g`:
+
+```
+hask.func @g{
+%lam = hask.lambda(%i: !hask.thunk<!hask.adt<@SimpleInt>>) {
+    %icons = hask.force(%i):!hask.adt<@SimpleInt>
+    %ihash = hask.casedefault(@SimpleInt, %icons) : i64
+    %g3 = hask.ref(@g3)
+    %ret = hask.apEager(%g3, %icons)
+}
+hask.return (%lam): !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
+}
+```
+
+- inline `g3`:
+
+
+```
+hask.func @g3{
+%lam = hask.lambda(%ihash: !hask.value) {
+    %rethash = hask.apStrict(@g4, %ihash)
+    %ret_v = hask.construct(@SimpleInt, %tenhash:!hask.value)
+    hask.return(%ret_v): !hask.value
+}
+hask.return (%lam): !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
+}
+```
+
+- after inlining `g3` into `g`:
+
+
+```
+hask.func @g{
+%lam = hask.lambda(%i: !hask.thunk<!hask.adt<@SimpleInt>>) {
+    %icons = hask.force(%i):!hask.adt<@SimpleInt>
+    %ihash = hask.casedefault(@SimpleInt, %icons) : i64
+    %rethash = hask.apStrict(@g4, %ihash)
+    %ret_v = hask.construct(@SimpleInt, %tenhash:!hask.value)
+    hask.return(%ret_v): !hask.value
+}
+hask.return (%lam): !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
+}
+```
+
+- We now have the 'worker' `g4` and the wrapper `g`.
 
 #### Thoughts
 
