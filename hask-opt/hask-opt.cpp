@@ -36,6 +36,7 @@
 
 #include "Hask/HaskDialect.h"
 #include "Hask/HaskOps.h"
+#include "Hask/Runtime.h"
 
 // conversion
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch6/toyc.cpp
@@ -90,230 +91,10 @@ static llvm::cl::opt<bool> jit("jit",
 // 0                  llvm::cl::init(false));
 // 0
 
-extern "C" {
-
-static int DEBUG_STACK_DEPTH = 0;
-void DEBUG_INDENT() {
-  for (int i = 0; i < DEBUG_STACK_DEPTH; ++i) {
-    fputs("  ⋮", stderr);
-  }
-}
-
-#define DEBUG_LOG                                                              \
-  if (1) {                                                                     \
-    \ 
-    DEBUG_INDENT();                                                            \
-    fprintf(stderr, "%s ", __FUNCTION__);                                      \
-  }
-void DEBUG_PUSH_STACK() { DEBUG_STACK_DEPTH++; }
-void DEBUG_POP_STACK() { DEBUG_STACK_DEPTH--; }
-
-static const int MAX_CLOSURE_ARGS = 10;
-struct Closure {
-  int n;
-  void *fn;
-  void *args[MAX_CLOSURE_ARGS];
-};
-
-char *getPronouncableNum(size_t N) {
-  const char *cs = "bcdfghjklmnpqrstvwxzy";
-  const char *vs = "aeiou";
-
-  size_t ncs = strlen(cs);
-  size_t nvs = strlen(vs);
-
-  char buf[1024];
-  char *out = buf;
-  int i = 0;
-  while (N > 0) {
-    const size_t icur = N % (ncs * nvs);
-    *out++ = cs[icur % ncs];
-    *out++ = vs[(icur / ncs) % nvs];
-    N /= ncs * nvs;
-    if (N > 0 && !(++i % 2)) {
-      *out++ = '-';
-    }
-  }
-  *out = 0;
-  return strdup(buf);
-};
-
-char *getPronouncablePtr(void *N) { return getPronouncableNum((size_t)N); }
-
-void *__attribute__((used))
-mkClosure_capture0_args2(void *fn, void *a, void *b) {
-  Closure *data = (Closure *)malloc(sizeof(Closure));
-  DEBUG_LOG;
-  fprintf(stderr, "(%p:%s, %p:%s, %p:%s) -> %10p:%s\n", fn,
-          getPronouncablePtr(fn), a, getPronouncablePtr(a), b,
-          getPronouncablePtr(b), data, getPronouncablePtr(data));
-  data->n = 2;
-  data->fn = fn;
-  data->args[0] = a;
-  data->args[1] = b;
-  return (void *)data;
-}
-
-void *__attribute__((used)) mkClosure_capture0_args1(void *fn, void *a) {
-  Closure *data = (Closure *)malloc(sizeof(Closure));
-  DEBUG_LOG;
-  fprintf(stderr, "(%p:%s, %p:%s) -> %10p:%s\n", fn, getPronouncablePtr(fn), a,
-          getPronouncablePtr(a), data, getPronouncablePtr(data));
-  data->n = 1;
-  data->fn = fn;
-  data->args[0] = a;
-  return (void *)data;
-}
-
-void *__attribute__((used)) mkClosure_capture0_args0(void *fn) {
-  Closure *data = (Closure *)malloc(sizeof(Closure));
-  DEBUG_LOG;
-  fprintf(stderr, "(%p:%s) -> %p:%s\n", fn, getPronouncablePtr(fn), data,
-          getPronouncablePtr(data));
-  data->n = 0;
-  data->fn = fn;
-  return (void *)data;
-}
-
-void *identity(void *v) { return v; }
-
-void *__attribute__((used)) mkClosure_thunkify(void *v) {
-  Closure *data = (Closure *)malloc(sizeof(Closure));
-  DEBUG_LOG;
-  fprintf(stderr, "(%p) -> %p\n", v, data);
-  data->n = 1;
-  data->fn = (void *)identity;
-  data->args[0] = v;
-  return (void *)data;
-}
-
-typedef void *(*FnZeroArgs)();
-typedef void *(*FnOneArg)(void *);
-typedef void *(*FnTwoArgs)(void *, void *);
-
-void *__attribute__((used)) evalClosure(void *closure_voidptr) {
-  DEBUG_LOG;
-  fprintf(stderr, "(%p:%s)\n", closure_voidptr,
-          getPronouncablePtr(closure_voidptr));
-  DEBUG_PUSH_STACK();
-  Closure *c = (Closure *)closure_voidptr;
-  assert(c->n >= 0 && c->n <= 3);
-  void *ret = NULL;
-  if (c->n == 0) {
-    FnZeroArgs f = (FnZeroArgs)(c->fn);
-    ret = f();
-  } else if (c->n == 1) {
-    FnOneArg f = (FnOneArg)(c->fn);
-    ret = f(c->args[0]);
-  } else if (c->n == 2) {
-    FnTwoArgs f = (FnTwoArgs)(c->fn);
-    ret = f(c->args[0], c->args[1]);
-  } else {
-    assert(false && "unhandled function arity");
-  }
-  DEBUG_POP_STACK();
-  DEBUG_INDENT();
-  fprintf(stderr, "=>%10p:%s\n", ret, getPronouncablePtr(ret));
-  return ret;
-};
-
-static const int MAX_CONSTRUCTOR_ARGS = 2;
-struct Constructor {
-  const char *tag; // inefficient!
-  int n;
-  void *args[MAX_CONSTRUCTOR_ARGS];
-};
-
-void *__attribute__((used)) mkConstructor0(const char *tag) {
-  Constructor *c = (Constructor *)malloc(sizeof(Constructor));
-  DEBUG_LOG;
-  fprintf(stderr, "(%s) -> %p:%s\n", tag, c, getPronouncablePtr(c));
-  c->n = 0;
-  c->tag = tag;
-  return c;
-};
-
-void *__attribute__((used)) mkConstructor1(const char *tag, void *a) {
-  Constructor *c = (Constructor *)malloc(sizeof(Constructor));
-  DEBUG_LOG;
-  fprintf(stderr, "(%s, %p) -> %p:%s\n", tag, a, c, getPronouncablePtr(c));
-  c->tag = tag;
-  c->n = 1;
-  c->args[0] = a;
-  return c;
-};
-
-void *__attribute__((used)) mkConstructor2(const char *tag, void *a, void *b) {
-  Constructor *c = (Constructor *)malloc(sizeof(Constructor));
-  DEBUG_LOG;
-  fprintf(stderr, "(%s, %p, %p) -> %p\n", tag, a, b, c);
-  c->tag = tag;
-  c->n = 2;
-  c->args[0] = a;
-  c->args[1] = b;
-  return c;
-};
-
-void *extractConstructorArg(void *cptr, int i) {
-  Constructor *c = (Constructor *)cptr;
-  void *v = c->args[i];
-  assert(i < c->n);
-  DEBUG_LOG;
-  fprintf(stderr, "%s %d -> %p:%s\n", cptr, i, v, getPronouncablePtr(v));
-  return v;
-}
-
-bool isConstructorTagEq(const void *cptr, const char *tag) {
-  Constructor *c = (Constructor *)cptr;
-  const bool eq = !strcmp(c->tag, tag);
-  DEBUG_LOG;
-  fprintf(stderr, "(%p:%s, %s) -> %d\n", cptr, c->tag, tag, eq);
-  return eq;
-}
-} // end extern C
-
-namespace Example {
 using namespace llvm;
 using namespace llvm::orc;
 ExitOnError ExitOnErr;
 
-ThreadSafeModule createDemoModule() {
-  auto Context = std::make_unique<LLVMContext>();
-  auto M = std::make_unique<Module>("test", *Context);
-
-  // Create the add1 function entry and insert this entry into module M.  The
-  // function will have a return type of "int" and take an argument of "int".
-  Function *Add1F =
-      Function::Create(FunctionType::get(Type::getInt32Ty(*Context),
-                                         {Type::getInt32Ty(*Context)}, false),
-                       Function::ExternalLinkage, "add1", M.get());
-
-  // Add a basic block to the function. As before, it automatically inserts
-  // because of the last argument.
-  BasicBlock *BB = BasicBlock::Create(*Context, "EntryBlock", Add1F);
-
-  // Create a basic block builder with default parameters.  The builder will
-  // automatically append instructions to the basic block `BB'.
-  IRBuilder<> builder(BB);
-
-  // Get pointers to the constant `1'.
-  Value *One = builder.getInt32(1);
-
-  // Get pointers to the integer argument of the add1 function...
-  assert(Add1F->arg_begin() != Add1F->arg_end()); // Make sure there's an arg
-  Argument *ArgX = &*Add1F->arg_begin();          // Get the arg
-  ArgX->setName("AnArg"); // Give it a nice symbolic name for fun.
-
-  // Create the add instruction, inserting it into the end of BB.
-  Value *Add = builder.CreateAdd(One, ArgX);
-
-  // Create the return instruction and add it to the basic block
-  builder.CreateRet(Add);
-
-  return ThreadSafeModule(std::move(M), std::move(Context));
-}
-
-} // namespace Example
 // code stolen from:
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
 int main(int argc, char **argv) {
@@ -468,10 +249,10 @@ int main(int argc, char **argv) {
   llvm::orc::LLJITBuilder JITbuilder;
 
   llvm::errs() << "main:  " << __LINE__ << "\n";
-  Example::ExitOnErr(JITbuilder.prepareForConstruction());
+  ExitOnErr(JITbuilder.prepareForConstruction());
 
   llvm::errs() << "main:  " << __LINE__ << "\n";
-  std::unique_ptr<llvm::orc::LLJIT> J = Example::ExitOnErr(JITbuilder.create());
+  std::unique_ptr<llvm::orc::LLJIT> J = ExitOnErr(JITbuilder.create());
 
   llvm::errs() << "main:  " << __LINE__ << "\n";
   llvm::orc::JITDylib *JD = J->getExecutionSession().getJITDylibByName("main");
@@ -551,7 +332,7 @@ int main(int argc, char **argv) {
                           llvm::JITSymbolFlags::Callable)});
 
   llvm::errs() << "main:  " << __LINE__ << "\n";
-  Example::ExitOnErr(JD->define(llvm::orc::absoluteSymbols(name2symbol)));
+  ExitOnErr(JD->define(llvm::orc::absoluteSymbols(name2symbol)));
   //  llvm::orc::absoluteSymbols({
   //    { sspool.intern("puts"), llvm::pointerToJITTargetAddress(&puts)},
   //    { sspool.intern("mkClosure_capture0_args2"),
@@ -559,14 +340,14 @@ int main(int argc, char **argv) {
   //  }));
 
   llvm::errs() << "main:  " << __LINE__ << "\n";
-  Example::ExitOnErr(J->addIRModule(llvm::orc::ThreadSafeModule(
+  ExitOnErr(J->addIRModule(llvm::orc::ThreadSafeModule(
       std::move(llvmModule), std::move(llvmContext))));
 
   llvm::errs() << "main:  " << __LINE__ << "\n";
   // https://llvm.org/docs/ORCv2.html#how-to-add-process-and-library-symbols-to-the-jitdylibs
 
   // Look up the JIT'd function, cast it to a function pointer, then call it.
-  auto mainfnSym = Example::ExitOnErr(J->lookup("main"));
+  auto mainfnSym = ExitOnErr(J->lookup("main"));
   void *(*mainfn)(void *) = (void *(*)(void *))mainfnSym.getAddress();
 
   llvm::errs() << "main:  " << __LINE__ << "\n";

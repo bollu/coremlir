@@ -1125,10 +1125,10 @@ struct ForceOfKnownApCanonicalizationPattern : public mlir::OpRewritePattern<For
 
   mlir::LogicalResult
   matchAndRewrite(ForceOp force, mlir::PatternRewriter &rewriter) const override {
-      rewriter.create<LLVM::AddOp>(force.getLoc());
-
       ModuleOp mod = force.getParentOfType<ModuleOp>();
       HaskFuncOp fn = force.getParentOfType<HaskFuncOp>();
+
+      ApOp ap = force.getResult().getDefiningOp<ApOp>();
       if (!ap) { return failure(); }
       HaskRefOp ref = ap.getFn().getDefiningOp<HaskRefOp>();
       if (!ref) { return failure(); }

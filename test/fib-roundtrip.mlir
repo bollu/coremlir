@@ -81,15 +81,17 @@ module {
       ^bb0(%arg1: !hask.value):  // no predecessors
         %3 = hask.caseint %arg1 [0 : i64 ->  {
         ^bb0(%arg2: !hask.value):  // no predecessors
-          %4 = hask.make_i64(0 : i64)
-          %5 = hask.construct(@SimpleInt, %4 : !hask.value) : !hask.adt<@SimpleInt>
-          hask.return(%5) : !hask.adt<@SimpleInt>
+          %4 = hask.ref(@zero) : !hask.fn<() -> !hask.adt<@SimpleInt>>
+          %5 = hask.ap(%4 :!hask.fn<() -> !hask.adt<@SimpleInt>>)
+          %6 = hask.force(%5):!hask.adt<@SimpleInt>
+          hask.return(%6) : !hask.adt<@SimpleInt>
         }]
  [1 : i64 ->  {
         ^bb0(%arg2: !hask.value):  // no predecessors
-          %4 = hask.make_i64(1 : i64)
-          %5 = hask.construct(@SimpleInt, %4 : !hask.value) : !hask.adt<@SimpleInt>
-          hask.return(%5) : !hask.adt<@SimpleInt>
+          %4 = hask.ref(@one) : !hask.fn<() -> !hask.adt<@SimpleInt>>
+          %5 = hask.ap(%4 :!hask.fn<() -> !hask.adt<@SimpleInt>>)
+          %6 = hask.force(%5):!hask.adt<@SimpleInt>
+          hask.return(%6) : !hask.adt<@SimpleInt>
         }]
  [@default ->  {
           %4 = hask.ref(@fib) : !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
@@ -104,19 +106,12 @@ module {
           %13 = hask.ap(%5 :!hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>, !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>, %arg0, %12)
           %14 = hask.ap(%4 :!hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>, %13)
           %15 = hask.force(%14):!hask.adt<@SimpleInt>
-          %16 = hask.case @SimpleInt %10 [@SimpleInt ->  {
-          ^bb0(%arg2: !hask.value):  // no predecessors
-            %17 = hask.case @SimpleInt %15 [@SimpleInt ->  {
-            ^bb0(%arg3: !hask.value):  // no predecessors
-              %18 = hask.primop_add(%arg2,%arg3)
-              %19 = hask.construct(@SimpleInt, %18 : !hask.value) : !hask.adt<@SimpleInt>
-              hask.return(%19) : !hask.adt<@SimpleInt>
-            }]
-
-            hask.return(%17) : !hask.adt<@SimpleInt>
-          }]
-
-          hask.return(%16) : !hask.adt<@SimpleInt>
+          %16 = hask.thunkify(%10 :!hask.adt<@SimpleInt>):!hask.thunk<!hask.adt<@SimpleInt>>
+          %17 = hask.thunkify(%15 :!hask.adt<@SimpleInt>):!hask.thunk<!hask.adt<@SimpleInt>>
+          %18 = hask.ref(@plus) : !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>, !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
+          %19 = hask.ap(%18 :!hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>, !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>, %16, %17)
+          %20 = hask.force(%19):!hask.adt<@SimpleInt>
+          hask.return(%20) : !hask.adt<@SimpleInt>
         }]
 
         hask.return(%3) : !hask.adt<@SimpleInt>
