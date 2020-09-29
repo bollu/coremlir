@@ -36,8 +36,8 @@
 
 #include "Hask/HaskDialect.h"
 #include "Hask/HaskOps.h"
-#include "Hask/Interpreter.h"
-#include "Hask/Runtime.h"
+#include "Interpreter.h"
+#include "Runtime.h"
 
 // conversion
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch6/toyc.cpp
@@ -97,6 +97,7 @@ static llvm::cl::opt<bool> optInterpret("interpret",
 using namespace llvm;
 using namespace llvm::orc;
 ExitOnError ExitOnErr;
+
 
 // code stolen from:
 // https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/examples/toy/Ch3/toyc.cpp
@@ -181,8 +182,8 @@ int main(int argc, char **argv) {
   }
 
   if (optInterpret) {
-      assert(false && "interpreting module");
-      llvm::outs() << interpretModule(module.get());
+      llvm::outs() << interpretModule(module.get())  << "\n";
+      llvm::outs().flush();
       return 0;
   }
 

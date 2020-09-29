@@ -1,32 +1,17 @@
 #pragma once
-#include <stdio.h>
-#include <string.h>
-#include <assert.h>
+#include "Runtime.h"
+#include <stdlib.h>
 
 extern "C" {
 
-static int DEBUG_STACK_DEPTH = 0;
 void DEBUG_INDENT() {
   for (int i = 0; i < DEBUG_STACK_DEPTH; ++i) {
     fputs("  ⋮", stderr);
   }
 }
 
-#define DEBUG_LOG                                                              \
-  if (1) {                                                                     \
-    \ 
-    DEBUG_INDENT();                                                            \
-    fprintf(stderr, "%s ", __FUNCTION__);                                      \
-  }
 void DEBUG_PUSH_STACK() { DEBUG_STACK_DEPTH++; }
 void DEBUG_POP_STACK() { DEBUG_STACK_DEPTH--; }
-
-static const int MAX_CLOSURE_ARGS = 10;
-struct Closure {
-  int n;
-  void *fn;
-  void *args[MAX_CLOSURE_ARGS];
-};
 
 char *getPronouncableNum(size_t N) {
   const char *cs = "bcdfghjklmnpqrstvwxzy";
@@ -128,13 +113,6 @@ void *__attribute__((used)) evalClosure(void *closure_voidptr) {
   DEBUG_INDENT();
   fprintf(stderr, "=>%10p:%s\n", ret, getPronouncablePtr(ret));
   return ret;
-};
-
-static const int MAX_CONSTRUCTOR_ARGS = 2;
-struct Constructor {
-  const char *tag; // inefficient!
-  int n;
-  void *args[MAX_CONSTRUCTOR_ARGS];
 };
 
 void *__attribute__((used)) mkConstructor0(const char *tag) {
