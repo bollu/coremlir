@@ -4,15 +4,21 @@ Convert GHC Core to MLIR.
 
 - [Link to download the latest build of my master thesis](https://github.com/bollu/coremlir/releases/latest/download/thesis.pdf)
 
-
-# Log:  [newest] to [oldest]
-
 # Notes on GHC
 
 - smallest size is `32` bit word. Can't pack stuff!
 - GHC plugin that strictifies/unboxes most things and prints out the new
   file.
 - IORefs are bad.
+
+
+# Log:  [newest] to [oldest]
+
+# Tuesday, Sep 29 2020
+
+- Apparently, I can't print a `mlir::Value` from an `mir::InFlightDiagnostic`.
+- `mlir::Value` does not implement a `<`, so you can't use it as a key in a `std::map` for a
+  decent interpreter.
 
 # Friday, Sep 25 2020
 
