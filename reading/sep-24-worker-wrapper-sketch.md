@@ -477,6 +477,9 @@ SimpleInt g(Thunk<SimpleInt> i) {
 }
 ```
 
+- This seems potentially challenging to perform? I'm not sure how annoying this
+  is going to be in practice. 
+
 #### Stage 6: convert recursive `casedefault(g3(prev))` into `g4(prev)`:
 
 ```cpp
@@ -565,6 +568,12 @@ int g4(int ihash) {
 
 - How does LLVM actually optimise this? I don't know, need to find out.
   I know that it code generates a nice loop.
+
+## General thoughts
+
+It's interesting that the thing we need to do is outline+specialize, which
+is the "dual" of what we do in LLVM which is to inline+specialize. Does this
+"mean something"?
 
 
 

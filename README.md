@@ -14,6 +14,15 @@ Convert GHC Core to MLIR.
   file.
 - IORefs are bad.
 
+# Friday, Sep 25 2020
+
+- [Meeting google doc link](https://docs.google.com/document/d/10cgXbXME0D_SV0VJTrQrz0obhUBa5kdM74crWDXbDgU/edit?usp=sharing)
+
+- [GHC was unable to optimise a top level list!](https://docs.google.com/spreadsheets/d/1YhZlDRGvnCtN8UQf_0ItmgRWI9MhL21HDTlBEKqgWHc/edit?usp=sharing)
+- GHC is unable to remove laziness from `data A = B | C | D`: there is no way
+  to ask for this to be unboxed.
+- https://www.scs.stanford.edu/16wi-cs240h/slides/ghc-compiler.html
+
 # Thursday, Sep 24 2020
 
 - [What optimizations can GHC be expected to perform reliably](https://stackoverflow.com/questions/12653787/what-optimizations-can-ghc-be-expected-to-perform-reliably)

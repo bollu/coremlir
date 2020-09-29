@@ -104,7 +104,37 @@ public:
   void print(OpAsmPrinter &p);
 };
 
-class CaseOp : public Op<CaseOp, OpTrait::OneResult,
+class ApEagerOp
+    : public Op<ApEagerOp, OpTrait::OneResult, MemoryEffectOpInterface::Trait> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.apEager"; };
+  Value getFn() { return this->getOperation()->getOperand(0); };
+  int getNumFnArguments() {
+    return this->getOperation()->getNumOperands() - 1;
+  };
+  Value getFnArgument(int i) {
+    return this->getOperation()->getOperand(i + 1);
+  };
+
+  SmallVector<Value, 4> getFnArguments() {
+    SmallVector<Value, 4> args;
+    for (int i = 0; i < getNumFnArguments(); ++i) {
+      args.push_back(getFnArgument(i));
+    }
+    return args;
+  }
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
+
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    Value fn, SmallVectorImpl<Value> &params);
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  void print(OpAsmPrinter &p);
+};
+
+class CaseOp : public Op<CaseOp, OpTrait::VariadicResults,
     MemoryEffectOpInterface::Trait> {
 public:
   using Op::Op;
@@ -160,6 +190,21 @@ public:
                  &effects) {}
 };
 
+class DefaultCaseOp : public Op<DefaultCaseOp, OpTrait::OneResult,
+    MemoryEffectOpInterface::Trait> {
+public:
+  using Op::Op;
+  static StringRef getOperationName() { return "hask.defaultcase"; };
+  static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  static const char *getCaseTypeKey() { return "constructorName"; }
+  Value getScrutinee() { this->getOperation()->getOperand(0); }
+  void print(OpAsmPrinter &p);
+  void
+  getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+                 &effects) {}
+};
+
+
 class LambdaOp : public Op<LambdaOp, OpTrait::OneResult, OpTrait::OneRegion> {
 public:
   using Op::Op;
@@ -213,7 +258,11 @@ public:
   void print(OpAsmPrinter &p);
   llvm::StringRef getFuncName();
   LambdaOp getLambda();
+  bool isRecursive();
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                            MLIRContext *context);
+
 };
 
 // replace case x of name { default -> ... } with name = force(x);
@@ -348,7 +397,6 @@ public:
 std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass();
 // lower hask+standard to LLVM by eliminating all the junk.
 std::unique_ptr<mlir::Pass> createLowerHaskStandardToLLVMPass();
-
 } // namespace standalone
 } // namespace mlir
 

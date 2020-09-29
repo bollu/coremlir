@@ -1,6 +1,6 @@
 # Yes I hate myself, but this is far too convenient to be able to write
 # pipelines which involve tee and allow such pipelines to fail.
-targets = fib add case-int fib-strict k-lazy either playground test-ops case-usage
+targets = fib add case-int fib-strict k-lazy either playground test-ops case-usage rec
 
 all: $(targets)
 
@@ -16,3 +16,5 @@ $(targets): %: %.mlir
 
 
 
+# GDB execution
+# make -C ../build && gdb -ex run --args ../build/bin/hask-opt fib.mlir > fib-roundtrip.mlir

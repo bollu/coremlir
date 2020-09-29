@@ -156,6 +156,11 @@ public:
   }
 
   ArrayRef<Type> getInputTypes() { return this->getImpl()->getInputs(); }
+  Type getInputType(int i) { 
+      assert( i >= 0);
+      assert(i < getInputTypes().size());
+      return this->getImpl()->getInputs()[i];
+  }
   Type getResultType() { return this->getImpl()->getResult()[0]; }
 };
 
