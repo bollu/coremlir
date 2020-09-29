@@ -36,6 +36,7 @@
 
 #include "Hask/HaskDialect.h"
 #include "Hask/HaskOps.h"
+#include "Hask/Interpreter.h"
 #include "Hask/Runtime.h"
 
 // conversion
@@ -58,6 +59,8 @@ static llvm::cl::opt<bool>
     lowerToLLVM("lower-llvm", llvm::cl::desc("Enable lowering to LLVM"));
 static llvm::cl::opt<bool> jit("jit",
                                llvm::cl::desc("Enable lowering to LLVM"));
+static llvm::cl::opt<bool> optInterpret("interpret",
+                                     llvm::cl::desc("Enable interpreting IR"));
 
 // 0 static llvm::cl::opt<std::string>
 // 0     outputFilename("o", llvm::cl::desc("Output filename"),
@@ -130,56 +133,66 @@ int main(int argc, char **argv) {
   // TODO: why does it add a module { ... } around my hask.module { ... }?
   llvm::errs() << "\n===Module: input===\n";
   module->print(llvm::errs());
+  llvm::errs() << "\n------\n";
+  llvm::errs() << "interpreted value: " << interpretModule(module.get());
+  llvm::errs() << "\n=====\n";
+
+  llvm::errs() << "=====Module: simplification =====\n";
+
+  {
+    mlir::PassManager pm(&context);
+    // Apply any generic pass manager command line options and run the pipeline.
+    applyPassManagerCLOptions(pm);
+
+    // Add a run of the canonicalizer to optimize the mlir module.
+    // pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
+    pm.addPass(mlir::createCanonicalizerPass());
+    llvm::errs() << "===Module: running canonicalization...===\n";
+    if (mlir::failed(pm.run(*module))) {
+      llvm::errs() << "===Run of canonicalizer failed.===\n";
+      return 4;
+    }
+    llvm::errs() << "==canonicalization succeeded!===\n";
+  }
+
+  module->print(llvm::errs());
+  llvm::errs() << "\n------\n";
+  llvm::errs() << "interpreted value: " << interpretModule(module.get());
   llvm::errs() << "\n===\n";
 
-  for(int i = 0; i < 3; ++i) {
-      llvm::errs() << "=====Module: simplyfing [" << i << "]=====\n";
+  {
 
-      {
-          mlir::PassManager pm(&context);
-          // Apply any generic pass manager command line options and run the pipeline.
-          applyPassManagerCLOptions(pm);
+    mlir::PassManager pm(&context);
+    // Apply any generic pass manager command line options and run the pipeline.
+    applyPassManagerCLOptions(pm);
+    pm.addPass(mlir::createCSEPass());
+    llvm::errs() << "===Module: running CSE...===\n";
+    if (mlir::failed(pm.run(*module))) {
+      llvm::errs() << "===CSE failed.===\n";
+      return 4;
+    }
+    llvm::errs() << "===CSE succeeded!===\n";
 
-          // Add a run of the canonicalizer to optimize the mlir module.
-          // pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
-          pm.addPass(mlir::createCanonicalizerPass());
-          llvm::errs() << "===Module: running canonicalization...===\n";
-          if (mlir::failed(pm.run(*module))) {
-              llvm::errs() << "===Run of canonicalizer failed.===\n";
-              return 4;
-          }
-          llvm::errs() << "==canonicalization succeeded!===\n";
-      }
+    llvm::errs() << "===Module===\n";
+    module->print(llvm::errs());
+    llvm::errs() << "\n------\n";
+    llvm::errs() << "interpreted value: " << interpretModule(module.get());
+    llvm::errs() << "\n===\n";
+  }
 
-      module->print(llvm::errs());
-      llvm::errs() << "\n===\n";
-
-      {
-
-          mlir::PassManager pm(&context);
-          // Apply any generic pass manager command line options and run the pipeline.
-          applyPassManagerCLOptions(pm);
-          pm.addPass(mlir::createCSEPass());
-          llvm::errs() << "===Module: running CSE...===\n";
-          if (mlir::failed(pm.run(*module))) {
-              llvm::errs() << "===CSE failed.===\n";
-              return 4;
-          }
-          llvm::errs() << "===CSE succeeded!===\n";
-
-          llvm::errs() << "===Module===\n";
-          module->print(llvm::errs());
-          llvm::errs() << "\n===\n";
-      }
+  if (optInterpret) {
+      assert(false && "interpreting module");
+      llvm::outs() << interpretModule(module.get());
+      return 0;
   }
 
   // Lowering code to standard (?) Do I even need to (?)
   // Can I directly generate LLVM?
-
   if (!lowerToStandard) {
     module->print(llvm::outs());
     return 0;
   }
+
   // lowering code to Standard/SCF
   {
     mlir::PassManager pm(&context);
