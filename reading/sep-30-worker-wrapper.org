@@ -4,7 +4,11 @@
   the function locally?
 - Problem 2: how do we optimise worker/wrapper locally when we have multiple
   arguments?
-- [Godbolt link](TODO: add link to godbolt of C++ file)
+- [Godbolt link](https://godbolt.org/z/rao3Ee)
+
+#+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
+// [Godbolt link](https://godbolt.org/z/rao3Ee)
+#+END_SRC
 
 * Eliminate outlining
 
@@ -126,6 +130,7 @@ R apStrict(R(*f)(FArgs...), Args... args) {
       printf("\n===mainf0===\n");
       SimpleInt out = f(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
 
     }
@@ -174,6 +179,7 @@ R apStrict(R(*f)(FArgs...), Args... args) {
       printf("\n===mainf1===\n");
       SimpleInt out = f(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -206,6 +212,7 @@ R apStrict(R(*f)(FArgs...), Args... args) {
       printf("\n===mainf2===\n");
       SimpleInt out = f(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -261,6 +268,7 @@ struct Unwrap<Force<Outer>, Inner> {
       printf("\n===mainf3===\n");
       SimpleInt out = f(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -291,6 +299,7 @@ struct Unwrap<Force<Outer>, Inner> {
       printf("\n===maing0===\n");
       SimpleInt out = g(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -325,6 +334,7 @@ struct Unwrap<Force<Outer>, Inner> {
       printf("\n===maing1===\n");
       SimpleInt out = g(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -360,6 +370,7 @@ struct Unwrap<Force<Outer>, Inner> {
       printf("\n===maing2===\n");
       SimpleInt out = g(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -395,6 +406,7 @@ struct Unwrap<Force<Outer>, Inner> {
       printf("\n===maing3===\n");
       SimpleInt out = g(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -432,6 +444,7 @@ struct Unwrap<Force<Outer>, Inner> {
       printf("\n===maing4===\n");
       SimpleInt out = g(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -474,6 +487,7 @@ struct Unwrap<Force<Outer>, Inner> {
       printf("\n===maing5===\n");
       SimpleInt out = g(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -534,6 +548,7 @@ struct Unwrap<Force<Outer>, Inner> {
       printf("\n===maing6===\n");
       SimpleInt out = g(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -577,6 +592,7 @@ struct Unwrap<Force<Outer>, Inner> {
       printf("\n===maing7===\n");
       SimpleInt out = g(thunkify(SimpleInt(3)));
       printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC

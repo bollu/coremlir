@@ -1,3 +1,5 @@
+// [Godbolt link](https://godbolt.org/z/rao3Ee)
+
 #include <stdio.h>
 #include <functional>
 #include <optional>
@@ -89,6 +91,7 @@ namespace f0 {
     printf("\n===mainf0===\n");
     SimpleInt out = f(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 
   }
@@ -127,6 +130,7 @@ namespace f1{
     printf("\n===mainf1===\n");
     SimpleInt out = f(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 }
 
@@ -151,6 +155,7 @@ namespace f2{
     printf("\n===mainf2===\n");
     SimpleInt out = f(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 }
 
@@ -196,6 +201,7 @@ namespace f3{
     printf("\n===mainf3===\n");
     SimpleInt out = f(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 }
 
@@ -222,6 +228,7 @@ namespace g0{
     printf("\n===maing0===\n");
     SimpleInt out = g(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 }
 
@@ -249,6 +256,7 @@ namespace g1 {
     printf("\n===maing1===\n");
     SimpleInt out = g(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 }
 
@@ -276,6 +284,7 @@ namespace g2{
     printf("\n===maing2===\n");
     SimpleInt out = g(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 }
 
@@ -304,6 +313,7 @@ namespace g3{
     printf("\n===maing3===\n");
     SimpleInt out = g(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 }
 
@@ -333,6 +343,7 @@ namespace g4{
     printf("\n===maing4===\n");
     SimpleInt out = g(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 }
 
@@ -368,6 +379,7 @@ namespace g5{
     printf("\n===maing5===\n");
     SimpleInt out = g(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 }
 
@@ -418,6 +430,7 @@ namespace g6{
     printf("\n===maing6===\n");
     SimpleInt out = g(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 }
 
@@ -455,6 +468,7 @@ namespace g7{
     printf("\n===maing7===\n");
     SimpleInt out = g(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
+    return 0;
   }
 }
 
