@@ -27,8 +27,8 @@
 namespace mlir {
 namespace standalone {
 
-#define GET_OP_CLASSES
-#include "Hask/HaskOps.h.inc"
+// #define GET_OP_CLASSES
+// #include "Hask/HaskOps.h.inc"
 
 class HaskReturnOp
     : public Op<HaskReturnOp, OpTrait::ZeroResult, OpTrait::ZeroSuccessor,

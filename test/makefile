@@ -8,10 +8,10 @@ $(targets): %: %.mlir
 	make -C ~/work/mlir/coremlir/build
 	../build/bin/hask-opt $<
 	../build/bin/hask-opt ./$< > $@-roundtrip.mlir
-	../build/bin/hask-opt ./$@-roundtrip.mlir
-	../build/bin/hask-opt ./$@-roundtrip.mlir -lower-std
-	../build/bin/hask-opt ./$@-roundtrip.mlir -lower-std -lower-llvm
-	../build/bin/hask-opt ./$@-roundtrip.mlir -lower-std -lower-llvm -jit
+	# ../build/bin/hask-opt ./$@-roundtrip.mlir
+	# ../build/bin/hask-opt ./$@-roundtrip.mlir -lower-std
+	# ../build/bin/hask-opt ./$@-roundtrip.mlir -lower-std -lower-llvm
+	# ../build/bin/hask-opt ./$@-roundtrip.mlir -lower-std -lower-llvm -jit
 
 
 

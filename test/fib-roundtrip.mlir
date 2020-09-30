@@ -80,14 +80,12 @@ module {
       %2 = hask.case @SimpleInt %1 [@SimpleInt ->  {
       ^bb0(%arg1: !hask.value):  // no predecessors
         %3 = hask.caseint %arg1 [0 : i64 ->  {
-        ^bb0(%arg2: !hask.value):  // no predecessors
           %4 = hask.ref(@zero) : !hask.fn<() -> !hask.adt<@SimpleInt>>
           %5 = hask.ap(%4 :!hask.fn<() -> !hask.adt<@SimpleInt>>)
           %6 = hask.force(%5):!hask.adt<@SimpleInt>
           hask.return(%6) : !hask.adt<@SimpleInt>
         }]
  [1 : i64 ->  {
-        ^bb0(%arg2: !hask.value):  // no predecessors
           %4 = hask.ref(@one) : !hask.fn<() -> !hask.adt<@SimpleInt>>
           %5 = hask.ap(%4 :!hask.fn<() -> !hask.adt<@SimpleInt>>)
           %6 = hask.force(%5):!hask.adt<@SimpleInt>
@@ -122,7 +120,7 @@ module {
     hask.return(%0) : !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
   }
   hask.func @main {
-    %0 = hask.lambda(%arg0:!hask.thunk<!hask.adt<@SimpleInt>>) {
+    %0 = hask.lambda() {
       %1 = hask.make_i64(6 : i64)
       %2 = hask.construct(@SimpleInt, %1 : !hask.value) : !hask.adt<@SimpleInt>
       %3 = hask.thunkify(%2 :!hask.adt<@SimpleInt>):!hask.thunk<!hask.adt<@SimpleInt>>
@@ -131,6 +129,6 @@ module {
       %6 = hask.force(%5):!hask.adt<@SimpleInt>
       hask.return(%6) : !hask.adt<@SimpleInt>
     }
-    hask.return(%0) : !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
+    hask.return(%0) : !hask.fn<() -> !hask.adt<@SimpleInt>>
   }
 }

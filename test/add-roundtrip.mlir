@@ -39,7 +39,7 @@ module {
     hask.return(%0) : !hask.fn<() -> !hask.adt<@SimpleInt>>
   }
   hask.func @main {
-    %0 = hask.lambda(%arg0:!hask.thunk<!hask.value>) {
+    %0 = hask.lambda() {
       %1 = hask.ref(@one) : !hask.fn<() -> !hask.adt<@SimpleInt>>
       %2 = hask.ap(%1 :!hask.fn<() -> !hask.adt<@SimpleInt>>)
       %3 = hask.ref(@two) : !hask.fn<() -> !hask.adt<@SimpleInt>>
@@ -49,6 +49,6 @@ module {
       %7 = hask.force(%6):!hask.adt<@SimpleInt>
       hask.return(%7) : !hask.adt<@SimpleInt>
     }
-    hask.return(%0) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.adt<@SimpleInt>>
+    hask.return(%0) : !hask.fn<() -> !hask.adt<@SimpleInt>>
   }
 }

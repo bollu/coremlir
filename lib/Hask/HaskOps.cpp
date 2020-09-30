@@ -46,8 +46,8 @@
 
 namespace mlir {
 namespace standalone {
-#define GET_OP_CLASSES
-#include "Hask/HaskOps.cpp.inc"
+// #define GET_OP_CLASSES
+// #include "Hask/HaskOps.cpp.inc"
 
 // === RETURN OP ===
 // === RETURN OP ===
@@ -1337,7 +1337,7 @@ mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
 class HaskGlobalOpConversionPattern : public ConversionPattern {
 public:
   explicit HaskGlobalOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(standalone::HaskGlobalOp::getOperationName(), 1,
+      : ConversionPattern(HaskGlobalOp::getOperationName(), 1,
                           context) {}
 
   LogicalResult
@@ -1378,7 +1378,7 @@ public:
 class HaskFuncOpConversionPattern : public ConversionPattern {
 public:
   explicit HaskFuncOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(standalone::HaskFuncOp::getOperationName(), 1,
+      : ConversionPattern(HaskFuncOp::getOperationName(), 1,
                           context) {}
 
   LogicalResult
@@ -1507,7 +1507,7 @@ static Value getOrCreateGlobalString(Location loc, OpBuilder &builder,
 class CaseOpConversionPattern : public ConversionPattern {
 public:
   explicit CaseOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(standalone::CaseOp::getOperationName(), 1, context) {}
+      : ConversionPattern(CaseOp::getOperationName(), 1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -1602,7 +1602,7 @@ public:
 class LambdaOpConversionPattern : public ConversionPattern {
 public:
   explicit LambdaOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(standalone::LambdaOp::getOperationName(), 1,
+      : ConversionPattern(LambdaOp::getOperationName(), 1,
                           context) {}
 
   LogicalResult
@@ -2006,7 +2006,7 @@ Block *splitBlockAfter(PatternRewriter &rewriter, Block::iterator after) {
 class CaseIntOpConversionPattern : public ConversionPattern {
 public:
   explicit CaseIntOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(standalone::CaseIntOp::getOperationName(), 1,
+      : ConversionPattern(CaseIntOp::getOperationName(), 1,
                           context) {}
 
   LogicalResult
@@ -2195,7 +2195,7 @@ void LowerHaskToStandardPass::runOnOperation() {
   target.addLegalOp<mlir::ModuleOp>();
   target.addLegalOp<mlir::ModuleTerminatorOp>();
 
-  target.addIllegalDialect<standalone::HaskDialect>();
+  target.addIllegalDialect<HaskDialect>();
   // target.addLegalOp<HaskRefOp>();
   target.addLegalOp<HaskADTOp>();
   target.addLegalOp<LambdaOp>();

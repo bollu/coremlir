@@ -40,10 +40,10 @@ HaskDialect &HaskType::getDialect() {
 
 HaskDialect::HaskDialect(mlir::MLIRContext *context)
     : Dialect(getDialectNamespace(), context, TypeID::get<HaskDialect>()) {
-  addOperations<
-#define GET_OP_LIST
-#include "Hask/HaskOps.cpp.inc"
-      >();
+//   addOperations<
+// #define GET_OP_LIST
+// #include "Hask/HaskOps.cpp.inc"
+//       >();
   addOperations<HaskReturnOp, MakeI64Op,
                 // DeclareDataConstructorOp,
                 ApOp, ApEagerOp, CaseOp, DefaultCaseOp, HaskRefOp, LambdaOp, MakeStringOp, HaskFuncOp,

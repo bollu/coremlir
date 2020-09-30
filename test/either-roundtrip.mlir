@@ -44,13 +44,12 @@ module {
       %1 = hask.ref(@leftOne) : !hask.fn<() -> !hask.adt<@Either>>
       %2 = hask.ap(%1 :!hask.fn<() -> !hask.adt<@Either>>)
       %3 = hask.construct(@Right, %2 : !hask.thunk<!hask.adt<@Either>>) : !hask.adt<@Either>
-      %4 = hask.thunkify(%3 :!hask.adt<@Either>):!hask.thunk<!hask.adt<@Either>>
       hask.return(%3) : !hask.adt<@Either>
     }
     hask.return(%0) : !hask.fn<() -> !hask.adt<@Either>>
   }
   hask.func @main {
-    %0 = hask.lambda(%arg0:!hask.thunk<!hask.value>) {
+    %0 = hask.lambda() {
       %1 = hask.ref(@rightLeftOne) : !hask.fn<() -> !hask.adt<@Either>>
       %2 = hask.ap(%1 :!hask.fn<() -> !hask.adt<@Either>>)
       %3 = hask.ref(@extract) : !hask.fn<(!hask.thunk<!hask.adt<@Either>>) -> !hask.value>
@@ -58,6 +57,6 @@ module {
       %5 = hask.force(%4):!hask.value
       hask.return(%5) : !hask.value
     }
-    hask.return(%0) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.value>
+    hask.return(%0) : !hask.fn<() -> !hask.value>
   }
 }
