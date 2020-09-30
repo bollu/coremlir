@@ -367,7 +367,6 @@ ParseResult CaseOp::parse(OpAsmParser &parser, OperationState &result) {
     assert(retFirst.getType() == ret.getType() &&
            "all case branches must return  same levity [value/thunk]");
   }
-
   result.addTypes(retFirst.getType());
   return success();
 };

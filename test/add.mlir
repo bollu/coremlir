@@ -1,6 +1,8 @@
-// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s
-// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s
-// CHECK: 3
+// RUN: ../build/bin/hask-opt %s  -interpret | FileCheck %s
+// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s || true
+// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
+// Check that @plus works with SimpleInt works.
+// CHECK: constructor(SimpleInt 3)
 module {
   // should it be Attr Attr, with the "list" embedded as an attribute,
   // or should it be Attr [Attr]? Who really knows :(
@@ -53,7 +55,7 @@ module {
 
   // 1 + 2 = 3
   hask.func@main {
-    %lam = hask.lambda(%_: !hask.thunk<!hask.value>) {
+    %lam = hask.lambda() {
       %input = hask.ref(@one) : !hask.fn<() -> !hask.adt<@SimpleInt>>
       %input_t = hask.ap(%input: !hask.fn<() -> !hask.adt<@SimpleInt>>)
 
@@ -66,7 +68,7 @@ module {
       %out_v = hask.force(%out_t): !hask.adt<@SimpleInt>
       hask.return(%out_v) : !hask.adt<@SimpleInt>
     }
-    hask.return (%lam) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.adt<@SimpleInt>>
+    hask.return (%lam) : !hask.fn<() -> !hask.adt<@SimpleInt>>
   }
 }
 

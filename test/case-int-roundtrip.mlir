@@ -18,7 +18,7 @@ module {
     hask.return(%0) : !hask.fn<(!hask.value) -> !hask.value>
   }
   hask.func @main {
-    %0 = hask.lambda(%arg0:!hask.thunk<!hask.value>) {
+    %0 = hask.lambda() {
       %1 = hask.make_i64(42 : i64)
       %2 = hask.ref(@prec) : !hask.fn<(!hask.value) -> !hask.value>
       %3 = hask.ap(%2 :!hask.fn<(!hask.value) -> !hask.value>, %1)
@@ -26,6 +26,6 @@ module {
       %5 = hask.construct(@X, %4 : !hask.value) : !hask.adt<@X>
       hask.return(%5) : !hask.adt<@X>
     }
-    hask.return(%0) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.adt<@X>>
+    hask.return(%0) : !hask.fn<() -> !hask.adt<@X>>
   }
 }

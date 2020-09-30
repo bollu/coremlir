@@ -12,7 +12,10 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &o, InterpValue v) {
     o << "closure(";
     o << v.closureFn() << ", ";
     for (int i = 0; i < v.closureNumArgs(); ++i) {
-      o << v.closureArg(i) << " ";
+      o << v.closureArg(i);
+      if (i + 1 < v.closureNumArgs()) {
+        o << " ";
+      }
     }
     o << ")";
     break;
@@ -33,11 +36,16 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &o, InterpValue v) {
   case InterpValueType::Constructor: {
     o << "constructor(" << v.constructorTag() << " ";
     for (int i = 0; i < v.constructorNumArgs(); ++i) {
-      o << v.constructorArg(i) << " ";
+      o << v.constructorArg(i);
+      if (i + 1 < v.constructorNumArgs()) {
+        o << " ";
+      }
     }
+    o << ")";
     break;
   }
-  };
+
+  } // end switch
   return o;
 }
 
@@ -46,7 +54,7 @@ struct InterpreterError {
 
   InterpreterError(mlir::Location loc)
       : diag(loc.getContext()->getDiagEngine().emit(
-      loc, DiagnosticSeverity::Error)) {}
+            loc, DiagnosticSeverity::Error)) {}
 
   ~InterpreterError() {
     diag.report();
@@ -105,21 +113,19 @@ private:
   std::vector<std::pair<mlir::Value, InterpValue>> env;
 };
 
-enum class TerminatorResultType {
-  Branch,
-  Return
-};
+enum class TerminatorResultType { Branch, Return };
 struct TerminatorResult {
   const TerminatorResultType type;
 
-  TerminatorResult(Block *bbNext) : type(TerminatorResultType::Branch), bbNext_(bbNext) {}
-  TerminatorResult(InterpValue returnValue) : type(TerminatorResultType::Return), returnValue_(returnValue) {}
+  TerminatorResult(Block *bbNext)
+      : type(TerminatorResultType::Branch), bbNext_(bbNext) {}
+  TerminatorResult(InterpValue returnValue)
+      : type(TerminatorResultType::Return), returnValue_(returnValue) {}
 
   InterpValue returnValue() {
     assert(type == TerminatorResultType::Return);
     assert(returnValue_);
     return returnValue_.getValue();
-
   }
   Block *bbNext() {
     assert(type == TerminatorResultType::Branch);
@@ -141,15 +147,18 @@ struct Interpreter {
       for (int i = 0; i < cons.getNumOperands(); ++i) {
         vs.push_back(env.lookup(cons.getLoc(), cons.getOperand(i)));
       }
-      env.addNew(cons.getResult(), InterpValue::constructor(cons.getDataConstructorName().str(), vs));
+      env.addNew(
+          cons.getResult(),
+          InterpValue::constructor(cons.getDataConstructorName().str(), vs));
     } else if (TransmuteOp transmute = dyn_cast<TransmuteOp>(op)) {
-      env.addNew(transmute.getResult(), env.lookup(transmute.getLoc(), transmute.getOperand()));
+      env.addNew(transmute.getResult(),
+                 env.lookup(transmute.getLoc(), transmute.getOperand()));
     } else if (ThunkifyOp thunkify = dyn_cast<ThunkifyOp>(op)) {
       env.addNew(thunkify.getResult(),
-                 InterpValue::thunkifiedValue(env.lookup(thunkify.getLoc(), thunkify.getOperand())));
+                 InterpValue::thunkifiedValue(
+                     env.lookup(thunkify.getLoc(), thunkify.getOperand())));
     } else if (HaskRefOp ref = dyn_cast<HaskRefOp>(op)) {
-      env.addNew(ref.getResult(),
-                 InterpValue::ref(ref.getRef().str()));
+      env.addNew(ref.getResult(), InterpValue::ref(ref.getRef().str()));
     } else if (ApOp ap = dyn_cast<ApOp>(op)) {
       InterpValue fn = env.lookup(ap.getLoc(), ap.getFn());
       std::vector<InterpValue> args;
@@ -160,7 +169,7 @@ struct Interpreter {
     } else if (ForceOp force = dyn_cast<ForceOp>(op)) {
       InterpValue scrutinee = env.lookup(force.getLoc(), force.getScrutinee());
       assert(scrutinee.type == InterpValueType::ThunkifiedValue ||
-          scrutinee.type == InterpValueType::Closure);
+             scrutinee.type == InterpValueType::Closure);
       if (scrutinee.type == InterpValueType::ThunkifiedValue) {
         env.addNew(force.getResult(), scrutinee.thunkifiedValue());
       } else {
@@ -169,9 +178,90 @@ struct Interpreter {
         assert(scrutineefn.type == InterpValueType::Ref);
         HaskFuncOp func = module.lookupSymbol<HaskFuncOp>(scrutineefn.ref());
         assert(func && "unable to find function");
-        std::vector<InterpValue> args(scrutinee.closureArgBegin(), scrutinee.closureArgEnd());
+        std::vector<InterpValue> args(scrutinee.closureArgBegin(),
+                                      scrutinee.closureArgEnd());
         env.addNew(force.getResult(), interpretFunction(func, args));
       }
+    } else if (CaseOp case_ = dyn_cast<CaseOp>(op)) {
+      InterpValue scrutinee = env.lookup(case_.getLoc(), case_.getScrutinee());
+      assert(scrutinee.type == InterpValueType::Constructor);
+
+      llvm::errs() << "numAlts: |" << case_.getNumAlts() << "| \n";
+      llvm::errs() << "default: |" << case_.getDefaultAltIndex() << "| \n";
+
+      for (int i = 0; i < case_.getNumAlts(); ++i) {
+        if (case_.getAltLHS(i).getValue().str() != scrutinee.constructorTag()) {
+          llvm::errs() << "lhs:|" << case_.getAltLHS(i).getValue().str() << "| "
+                       << "constructor tag: |" << scrutinee.constructorTag()
+                       << "|\n";
+          continue;
+        }
+
+        // skip default case
+        if (case_.getDefaultAltIndex().getValueOr(-1) == i) {
+          llvm::errs() << "default!";
+          continue;
+        }
+
+        // no match
+        // matched!
+
+        env.addNew(case_.getResult(),
+                   interpretRegion(case_.getAltRHS(i),
+                                   scrutinee.constructorArgs(), env));
+        return;
+      }
+
+      llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+      assert(case_.getDefaultAltIndex() && "neither match, nor default");
+      llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+      env.addNew(case_,
+                 interpretRegion(case_.getAltRHS(*case_.getDefaultAltIndex()),
+                                 {}, env));
+
+    } else if (CaseIntOp caseInt = dyn_cast<CaseIntOp>(op)) {
+      InterpValue scrutinee =
+          env.lookup(caseInt.getLoc(), caseInt.getScrutinee());
+      assert(scrutinee.type == InterpValueType::I64);
+
+      bool matched = false;
+      for (int i = 0; i < caseInt.getNumAlts(); ++i) {
+
+        // skip default case
+        if (caseInt.getDefaultAltIndex().getValueOr(-1) == i) {
+          continue;
+        }
+        // no match
+        if (caseInt.getAltLHS(i)->getInt() != scrutinee.i()) {
+          continue;
+        }
+        // matched!
+        env.addNew(caseInt, interpretRegion(caseInt.getAltRHS(i), {}, env));
+        return;
+      }
+
+      assert(caseInt.getDefaultAltIndex() && "neither match, nor default");
+      env.addNew(caseInt, interpretRegion(caseInt.getDefaultRHS(), {}, env));
+    }
+    else if (DefaultCaseOp default_ = dyn_cast<DefaultCaseOp>(op)) {
+      // TODO: check that this has only 1 constructor!
+      InterpValue scrutinee = env.lookup(default_.getLoc(), default_.getScrutinee());
+      assert(scrutinee.type == InterpValueType::Constructor);
+      assert(scrutinee.constructorTag() == default_.getConstructorTag());
+      assert(scrutinee.constructorNumArgs() == 1);
+      env.addNew(default_.getResult(), scrutinee.constructorArg(0));
+    } else if (HaskPrimopSubOp sub = dyn_cast<HaskPrimopSubOp>(op)) {
+      InterpValue a = env.lookup(sub.getLoc(), sub.getOperand(0));
+      InterpValue b = env.lookup(sub.getLoc(), sub.getOperand(1));
+      assert(a.type == InterpValueType::I64);
+      assert(b.type == InterpValueType::I64);
+      env.addNew(sub.getResult(), InterpValue::i(a.i() - b.i()));
+    } else if (HaskPrimopAddOp add = dyn_cast<HaskPrimopAddOp>(op)) {
+      InterpValue a = env.lookup(add.getLoc(), add.getOperand(0));
+      InterpValue b = env.lookup(add.getLoc(), add.getOperand(1));
+      assert(a.type == InterpValueType::I64);
+      assert(b.type == InterpValueType::I64);
+      env.addNew(add.getResult(), InterpValue::i(a.i() + b.i()));
     } else {
       InterpreterError err(op.getLoc());
       err << "unknown operation: |" << op << "|\n";
@@ -198,44 +288,53 @@ struct Interpreter {
     }
   }
 
-  InterpValue interpretFunction(HaskFuncOp func, ArrayRef<InterpValue> args) {
-    llvm::errs() << "interpreting function |" << func.getName() << "|\n";
-    DiagnosticEngine &diagEngine = func.getContext()->getDiagEngine();
-    if (func.getLambda().getNumInputs() != args.size()) {
-      InFlightDiagnostic diag =
-          diagEngine.emit(func.getLoc(), DiagnosticSeverity::Error);
+  InterpValue interpretRegion(Region &r, ArrayRef<InterpValue> args, Env env) {
+    Env regionEnv(env);
+
+    if (r.getNumArguments() != args.size()) {
+      InFlightDiagnostic diag = r.getContext()->getDiagEngine().emit(
+          r.getLoc(), DiagnosticSeverity::Error);
       diag << "incorrect number of arguments. Given: |" << args.size() << "|\n";
       diag.report();
       exit(1);
     }
 
-    Env env;
-    for (int i = 0; i < func.getLambda().getNumInputs(); ++i) {
-      env.addNew(func.getLambda().getInput(i), args[i]);
+    for (int i = 0; i < args.size(); ++i) {
+      env.addNew(r.getArgument(i), args[i]);
     }
 
-    Block *bbCur = &func.getLambda().getBody().front();
+    Block *bbCur = &r.front();
+
     while (1) {
       TerminatorResult term = interpretBlock(*bbCur, env);
       switch (term.type) {
-      case TerminatorResultType::Return: return term.returnValue();
-      case TerminatorResultType::Branch: bbCur = term.bbNext();
+      case TerminatorResultType::Return:
+        return term.returnValue();
+      case TerminatorResultType::Branch:
+        bbCur = term.bbNext();
       }
     }
   }
 
-  Interpreter(ModuleOp module) : module(module) {};
+  InterpValue interpretFunction(HaskFuncOp func, ArrayRef<InterpValue> args) {
+    llvm::errs() << "interpreting function |" << func.getName() << "|\n";
+    // functions are isolated from above; create a fresh environment.
+    return interpretRegion(func.getLambda().getRegion(), args, Env());
+  }
+
+  Interpreter(ModuleOp module) : module(module){};
+
 private:
   ModuleOp module;
 };
 
 // interpret a module, and interpret the result as an integer. print it out.
-int interpretModule(ModuleOp module) {
+InterpValue interpretModule(ModuleOp module) {
   standalone::HaskFuncOp main =
       module.lookupSymbol<standalone::HaskFuncOp>("main");
   assert(main && "unable to find main!");
   Interpreter I(module);
-  I.interpretFunction(main, {});
-  return 5;
+  InterpValue val = I.interpretFunction(main, {});
+  return val;
 };
 

@@ -1,5 +1,6 @@
-// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm -jit | FileCheck %s
-// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm -jit |  FileCheck %s
+// RUN: ../build/bin/hask-opt %s  -interpret | FileCheck %s
+// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s || true
+// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
 // CHECK: 41
 // Test that case of int works.
 module {
@@ -23,7 +24,7 @@ module {
   }
 
   hask.func @main {
-    %lambda = hask.lambda(%_: !hask.thunk<!hask.value>) {
+    %lambda = hask.lambda() {
       %lit_42 = hask.make_i64(42)
       %prec = hask.ref(@prec)  : !hask.fn<(!hask.value) -> !hask.value>
       %out_v = hask.ap(%prec : !hask.fn<(!hask.value) -> !hask.value>, %lit_42)
@@ -31,7 +32,7 @@ module {
       %x = hask.construct(@X, %out_v_forced:!hask.value): !hask.adt<@X>
       hask.return(%x) : !hask.adt<@X>
     }
-    hask.return(%lambda) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.adt<@X>>
+    hask.return(%lambda) : !hask.fn<() -> !hask.adt<@X>>
   }
     
 }

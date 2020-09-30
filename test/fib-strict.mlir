@@ -1,6 +1,7 @@
-// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s
-// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s
-// CHECK: 8
+// RUN: ../build/bin/hask-opt %s  -interpret | FileCheck %s
+// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s || true
+// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
+// CHECK: constructor(X 8)
 module {
   // hask.make_data_constructor @"+#"
   // hask.make_data_constructor @"-#"
@@ -24,10 +25,10 @@ module {
 
         %fib_sum  = hask.primop_add(%fib_i_minus_one_v, %fib_i_minus_two_v)                                                 
         hask.return(%fib_sum):!hask.value }]
-      [0 -> { ^entry(%zero: !hask.value):
-        hask.return(%zero):!hask.value }]
-      [1 -> { ^entry(%one: !hask.value):
-        hask.return(%one):!hask.value }]
+      [0 -> { ^entry:
+        hask.return(%i):!hask.value }]
+      [1 -> { ^entry:
+        hask.return(%i):!hask.value }]
 
       hask.return(%retval) : !hask.value
     }
@@ -37,7 +38,7 @@ module {
   // i:      0 1 2 3 4 5 6
   // fib(i): 0 1 1 2 3 5 8
   hask.func @main {
-    %lambda = hask.lambda(%_: !hask.thunk<!hask.value>) {
+    %lambda = hask.lambda() {
       %lit_6 = hask.make_i64(6)
       %fib = hask.ref(@fibstrict)  : !hask.fn<(!hask.value) -> !hask.value>
       %out_v = hask.ap(%fib : !hask.fn<(!hask.value) -> !hask.value>, %lit_6)
@@ -45,7 +46,7 @@ module {
       %x = hask.construct(@X, %out_v_forced: !hask.value): !hask.adt<@X>
       hask.return(%x) : !hask.adt<@X>
     }
-    hask.return(%lambda) :!hask.fn<(!hask.thunk<!hask.value>) -> !hask.adt<@X>>
+    hask.return(%lambda) :!hask.fn<() -> !hask.adt<@X>>
   }
 
 }

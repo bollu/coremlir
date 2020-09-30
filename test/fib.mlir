@@ -1,5 +1,6 @@
-// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s
-// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s
+// RUN: ../build/bin/hask-opt %s  -interpret | FileCheck %s
+// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s || true
+// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
 // CHECK: 8
 // Core2MLIR: GenMLIR BeforeCorePrep
 module {
@@ -104,13 +105,13 @@ module {
         %ret = hask.case @SimpleInt %icons
                [@SimpleInt -> { ^entry(%ihash: !hask.value):
                      %ret = hask.caseint %ihash 
-                     [0 -> { ^entry(%_: !hask.value): 
+                     [0 -> { ^entry:
                                 %z = hask.ref(@zero) : !hask.fn<() -> !hask.adt<@SimpleInt>>
                                 %z_t = hask.ap(%z: !hask.fn<() -> !hask.adt<@SimpleInt>>)
                                 %z_v = hask.force(%z_t): !hask.adt<@SimpleInt>
                                 hask.return (%z_v): !hask.adt<@SimpleInt>
                      }]
-                     [1 -> { ^entry(%_: !hask.value): 
+                     [1 -> { ^entry:
                                 %o = hask.ref(@one):!hask.fn<() -> !hask.adt<@SimpleInt>>
                                 %o_t = hask.ap(%o: !hask.fn<() -> !hask.adt<@SimpleInt>>)
                                 %o_v = hask.force(%o_t): !hask.adt<@SimpleInt>
@@ -158,7 +159,7 @@ module {
   // ix:  0 1 2 3 4 5 6
   // val: 0 1 1 2 3 5 8
   hask.func@main {
-    %lam = hask.lambda(%_: !hask.thunk<!hask.adt<@SimpleInt>>) {
+    %lam = hask.lambda() {
       %number = hask.make_i64(6)
       %boxed_number = hask.construct(@SimpleInt, %number: !hask.value): !hask.adt<@SimpleInt> 
       %thunk_number = hask.thunkify(%boxed_number: !hask.adt<@SimpleInt>) : !hask.thunk<!hask.adt<@SimpleInt>>
@@ -168,7 +169,7 @@ module {
       %out_v = hask.force(%out_t): !hask.adt<@SimpleInt>
       hask.return(%out_v) : !hask.adt<@SimpleInt>
     }
-    hask.return (%lam) : !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
+    hask.return (%lam) : !hask.fn<() -> !hask.adt<@SimpleInt>>
   }
     
 }

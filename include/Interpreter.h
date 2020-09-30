@@ -4,8 +4,6 @@
 #include "Hask/HaskOps.h"
 
 
-// interpret a module, and interpret the result as an integer. print it out.
-int interpretModule(mlir::ModuleOp module);
 
 enum class InterpValueType {
   I64,
@@ -84,6 +82,7 @@ struct InterpValue {
     return vs_.end();
   }
 
+
   static InterpValue constructor(std::string tag, std::vector<InterpValue> vs) {
     InterpValue cons(InterpValueType::Constructor);
     cons.s_ = tag;
@@ -120,6 +119,10 @@ struct InterpValue {
   }
 
 
+  std::vector<InterpValue> constructorArgs() const {
+    assert(type == InterpValueType::Constructor);
+    return vs_;
+  }
 
   int i_;
   std::vector<InterpValue> vs_;
@@ -130,3 +133,5 @@ private:
 
 llvm::raw_ostream &operator << (llvm::raw_ostream &o, InterpValue v);
 
+// interpret a module, and interpret the result as an integer. print it out.
+InterpValue interpretModule(mlir::ModuleOp module);

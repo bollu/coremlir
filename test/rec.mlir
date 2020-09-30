@@ -2,9 +2,10 @@
 // We need to worker wrapper optimise this into:
 // f(Int y) = Int (g# y)
 // g# 0 = 1; g# x = g (x - 1) -- g# is strict.
-// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s
-// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s
-// CHECK: 42
+// RUN: ../build/bin/hask-opt %s  -interpret | FileCheck %s
+// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s || true
+// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
+// CHECK: constructor(SimpleInt 42)
 module {
   hask.adt @SimpleInt [#hask.data_constructor<@SimpleInt [@"Int#"]>]
 
@@ -13,7 +14,7 @@ module {
         %icons = hask.force(%i):!hask.adt<@SimpleInt>
         %ihash = hask.defaultcase(@SimpleInt, %icons) : !hask.value
         %ret = hask.caseint %ihash 
-            [0 -> { ^entry(%_: !hask.value): 
+            [0 -> { ^entry: 
                       %v = hask.make_i64(42)
                       %boxed = hask.construct(@SimpleInt, %v:!hask.value): !hask.adt<@SimpleInt> 
                       hask.return (%boxed): !hask.adt<@SimpleInt>
@@ -36,7 +37,7 @@ module {
 
 
   hask.func@main {
-    %lam = hask.lambda(%_: !hask.thunk<!hask.adt<@SimpleInt>>) {
+    %lam = hask.lambda() {
       %n = hask.make_i64(6)
       %box_n_v = hask.construct(@SimpleInt, %n: !hask.value): !hask.adt<@SimpleInt> 
       %box_n_t = hask.thunkify(%box_n_v: !hask.adt<@SimpleInt>) : !hask.thunk<!hask.adt<@SimpleInt>>
@@ -45,7 +46,7 @@ module {
       %out_v = hask.force(%out_t): !hask.adt<@SimpleInt>
       hask.return(%out_v) : !hask.adt<@SimpleInt>
     }
-    hask.return (%lam) : !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
+    hask.return (%lam) : !hask.fn<() -> !hask.adt<@SimpleInt>>
   }
     
 }

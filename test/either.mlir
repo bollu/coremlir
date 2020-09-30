@@ -1,6 +1,6 @@
-// Check that constructors let us build left and right.
-// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s
-// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s
+// RUN: ../build/bin/hask-opt %s  -interpret | FileCheck %s
+// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s || true
+// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
 // CHECK: 1
 module {
   // should it be Attr Attr, with the "list" embedded as an attribute,
@@ -63,7 +63,7 @@ module {
 
   // 1 + 2 = 3
   hask.func@main {
-    %lam = hask.lambda(%_: !hask.thunk<!hask.value>) {
+    %lam = hask.lambda() {
       %rlo = hask.ref(@rightLeftOne): !hask.fn<() -> !hask.adt<@Either>>
       %input = hask.ap(%rlo : !hask.fn<() -> !hask.adt<@Either>>)
       %extract = hask.ref(@extract) :!hask.fn<(!hask.thunk<!hask.adt<@Either>>) -> !hask.value>
@@ -73,6 +73,6 @@ module {
       hask.return(%extract_v):!hask.value
 
     }
-    hask.return (%lam) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.value>
+    hask.return (%lam) : !hask.fn<() -> !hask.value>
   }
 }
