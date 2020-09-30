@@ -374,19 +374,15 @@ namespace g5{
 // denotes that we are wrapping a value into another value.
 template <typename Inner, typename Outer>
 struct Wrap {
-  std::optional<Inner> wi;
-  std::optional<Outer> wo;
+  Inner wi;
 
   Wrap(Inner i) : wi(i) {}
-  Wrap(Outer o) : wo(o) {}
 
   operator Outer () {
-    if(wo) { return *wo; }
-    else { return Outer(*wi); }
+    return Outer(wi);
   }
   operator Inner () {
-    if(wi) { return *wi; }
-    else { return  *wo.v; }
+    return wi;
   }
 };
 
@@ -414,12 +410,49 @@ namespace g6{
       iret = rethash;
     }
     assert(iret);
-    return SimpleInt(*iret);
+    return *iret;
   }
 
   int main() {
     g_count = 0;
     printf("\n===maing6===\n");
+    SimpleInt out = g(thunkify(SimpleInt(3)));
+    printf("out: %d\n", out.v);
+  }
+}
+
+namespace g7{
+  Wrap<int, SimpleInt> g(Unwrap<Force<SimpleInt>, int> i) {
+    std::optional<int> iret; // return value
+
+    // SimpleInt icons = force(i);
+    // SimpleInt icons = i;
+    // int ihash = casedefault(icons);
+    int ihash = i;
+    if (ihash <= 0) {
+      // return 42
+      iret = 42;
+    } else {
+      int prev = ihash - 1;
+      // SimpleInt siprev = SimpleInt(prev);
+      // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+      // SimpleInt g_prev_v = apStrict(g, siprev);
+      // SimpleInt g_prev_v = apStrict(g, prev);
+      // int g_prev_v_hash = casedefault(g_prev_v);
+      int g_prev_v_hash = apStrict(g, prev);
+      int rethash = g_prev_v_hash + 2;
+      // SimpleInt ret = SimpleInt(rethash);
+      // return ret;
+      iret = rethash;
+    }
+
+    assert(iret);
+    return *iret;
+  }
+
+  int main() {
+    g_count = 0;
+    printf("\n===maing7===\n");
     SimpleInt out = g(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
   }
@@ -437,4 +470,5 @@ int main() {
   g4::main();
   g5::main();
   g6::main();
+  g7::main();
 }
