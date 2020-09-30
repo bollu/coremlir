@@ -1,7 +1,17 @@
 #include <stdio.h>
 #include <functional>
-struct SimpleInt { int v; SimpleInt(int v) : v(v) {}; operator int() { return v; } };
-int casedefault(SimpleInt s) { return s.v; }
+int g_count = 0;
+struct SimpleInt {
+  int v;
+  SimpleInt(int v) : v(v) {
+    printf("- building SimpleInt(%2d)\n", ++g_count);
+  };
+  operator int() { return v; } };
+int casedefault(SimpleInt s) {
+  static int count = 0;
+  printf("- case-ing SimpleInt(%2d)\n", ++g_count);
+  return s.v;
+}
 
 template<typename T>
 struct Thunk;
@@ -147,7 +157,8 @@ namespace g0{
   }
 
   int main() {
-    printf("maing0: %d\n", g(thunkify(SimpleInt(3))).v);
+    g_count = 0;
+    printf("\n===maing0===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 }
 
@@ -171,7 +182,8 @@ namespace g1 {
   }
 
   int main() {
-    printf("maing1: %d\n", g(thunkify(SimpleInt(3))).v);
+    g_count = 0;
+    printf("\n===maing1===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 }
 
@@ -195,7 +207,8 @@ namespace g2{
   }
 
   int main() {
-    printf("maing2: %d\n", g(thunkify(SimpleInt(3))).v);
+    g_count = 0;
+    printf("\n===maing2===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 }
 
@@ -224,7 +237,8 @@ namespace g3 {
   }
 
   int main() {
-    printf("maing3: %d\n", g(thunkify(SimpleInt(3))).v);
+    g_count = 0;
+    printf("\n===maing3===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 };
 
@@ -278,7 +292,8 @@ namespace g4 {
   }
 
   int main() {
-    printf("maing4: %d\n", g(thunkify(SimpleInt(3))).v);
+    g_count = 0;
+    printf("\n===maing4===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 };
 
@@ -309,7 +324,8 @@ namespace g5 {
   }
 
   int main() {
-    printf("maing5: %d\n", g(thunkify(SimpleInt(3))).v);
+    g_count = 0;
+    printf("\n===maing5===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 };
 
@@ -352,7 +368,8 @@ namespace g6 {
   }
 
   int main() {
-    printf("maing6: %d\n", g(thunkify(SimpleInt(3))).v);
+    g_count = 0;
+    printf("\n===maing6===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 };
 
@@ -389,6 +406,7 @@ namespace g7 {
   }
 
   int main() {
+    g_count = 0;
     printf("\n===maing7===\n");
     printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
   }
