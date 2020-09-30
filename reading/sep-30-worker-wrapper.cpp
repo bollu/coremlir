@@ -4,6 +4,7 @@
 #include <assert.h>
 
 int g_count = 0;
+
 struct SimpleInt {
   int v;
   SimpleInt(int v) : v(v) {
@@ -16,9 +17,6 @@ int casedefault(SimpleInt s) {
   static int count = 0;
   return s.v;
 }
-
-template<typename T>
-struct Thunk;
 
 
 
