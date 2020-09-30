@@ -123,6 +123,7 @@ namespace f1{
   }
 
   int main() {
+    g_count = 0;
     printf("\n===mainf1===\n");
     SimpleInt out = f(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
@@ -146,6 +147,7 @@ namespace f2{
   }
 
   int main() {
+    g_count = 0;
     printf("\n===mainf2===\n");
     SimpleInt out = f(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
@@ -190,6 +192,7 @@ namespace f3{
   }
 
   int main() {
+    g_count = 0;
     printf("\n===mainf3===\n");
     SimpleInt out = f(thunkify(SimpleInt(3)));
     printf("out: %d\n", out.v);
@@ -217,7 +220,8 @@ namespace g0{
   int main() {
     g_count = 0;
     printf("\n===maing0===\n");
-    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    SimpleInt out = g(thunkify(SimpleInt(3)));
+    printf("out: %d\n", out.v);
   }
 }
 
@@ -243,7 +247,8 @@ namespace g1 {
   int main() {
     g_count = 0;
     printf("\n===maing1===\n");
-    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    SimpleInt out = g(thunkify(SimpleInt(3)));
+    printf("out: %d\n", out.v);
   }
 }
 
@@ -269,7 +274,8 @@ namespace g2{
   int main() {
     g_count = 0;
     printf("\n===maing2===\n");
-    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    SimpleInt out = g(thunkify(SimpleInt(3)));
+    printf("out: %d\n", out.v);
   }
 }
 
@@ -296,7 +302,8 @@ namespace g3{
   int main() {
     g_count = 0;
     printf("\n===maing3===\n");
-    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    SimpleInt out = g(thunkify(SimpleInt(3)));
+    printf("out: %d\n", out.v);
   }
 }
 
@@ -324,7 +331,8 @@ namespace g4{
   int main() {
     g_count = 0;
     printf("\n===maing4===\n");
-    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    SimpleInt out = g(thunkify(SimpleInt(3)));
+    printf("out: %d\n", out.v);
   }
 }
 
@@ -358,7 +366,62 @@ namespace g5{
   int main() {
     g_count = 0;
     printf("\n===maing5===\n");
-    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    SimpleInt out = g(thunkify(SimpleInt(3)));
+    printf("out: %d\n", out.v);
+  }
+}
+
+// denotes that we are wrapping a value into another value.
+template <typename Inner, typename Outer>
+struct Wrap {
+  std::optional<Inner> wi;
+  std::optional<Outer> wo;
+
+  Wrap(Inner i) : wi(i) {}
+  Wrap(Outer o) : wo(o) {}
+
+  operator Outer () {
+    if(wo) { return *wo; }
+    else { return Outer(*wi); }
+  }
+  operator Inner () {
+    if(wi) { return *wi; }
+    else { return  *wo.v; }
+  }
+};
+
+namespace g6{
+  Wrap<int, SimpleInt> g(Unwrap<Force<SimpleInt>, int> i) {
+    std::optional<int> iret; // return value
+
+    // SimpleInt icons = force(i);
+    // SimpleInt icons = i;
+    // int ihash = casedefault(icons);
+    int ihash = i;
+    if (ihash <= 0) {
+      // return 42
+      iret = 42;
+    } else {
+      int prev = ihash - 1;
+      // SimpleInt siprev = SimpleInt(prev);
+      // Thunk<SimpleInt> siprev_t = thunkify(siprev);
+      // SimpleInt g_prev_v = apStrict(g, siprev);
+      SimpleInt g_prev_v = apStrict(g, prev);
+      int g_prev_v_hash = casedefault(g_prev_v);
+      int rethash = g_prev_v_hash + 2;
+      // SimpleInt ret = SimpleInt(rethash);
+      // return ret;
+      iret = rethash;
+    }
+    assert(iret);
+    return SimpleInt(*iret);
+  }
+
+  int main() {
+    g_count = 0;
+    printf("\n===maing6===\n");
+    SimpleInt out = g(thunkify(SimpleInt(3)));
+    printf("out: %d\n", out.v);
   }
 }
 
@@ -373,4 +436,5 @@ int main() {
   g3::main();
   g4::main();
   g5::main();
+  g6::main();
 }
