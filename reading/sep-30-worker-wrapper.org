@@ -4,6 +4,7 @@
   the function locally?
 - Problem 2: how do we optimise worker/wrapper locally when we have multiple
   arguments?
+- [Godbolt link](TODO: add link to godbolt of C++ file)
 
 * Eliminate outlining
 
@@ -30,48 +31,61 @@
 
 #include <stdio.h>
 #include <functional>
-struct SimpleInt { int v; SimpleInt(int v) : v(v) {} };
-int casedefault(SimpleInt s) { return s.v; }
+#include <optional>
+#include <assert.h>
 
-template<typename T>
-struct Thunk;
+int g_count = 0;
 
-template<typename T>
-struct Force {
-  T val;
-  Force(T val): val(val) {};
-  operator T() { return val;}
+struct SimpleInt {
+  int v;
+  SimpleInt(int v) : v(v) {
+    printf("- building SimpleInt(%d): #%d\n", v, ++g_count);
+  };
+
+  operator int() { return v; }
 };
+int casedefault(SimpleInt s) {
+  static int count = 0;
+  return s.v;
+}
+
 
 
 template<typename T>
 struct Thunk {
+  Thunk(std::function<T()> lzf) : lzf(lzf) {
+    printf("- thunking: #%d\n", ++g_count);
+  }
+
+  T v() {
+    if(!cached) {
+      printf("- forcing: #%d\n", ++g_count);
+      cached = lzf();
+    }
+    assert(cached);
+    return *cached;
+  }
+
+private:
+  std::optional<T> cached;
   std::function<T()> lzf;
-  operator Force<T>() {
-    return Force<T>(lzf());
-  };
 };
 
-// template<typename T>
-// Force<T>::Force (Thunk<T> thnk) : val (thnk.lzf()) {}
 
 template<typename T>
-T force(Thunk<T> thnk) { return thnk.lzf(); }
+T force(Thunk<T> thnk) { return thnk.v(); }
 
 template<typename T>
-T force(Force<T> forcedv) { return forcedv.val; }
-
-template<typename T>
-Thunk<T> thunkify(T val) { return Thunk<T>{ .lzf=[val]() { return val; } }; }
+Thunk<T> thunkify(T v) { return Thunk<T>([v]() { return v; }); }
 
 template<typename R, typename... Args> 
 Thunk<R> ap(std::function<R(Args...)> f, Args... args) { 
-  return Thunk<R>{ .lzf=[=]() { return f(args...); } };
+  return Thunk<R>([=]() { return f(args...); });
 }
 
 template<typename R, typename... Args> 
 Thunk<R> ap(R(*f)(Args...), Args... args) { 
-  return Thunk<R>{ .lzf=[=]() { return f(args...); } };
+  return Thunk<R>([=]() { return f(args...); });
 }
 
 template<typename R, typename... Args> 
@@ -92,25 +106,29 @@ R apStrict(R(*f)(FArgs...), Args... args) {
 
 
 #+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
-namespace f0 {
-SimpleInt f(Thunk<SimpleInt> i) {
-  SimpleInt icons = force(i);
-  int ihash = casedefault(icons);
-  if (ihash <= 0) {
-    return SimpleInt(42);
-  } else {
-    int prev = ihash - 1;
-    SimpleInt siprev = SimpleInt(prev);
-    Thunk<SimpleInt> siprev_t = thunkify(siprev);
-    SimpleInt f_prev_v = apStrict(f, siprev_t);
-    return f_prev_v;
-  }
-}
+  namespace f0 {
+    SimpleInt f(Thunk<SimpleInt> i) {
+      SimpleInt icons = force(i);
+      int ihash = casedefault(icons);
+      if (ihash <= 0) {
+	return SimpleInt(42);
+      } else {
+	int prev = ihash - 1;
+	SimpleInt siprev = SimpleInt(prev);
+	Thunk<SimpleInt> siprev_t = thunkify(siprev);
+	SimpleInt f_prev_v = apStrict(f, siprev_t);
+	return f_prev_v;
+      }
+    }
 
-int main() {
-  printf("mainf0: %d\n", f(thunkify(SimpleInt(1))).v);
-}
-}
+    int main() {
+      g_count = 0;
+      printf("\n===mainf0===\n");
+      SimpleInt out = f(thunkify(SimpleInt(3)));
+      printf("out: %d\n", out.v);
+    }
+
+    }
 #+END_SRC
 
 #+END_SRC
@@ -121,26 +139,42 @@ int main() {
   toplevel. So we convert the function argument to a ~Force<SimplInt>(i)~.
 
 #+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
-namespace f1{
-SimpleInt f(Force<SimpleInt> i) {
-  // SimpleInt icons = force(i);
-  SimpleInt icons = i;
-  int ihash = casedefault(icons);
-  if (ihash <= 0) {
-    return SimpleInt(42);
-  } else {
-    int prev = ihash - 1;
-    SimpleInt siprev = SimpleInt(prev);
-    Thunk<SimpleInt> siprev_t = thunkify(siprev);
-    SimpleInt f_prev_v = apStrict(f, siprev_t);
-    return f_prev_v;
-  }
-}
 
-int main() {
-  printf("mainf1: %d\n", f(thunkify(SimpleInt(1))).v);
-}
-}
+  template<typename T>
+  struct Force {
+    T v;
+    Force(T v): v(v) {};
+    Force(Thunk<T> thnk) : v(thnk.v()) {};
+    operator T() { return T(v);}
+
+  };
+
+  template<typename T>
+  T force(Force<T> forcedv) { return forcedv.v; }
+
+
+  namespace f1{
+    SimpleInt f(Force<SimpleInt> i) {
+      // SimpleInt icons = force(i);
+      SimpleInt icons = i;
+      int ihash = casedefault(icons);
+      if (ihash <= 0) {
+	return SimpleInt(42);
+      } else {
+	int prev = ihash - 1;
+	SimpleInt siprev = SimpleInt(prev);
+	Thunk<SimpleInt> siprev_t = thunkify(siprev);
+	SimpleInt f_prev_v = apStrict(f, siprev_t);
+	return f_prev_v;
+      }
+    }
+
+    int main() {
+      printf("\n===mainf1===\n");
+      SimpleInt out = f(thunkify(SimpleInt(3)));
+      printf("out: %d\n", out.v);
+    }
+  }
 #+END_SRC
 
 ** Tail call, Version 2: Convert ~apStrict(f1, thunkify(x))~ to ~apStrict(f, x)~
@@ -150,53 +184,111 @@ int main() {
   argument anyway.
 
 #+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
-namespace f2{
-SimpleInt f(Force<SimpleInt> i) {
-  // SimpleInt icons = force(i);
-  SimpleInt icons = i;
-  int ihash = casedefault(icons);
-  if (ihash <= 0) {
-    return SimpleInt(42);
-  } else {
-    int prev = ihash - 1;
-    SimpleInt siprev = SimpleInt(prev);
-    // Thunk<SimpleInt> siprev_t = thunkify(siprev);
-    SimpleInt f_prev_v = apStrict(f, siprev);
-    return f_prev_v;
-  }
-}
+  namespace f2{
+    SimpleInt f(Force<SimpleInt> i) {
+      // SimpleInt icons = force(i);
+      SimpleInt icons = i;
+      int ihash = casedefault(icons);
+      if (ihash <= 0) {
+	return SimpleInt(42);
+      } else {
+	int prev = ihash - 1;
+	SimpleInt siprev = SimpleInt(prev);
+	// Thunk<SimpleInt> siprev_t = thunkify(siprev);
+	SimpleInt f_prev_v = apStrict(f, siprev);
+	return f_prev_v;
+      }
+    }
 
-int main() {
-  printf("mainf2: %d\n", f(thunkify(SimpleInt(1))).v);
-}
-}
+    int main() {
+      printf("\n===mainf2===\n");
+      SimpleInt out = f(thunkify(SimpleInt(3)));
+      printf("out: %d\n", out.v);
+    }
+  }
+#+END_SRC
+
+
+** Tail call, Version 3: Convert Unwrap ~SimpleInt~ into ~int~.
+
+- We replace occurences of ~Force<SimpleInt>~ with ~Unwrap<Force<SimpleInt>, int>~
+  which indicates that we will be unwrapping the single constructor into a raw `int`.
+
+#+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
+template<typename Outer, typename Inner>
+struct Unwrap {
+  Inner v;
+  Unwrap(Outer outer) : v(outer) {};
+  Unwrap(Inner inner) : v(inner) {};
+  operator Inner() { return v; }
+};
+
+// specialize to allow implicit construction of a
+// Unwrap<Force<Outer>> from an Outer
+template<typename Outer, typename Inner>
+struct Unwrap<Force<Outer>, Inner> {
+  Inner v;
+  Unwrap(Outer outer) : v(outer.v) {};
+  Unwrap(Thunk<Outer> outer) : v(outer.v()) {};
+  Unwrap(Inner inner) : v(inner) {};
+  operator Inner() { return v; }
+};
+#+END_SRC
+
+#+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
+  namespace f3{
+    SimpleInt f(Unwrap<Force<SimpleInt>, int> i) {
+      // SimpleInt icons = force(i);
+      // SimpleInt icons = i;
+      // int ihash = casedefault(icons);
+      int ihash = i;
+      if (ihash <= 0) {
+	return SimpleInt(42);
+      } else {
+	int prev = ihash - 1;
+	//SimpleInt siprev = SimpleInt(prev);
+	// Thunk<SimpleInt> siprev_t = thunkify(siprev);
+	// SimpleInt f_prev_v = apStrict(f, siprev);
+	SimpleInt f_prev_v = apStrict(f, prev);
+	return f_prev_v;
+      }
+    }
+
+    int main() {
+      printf("\n===mainf3===\n");
+      SimpleInt out = f(thunkify(SimpleInt(3)));
+      printf("out: %d\n", out.v);
+    }
+  }
 #+END_SRC
 
 ** Non Tail call, Version 0:
 
 #+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
-namespace g0{
-SimpleInt g(Thunk<SimpleInt> i) {
-    SimpleInt icons = force(i);
-    int ihash = casedefault(icons);
-    if (ihash <= 0) {
-        return SimpleInt(42);
-    } else {
-        int prev = ihash - 1;
-        SimpleInt siprev = SimpleInt(prev);
-        Thunk<SimpleInt> siprev_t = thunkify(siprev);
-        SimpleInt g_prev_v = apStrict(g, siprev_t);
-        int g_prev_v_hash = casedefault(g_prev_v);
-        int rethash = g_prev_v_hash + 2;
-        SimpleInt ret = SimpleInt(rethash);
-        return ret;
+  namespace g0{
+    SimpleInt g(Thunk<SimpleInt> i) {
+      SimpleInt icons = force(i);
+      int ihash = casedefault(icons);
+      if (ihash <= 0) {
+	return SimpleInt(42);
+      } else {
+	int prev = ihash - 1;
+	SimpleInt siprev = SimpleInt(prev);
+	Thunk<SimpleInt> siprev_t = thunkify(siprev);
+	SimpleInt g_prev_v = apStrict(g, siprev_t);
+	int g_prev_v_hash = casedefault(g_prev_v);
+	int rethash = g_prev_v_hash + 2;
+	SimpleInt ret = SimpleInt(rethash);
+	return ret;
+      }
     }
-}
 
-int main() {
-    printf("maing0: %d\n", g(thunkify(SimpleInt(3))).v);
-}
-}
+    int main() {
+      g_count = 0;
+      printf("\n===maing0===\n");
+      printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    }
+  }
 #+END_SRC
 
 ** Non Tail call, Version 1: Convert ~Thunk<T>~ to ~Force<T>~
@@ -205,29 +297,31 @@ int main() {
   toplevel. So we convert the function argument to a ~Force<SimplInt>(i)~.
 
 #+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
-namespace g1 {
-SimpleInt g(Force<SimpleInt> i) {
-    // SimpleInt icons = force(i);
-    SimpleInt icons = i;
-    int ihash = casedefault(icons);
-    if (ihash <= 0) {
-        return SimpleInt(42);
-    } else {
-        int prev = ihash - 1;
-        SimpleInt siprev = SimpleInt(prev);
-        Thunk<SimpleInt> siprev_t = thunkify(siprev);
-        SimpleInt g_prev_v = apStrict(g, siprev_t);
-        int g_prev_v_hash = casedefault(g_prev_v);
-        int rethash = g_prev_v_hash + 2;
-        SimpleInt ret = SimpleInt(rethash);
-        return ret;
+  namespace g1 {
+    SimpleInt g(Force<SimpleInt> i) {
+      // SimpleInt icons = force(i);
+      SimpleInt icons = i;
+      int ihash = casedefault(icons);
+      if (ihash <= 0) {
+	return SimpleInt(42);
+      } else {
+	int prev = ihash - 1;
+	SimpleInt siprev = SimpleInt(prev);
+	Thunk<SimpleInt> siprev_t = thunkify(siprev);
+	SimpleInt g_prev_v = apStrict(g, siprev_t);
+	int g_prev_v_hash = casedefault(g_prev_v);
+	int rethash = g_prev_v_hash + 2;
+	SimpleInt ret = SimpleInt(rethash);
+	return ret;
+      }
     }
-}
 
-int main() {
-    printf("maing1: %d\n", g(thunkify(SimpleInt(3))).v);
-}
-}
+    int main() {
+      g_count = 0;
+      printf("\n===maing1===\n");
+      printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    }
+  }
 #+END_SRC
 
 ** Non Tail call, Version 2: Convert ~apStrict(f1, thunkify(x))~ to ~apStrict(f, x)~
@@ -237,67 +331,144 @@ int main() {
   argument anyway.
 
 #+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
-namespace g2{
-SimpleInt g(Force<SimpleInt> i) {
-    // SimpleInt icons = force(i);
-    SimpleInt icons = i;
-    int ihash = casedefault(icons);
-    if (ihash <= 0) {
-        return SimpleInt(42);
-    } else {
-        int prev = ihash - 1;
-        SimpleInt siprev = SimpleInt(prev);
-        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
-        SimpleInt g_prev_v = apStrict(g, siprev);
-        int g_prev_v_hash = casedefault(g_prev_v);
-        int rethash = g_prev_v_hash + 2;
-        SimpleInt ret = SimpleInt(rethash);
-        return ret;
+  namespace g2{
+    SimpleInt g(Force<SimpleInt> i) {
+      // SimpleInt icons = force(i);
+      SimpleInt icons = i;
+      int ihash = casedefault(icons);
+      if (ihash <= 0) {
+	return SimpleInt(42);
+      } else {
+	int prev = ihash - 1;
+	SimpleInt siprev = SimpleInt(prev);
+	// Thunk<SimpleInt> siprev_t = thunkify(siprev);
+	SimpleInt g_prev_v = apStrict(g, siprev);
+	int g_prev_v_hash = casedefault(g_prev_v);
+	int rethash = g_prev_v_hash + 2;
+	SimpleInt ret = SimpleInt(rethash);
+	return ret;
+      }
     }
-}
 
-int main() {
-    printf("maing2: %d\n", g(thunkify(SimpleInt(3))).v);
-}
-}
+    int main() {
+      g_count = 0;
+      printf("\n===maing2===\n");
+      printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    }
+  }
 #+END_SRC
 
-** Non Taill call, Version 3: Extract common boxing to end
+** Non Tail call, Version 3: Mark parameter as ~Unwrap~
 
-- We can notice that the final return value from both branches
-  is a call to ~SimpleInt(...)~. We factor this out.
+- Since we immediately ~casedefault(icons)~, replace parameter by
+  ~Unwrap<Force<SimpleInt>, int>~.
 
 #+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
-namespace g3 {
-SimpleInt g(Force<SimpleInt> i) {
-    // SimpleInt icons = force(i);
-    SimpleInt icons = i;
-    int ihash = casedefault(icons);
-
-    int retval;
-    if (ihash <= 0) {
-        // return SimpleInt(42);
-        retval = 42;
-    } else {
-        int prev = ihash - 1;
-        SimpleInt siprev = SimpleInt(prev);
-        // Thunk<SimpleInt> siprev_t = thunkify(siprev);
-        SimpleInt g_prev_v = apStrict(g, siprev);
-        int g_prev_v_hash = casedefault(g_prev_v);
-        int rethash = g_prev_v_hash + 2;
-        // SimpleInt ret = SimpleInt(rethash);
-        // return ret;
-	retval = rethash;
+  namespace g3{
+    SimpleInt g(Unwrap<Force<SimpleInt>, int> i) {
+      // SimpleInt icons = force(i);
+      // SimpleInt icons = i;
+      // int ihash = casedefault(icons);
+      int ihash = i;
+      if (ihash <= 0) {
+	return SimpleInt(42);
+      } else {
+	int prev = ihash - 1;
+	SimpleInt siprev = SimpleInt(prev);
+	// Thunk<SimpleInt> siprev_t = thunkify(siprev);
+	SimpleInt g_prev_v = apStrict(g, siprev);
+	int g_prev_v_hash = casedefault(g_prev_v);
+	int rethash = g_prev_v_hash + 2;
+	SimpleInt ret = SimpleInt(rethash);
+	return ret;
+      }
     }
-    return SimpleInt(retval);
-}
 
-
-int main() {
-    printf("maing3: %d\n", g(thunkify(SimpleInt(3))).v);
-}
-};
+    int main() {
+      g_count = 0;
+      printf("\n===maing3===\n");
+      printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    }
+  }
 #+END_SRC
+
+
+** Non Tail call, Version 4: Exploit ~Unwrap~ to remove recursive call ~SimpleInt~ construction
+
+- Since the parameter is marked as ~Unwrap~, we don't need to call
+  the function as ~g(SimpleInt(prev))~. We can directly call ~g(prev)~.
+
+#+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
+  namespace g4{
+    SimpleInt g(Unwrap<Force<SimpleInt>, int> i) {
+      // SimpleInt icons = force(i);
+      // SimpleInt icons = i;
+      // int ihash = casedefault(icons);
+      int ihash = i;
+      if (ihash <= 0) {
+	return SimpleInt(42);
+      } else {
+	int prev = ihash - 1;
+	// SimpleInt siprev = SimpleInt(prev);
+	// Thunk<SimpleInt> siprev_t = thunkify(siprev);
+	// SimpleInt g_prev_v = apStrict(g, siprev);
+	SimpleInt g_prev_v = apStrict(g, prev);
+	int g_prev_v_hash = casedefault(g_prev_v);
+	int rethash = g_prev_v_hash + 2;
+	SimpleInt ret = SimpleInt(rethash);
+	return ret;
+      }
+    }
+
+    int main() {
+      g_count = 0;
+      printf("\n===maing4===\n");
+      printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    }
+  }
+#+END_SRC
+
+** Non Tail call, Version 5: Move common wrapping to end
+
+- Since in both cases, we wrap the output as a ~SimpleInt(42)~, we move this
+  wrapping to the end.
+
+#+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
+  namespace g5{
+    SimpleInt g(Unwrap<Force<SimpleInt>, int> i) {
+      std::optional<int> iret; // return value
+
+      // SimpleInt icons = force(i);
+      // SimpleInt icons = i;
+      // int ihash = casedefault(icons);
+      int ihash = i;
+      if (ihash <= 0) {
+        // return 42
+        iret = 42;
+      } else {
+	int prev = ihash - 1;
+	// SimpleInt siprev = SimpleInt(prev);
+	// Thunk<SimpleInt> siprev_t = thunkify(siprev);
+	// SimpleInt g_prev_v = apStrict(g, siprev);
+	SimpleInt g_prev_v = apStrict(g, prev);
+	int g_prev_v_hash = casedefault(g_prev_v);
+	int rethash = g_prev_v_hash + 2;
+	// SimpleInt ret = SimpleInt(rethash);
+	// return ret;
+	iret = rethash;
+      }
+      assert(iret);
+      return SimpleInt(*iret);
+    }
+
+    int main() {
+      g_count = 0;
+      printf("\n===maing5===\n");
+      printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    }
+  }
+#+END_SRC
+
 
 ** Odds and ends: the definition of ~main~ 
 
@@ -306,9 +477,12 @@ int main() {
     f0::main();
     f1::main();
     f2::main();
+    f3::main();
     g0::main();
     g1::main();
     g2::main();
     g3::main();
+    g4::main();
+    g5::main();
   }
 #+END_SRC
