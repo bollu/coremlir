@@ -1,15 +1,19 @@
 #include <stdio.h>
 #include <functional>
+#include <optional>
+#include <assert.h>
+
 int g_count = 0;
 struct SimpleInt {
   int v;
   SimpleInt(int v) : v(v) {
-    printf("- building SimpleInt(%2d)\n", ++g_count);
+    printf("- building SimpleInt(%d): #%d\n", v, ++g_count);
   };
-  operator int() { return v; } };
+
+  operator int() { return v; }
+};
 int casedefault(SimpleInt s) {
   static int count = 0;
-  printf("- case-ing SimpleInt(%2d)\n", ++g_count);
   return s.v;
 }
 
@@ -18,9 +22,23 @@ struct Thunk;
 
 
 
-
 template<typename T>
 struct Thunk {
+  Thunk(std::function<T()> lzf) : lzf(lzf) {
+    printf("- thunking: #%d\n", ++g_count);
+  }
+
+  T v() {
+    if(!cached) {
+      printf("- forcing: #%d\n", ++g_count);
+      cached = lzf();
+    }
+    assert(cached);
+    return *cached;
+  }
+
+private:
+  std::optional<T> cached;
   std::function<T()> lzf;
   // operator Force<T>() {
   //   return Force<T>(lzf());
@@ -36,7 +54,8 @@ template<typename T>
 struct Force {
   T v;
   Force(T v): v(v) {};
-  Force(Thunk<T> thnk) : v(thnk.lzf()) {};
+  Force(Thunk<T> thnk) : v(thnk.v()) {
+  };
   operator T() { return T(v);}
 
 };
@@ -46,22 +65,22 @@ struct Force {
 // Force<T>::Force (Thunk<T> thnk) : v (thnk.lzf()) {}
 
 template<typename T>
-T force(Thunk<T> thnk) { return thnk.lzf(); }
+T force(Thunk<T> thnk) { return thnk.v(); }
 
 template<typename T>
 T force(Force<T> forcedv) { return forcedv.v; }
 
 template<typename T>
-Thunk<T> thunkify(T v) { return Thunk<T>{ .lzf=[v]() { return v; } }; }
+Thunk<T> thunkify(T v) { return Thunk<T>([v]() { return v; }); }
 
 template<typename R, typename... Args> 
 Thunk<R> ap(std::function<R(Args...)> f, Args... args) { 
-  return Thunk<R>{ .lzf=[=]() { return f(args...); } };
+  return Thunk<R>([=]() { return f(args...); });
 }
 
 template<typename R, typename... Args> 
 Thunk<R> ap(R(*f)(Args...), Args... args) { 
-  return Thunk<R>{ .lzf=[=]() { return f(args...); } };
+  return Thunk<R>([=]() { return f(args...); });
 }
 
 template<typename R, typename... Args> 
@@ -158,7 +177,8 @@ namespace g0{
 
   int main() {
     g_count = 0;
-    printf("\n===maing0===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
+    printf("\n===maing0===\n");
+    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 }
 
@@ -183,7 +203,8 @@ namespace g1 {
 
   int main() {
     g_count = 0;
-    printf("\n===maing1===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
+    printf("\n===maing1===\n");
+    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 }
 
@@ -208,7 +229,8 @@ namespace g2{
 
   int main() {
     g_count = 0;
-    printf("\n===maing2===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
+    printf("\n===maing2===\n");
+    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 }
 
@@ -238,7 +260,8 @@ namespace g3 {
 
   int main() {
     g_count = 0;
-    printf("\n===maing3===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
+    printf("\n===maing3===\n");
+    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 };
 
@@ -260,7 +283,7 @@ template<typename Outer, typename Inner>
 struct Unwrap<Force<Outer>, Inner> {
   Inner v;
   Unwrap(Outer outer) : v(outer.v) {};
-  Unwrap(Thunk<Outer> outer) : v(outer.lzf()) {};
+  Unwrap(Thunk<Outer> outer) : v(outer.v()) {};
   Unwrap(Inner inner) : v(inner) {};
   operator Inner() { return v; }
 };
@@ -293,7 +316,8 @@ namespace g4 {
 
   int main() {
     g_count = 0;
-    printf("\n===maing4===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
+    printf("\n===maing4===\n");
+    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 };
 
@@ -325,7 +349,8 @@ namespace g5 {
 
   int main() {
     g_count = 0;
-    printf("\n===maing5===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
+    printf("\n===maing5===\n");
+    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
   }
 };
 
@@ -334,12 +359,15 @@ namespace g5 {
 // denotes that we are wrapping a value into another value.
 template <typename Inner, typename Outer>
 struct Wrap {
-  Inner v;
+  Inner wv;
 
-  Wrap(Inner v) : v(v) {}
+  Wrap(Inner v) : wv(v) {}
+  Wrap(Outer v) : wv(v.v) {
+    printf("unwrapping (%d)\n", ++g_count);
+  }
 
-  operator Outer () {return Outer(v);}
-  operator Inner () {return v; }
+  operator Outer () { return Outer(wv);}
+  operator Inner () {return wv; }
 };
 
 namespace g6 {
@@ -369,7 +397,10 @@ namespace g6 {
 
   int main() {
     g_count = 0;
-    printf("\n===maing6===\nout: %d\n", g(thunkify(SimpleInt(3))).v);
+    printf("\n===maing7===\n");
+    SimpleInt out = g(thunkify(SimpleInt(3)));
+    printf("out: %d\n", out.v);
+    printf("\n===maing7===\n");
   }
 };
 
@@ -408,7 +439,9 @@ namespace g7 {
   int main() {
     g_count = 0;
     printf("\n===maing7===\n");
-    printf("out: %d\n", g(thunkify(SimpleInt(3))).v);
+    SimpleInt out = g(thunkify(SimpleInt(3)));
+    printf("out: %d\n", out.v);
+    printf("\n===maing7===\n");
   }
 };
 
