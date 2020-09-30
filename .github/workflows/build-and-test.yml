@@ -1,4 +1,4 @@
-name: Build and test
+name: Build and test [from upstream]
 
 on: [push, pull_request]
 
@@ -7,18 +7,18 @@ env:
   CMAKE_FLAGS: '-DCMAKE_LINKER=lld -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DMLIR_DIR=$GITHUB_WORKSPACE/llvm-project/prefix/lib/cmake/mlir/ -DLLVM_DIR=$GITHUB_WORKSPACE/llvm-project/prefix/lib/cmake/llvm/ -DLLVM_EXTERNAL_LIT=$GITHUB_WORKSPACE/llvm-project/build/bin/llvm-lit'
 
 jobs:
-  lint:
-    name: Check formatting
-    runs-on: ubuntu-latest
-    steps:
-      - name: Get Template Code
-        uses: actions/checkout@v2
-      - name: clang-format
-        uses: DoozyX/clang-format-lint-action@v0.6
-        with:
-          source: '.'
-          extensions: 'h,cpp'
-          clangFormatVersion: 9
+    # lint:
+    #   name: Check formatting
+    #   runs-on: ubuntu-latest
+    #   steps:
+    #     - name: Get Template Code
+    #       uses: actions/checkout@v2
+    #     - name: clang-format
+    #       uses: DoozyX/clang-format-lint-action@v0.6
+    #       with:
+    #         source: '.'
+    #         extensions: 'h,cpp'
+    #         clangFormatVersion: 9
 
   build:
     name: Build and test
@@ -51,15 +51,21 @@ jobs:
           cd $GITHUB_WORKSPACE/llvm-project/build
           cmake $GITHUB_WORKSPACE/llvm-project/llvm -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_BUILD_EXAMPLES=OFF -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_INSTALL_PREFIX=$GITHUB_WORKSPACE/llvm-project/prefix -DLLVM_ENABLE_PROJECTS='mlir' -DLLVM_OPTIMIZED_TABLEGEN=ON -DLLVM_ENABLE_OCAMLDOC=OFF -DLLVM_ENABLE_BINDINGS=OFF -DLLVM_INSTALL_UTILS=ON -DLLVM_ENABLE_LLD=ON
           cmake --build . --target install -- -j$(nproc)
+          make install
       - name: Sanitizer build
         run: |
+          export PATH=$PATH:$GITHUB_WORKSPACE/llvm-project/prefix/bin
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GITHUB_WORKSPACE/llvm-project/prefix/lib
           mkdir $GITHUB_WORKSPACE/mlir-standalone-template/sanitizer-build
           cd $GITHUB_WORKSPACE/mlir-standalone-template/sanitizer-build
-          cmake $GITHUB_WORKSPACE/mlir-standalone-template -DCMAKE_BUILD_TYPE=Debug -DUSE_SANITIZER='Address;Undefined' ${{ env.CMAKE_FLAGS }}
+          # cmake $GITHUB_WORKSPACE/mlir-standalone-template -DCMAKE_BUILD_TYPE=Debug -DUSE_SANITIZER='Address;Undefined' ${{ env.CMAKE_FLAGS }}
+          cmake $GITHUB_WORKSPACE/mlir-standalone-template -DCMAKE_BUILD_TYPE=Debug ${{ env.CMAKE_FLAGS }}
           cmake --build . -j$(nproc) # --target check-standalone-opt -- -j$(nproc)
           cd $GITHUB_WORKSPACE/test && $GITHUB_WORKSPACE/llvm-project/build/bin/llvm-lit .
       - name: Release build
         run: |
+          export PATH=$PATH:$GITHUB_WORKSPACE/llvm-project/prefix/bin
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GITHUB_WORKSPACE/llvm-project/prefix/lib
           mkdir $GITHUB_WORKSPACE/mlir-standalone-template/build
           cd $GITHUB_WORKSPACE/mlir-standalone-template/build
           cmake $GITHUB_WORKSPACE/mlir-standalone-template -DCMAKE_BUILD_TYPE=Release ${{ env.CMAKE_FLAGS }}
