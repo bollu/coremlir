@@ -18,6 +18,7 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Support/LogicalResult.h"
+#include <mlir/Parser.h>
 #include <sstream>
 
 // Standard dialect

@@ -282,8 +282,185 @@ let x = 42
     in (y, 1)
 ```
 
-  
+- We should not analyze the expression `(y, 1)` with the transformer
+  environment `ρ = {y: (id, <θ⊥, id>)}`, because the projection environment
+  `θ⊥` does not indicate that **`x` should not be bottomed**. A correct environment
+  would be `ρ = {y: (id, <{x: id}, id>)}`: if a projection `id` is put on `y`,
+  it **unleashes** a projection at least as big as `id` on `x`.
 
+#### Definition 4.6: Expanded value environments
+
+An expanded value environment `σ` is an element of:
+
+```
+Σ = Var -o-> (Env x (Env --cont--> D))
+```
+
+We define a flattening operation
+
+```
+flat: Σ -> Env
+flat(σ)(v) = let (env, env2val) = σ(v) in env2val(env)
+```
+
+#### Relationship between expanded environments and transformer environments
+
+#### Defini5ion 4.7: Related Expanded and Transformer environments: 
+We define `σ ~ env#` iff:
+- (1) `dom(env#) ⊂ dom(σ)`
+- (2) for all projections `p`:
+
+```
+let (env, f) = σ(x); (θ, q) = env#(x)(p)
+p (f env) = p(q(f(θ@env))) if x in dom(env#)
+f = const [otherwise]
+```
+- That is, if `x` is known to `env#`, the transformer `env#(x)` for any projection `p` delivers
+  a safe `(θ, q)` for the corresponding pair `(env, f) = σ(x)`
+
+- On the other hand, if `x` is not known to `env#`, then `f` is a constant function.
+  This means that if no information about `x` is provided by `env#`, then its value
+  in `σ` does not depend on any variables [SID: I don't understand this].
+
+  
+#### Safety of projection based analysis
+
+TODO
+
+#### 5: Absence analysis
+#### 5.1: Motivation
+
+- Given expression `e` and environment `ρ`, which components of `e` and `ρ`
+  are unused when evaluating `[[e]](ρ)`?
+
+```hs
+f x y = if x == 0 then f (x - 1) y else x
+```
+
+- clear that in the above, `x` is used. 
+- How do we infer in the above that `y` is not used?
+
+
+```hs
+st p = case p of { (x, y) -> x }
+```
+- The second component of the pair is unused.
+- Absence analysis is more than just "which variables do not occur".
+
+- **Sid Thought**: For us, if for all `return(y)`, in the def-chain of `y`, we don't see a `force(var)`,
+  then we know that use of `var` is absent?
+
+#### Definition of absence analysis
+#### Strictness analysis
+- The above theory models absence, but not strictness.
+- Intuitively, `⊥` represents a value, which when forced, diverges.
+- We have no way to model divergence ITSELF.
+
+Consider:
+
+```
+bot :: a; bot = bot;
+
+main = do
+  x = bot -- ⊥
+  !y = bot -- DIVERGENT: it attempts to force a `bot`.
+  return ()
+```
+#### 6.1: Extending domain for strictness
+
+- Wadler&Hughes extend the domain with a new element `⑂` [lightining bolt],
+  such that `⑂ < ⊥`.
+- This does not introduce new semantics to *Haskell*.
+- Projections gain a new element, which is `⑂`.
+- We can extend haskell functions with the rule `f ⑂ = ⑂`.
+
+We get a projection that models *evaluation*, called `S` [for strict]
+
+```hs
+-- | evaluating bottom diverges.
+S ⑂ = ⑂
+S ⊥ = ⑂
+S x = x otherwise
+```
+
+- **Sid thought:** Looks like UB!
+
+- We have new combinators that evaluate their arguments:
+
+```hs
+(p ->> q)(f) = \d -> p (f (q d)) [if f ∈ (D -> D)]
+(p ->> q)(f) = ⑂ [otherwise]
+```
+
+```hs
+((p, q))(d1, d2) = (p(d1), q(d2)) [if p(d1) /= ⑂, q(d2) /= ⑂]
+((p, q))(_) = ⑂ [otherwise]
+```
+
+- To check if a function uses an argument strictly, we can ask if:
+  `(ID ->> S)f == (S ->> S)f`. Proof:
+
+```
+(S . f . id) ⊥ == (S . f . S) ⊥
+=> S(f(id(⊥))) == S(f(S(⊥)))
+=> S(f(⊥)) == S(f(⑂))
+=> S(f(⊥)) == S(⑂)
+=> S(f(⊥)) == ⑂
+=> f(⊥) == ⊥
+```
+
+- So the above condition implies that `f` is strict.
+
+#### Conjunction of demands
+
+- Consider a fixed `g = \(x, y) → ...`.
+- For a fixed projection `p`, we know that, for some `(qx(p), qy(p))`:
+```
+((id, id) ->> p) g = ((qx(p), qy(p)) ->> p) g
+```
+
+- Assume now that for a function `f = \z -> g (z, z)`, we are interested in finding
+  a non-trivial projection `qz`, such that:
+
+```
+(id ->> p) f = (qz ->> p) f
+```
+by combining information from `qx` and `qy`.
+
+- **Sid note:**[I am very confused, where did `f` come from, and why is
+  it related to `p`?]
+
+#### Definition 6.1: Projection Conjunction
+
+Let `p` be a fixed projection. The operator `&` is a **conjunction operator** with
+respect to `p` iff for all `g ∈ D`, and projections `q1, q2`:
+
+```
+( ((id, id)) ->> p) g = ( ((q1, q2)) -> p) g
+=> ( ID ->> p) (g . mult2) = ( (q1 & q2) ->> p) (g . mult2)
+where mult2 = \d -> (d, d)
+```
+- The `&` operator is commutative, associative, idempotent.
+- `U` is a safe approximation for `&`.
+
+In the case of strictness projections, we can 
+
+##### Lemma 6.1: If `p <= S` and `&` is a conjunction operator wrt `S` then `&` is a conjunction operator wrt `p`
+
+TODO. I don't understand `&`.
+
+#### 6.3: Hyperstrict demand
+
+- Define `H d = ⑂`. The demand `H` can be placed on a value if `d` is guaranteed
+  to diverge. So, we have that:
+
+```
+((H, p)) = ((p, H)) = H
+H ->> p = p ->> H = H
+```
+#### 6.4: Projection based demand analysis
+- `L`: identity projection: `L(x) = x`.
+- `S`: strict projection: `S(⊥) = S(⑂) = ⑂`.
 
 #### Wild notes by Sid
 - Why do we use a lattice of projections/idempotents? can we just use a boolean
