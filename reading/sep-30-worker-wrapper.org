@@ -597,7 +597,103 @@ struct Unwrap<Force<Outer>, Inner> {
   }
 #+END_SRC
 
-** Odds and ends: the definition of ~main~ 
+* Multiple arguments
+
+Now we consider optimizations when we have multiple arguments. 
+
+** Non-recursive, multiple arguments: V0
+
+#+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
+  namespace h{
+    SimpleInt h0(Thunk<int> a, Thunk<int> b) {
+      int ahash = force(a);
+      if (a >= 0) {
+	int bhash1 = force(b);
+	return SimpleInt(bhash1 + 1);
+      } else 
+	int bhash2 = force(b);
+	return SimpleInt(bhash1 - 1);
+      }
+    }
+    int main() {
+	g_count = 0;
+	printf("\n===mainh0===\n");
+	SimpleInt out = h(thunkify(SimpleInt(3)));
+	printf("out: %d\n", out.v);
+	return 0;
+    }
+  }
+#+END_SRC
+
+** Non-recursive, multiple arguments: V1
+
+- Since we call ~bhash1 = force(b)~, ~bash2 = force(b)~
+  in both branches, we lift both of these to the beginning of the
+  outer scope.  In general, the rule of thumb is that unwrappings are
+  lifted to the beginning of the outermost scope, and wrapping is lifted to
+  the end of the outermost scope.
+
+#+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
+  namespace h0{
+    SimpleInt h(Thunk<int> a, Thunk<int> b) {
+      int ahash = force(a);
+      int bhash = force(b);
+      if (a >= 0) {
+	int bhash1 = bhash;
+	return SimpleInt(bhash1 + 1);
+      } else 
+	int bhash2 = bhash;
+	return SimpleInt(bhash1 - 1);
+      }
+    
+    int main() {
+	g_count = 0;
+	printf("\n===mainh0===\n");
+	SimpleInt out = h(thunkify(SimpleInt(3)));
+	printf("out: %d\n", out.v);
+	return 0;
+    }
+  }
+#+END_SRC
+
+** Non-recursive, multiple arguments: V2
+
+- Perform the usual story of replacing stuff with ~Force<Thunk<int>>~.
+
+#+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
+  namespace h1{
+    SimpleInt h(Thunk<int> a, Thunk<int> b) {
+      int ahash = force(a);
+      int bhash = force(b);
+      if (a >= 0) {
+	int bhash1 = bhash;
+	return SimpleInt(bhash1 + 1);
+      } else 
+	int bhash2 = bhash;
+	return SimpleInt(bhash1 - 1);
+      }
+    
+    int main() {
+	g_count = 0;
+	printf("\n===mainh0===\n");
+	SimpleInt out = h(thunkify(SimpleInt(3)));
+	printf("out: %d\n", out.v);
+	return 0;
+    }
+  }
+#+END_SRC
+
+* Wrapping up, thoughts
+
+- In some sense, we don't want/need statement-based-SSA. What we want/need is "sea of nodes".
+- When I say "lift to the top-level", in the "statement-based-regime", we will say: 
+  "try to make the first instructions in the functions a ~force~". But this is inherently
+  ambiguous, since we need to discuss orderings between the different ~force~ instructions.
+- On the other hand, in the "sea of nodes" regime, we will say: "try to make the values at
+  the root of the trees in the SSA a ~force~". This is unambiguous, since there is no
+  'extra schedule' imposed.
+
+* Odds and ends: the definition of ~main~ 
 
 #+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
   int main() {
@@ -613,5 +709,9 @@ struct Unwrap<Force<Outer>, Inner> {
     g5::main();
     g6::main();
     g7::main();
+    h0::main();
+    h1::main();
+    p0::main();
+    
   }
 #+END_SRC
