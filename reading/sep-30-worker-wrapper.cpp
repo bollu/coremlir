@@ -472,6 +472,71 @@ namespace g7{
   }
 }
 
+namespace h0{
+  SimpleInt h(Thunk<int> a, Thunk<int> b) {
+    int ahash = force(a);
+    if (ahash >= 0) {
+      int bhash1 = force(b);
+      return SimpleInt(bhash1 + 1);
+    } else {
+      int bhash2 = force(b);
+      return SimpleInt(bhash2 - 1);
+    }
+  }
+  int main() {
+      g_count = 0;
+      printf("\n===mainh0===\n");
+      SimpleInt out = h(thunkify(3), thunkify(41));
+      printf("out: %d\n", out.v);
+      return 0;
+  }
+}
+
+namespace h1{
+  SimpleInt h(Thunk<int> a, Thunk<int> b) {
+    int ahash = force(a);
+    int bhash = force(b);
+    if (ahash >= 0) {
+      int bhash1 = bhash;
+      return SimpleInt(bhash1 + 1);
+    } else {
+      int bhash2 = bhash;
+      return SimpleInt(bhash2 - 1);
+    }
+  }
+
+  int main() {
+    g_count = 0;
+    printf("\n===mainh1===\n");
+    SimpleInt out = h(thunkify(3), thunkify(41));
+    printf("out: %d\n", out.v);
+    return 0;
+  }
+}
+
+namespace h2{
+  // SimpleInt h(Thunk<int> a, Thunk<int> b) {
+  SimpleInt h(Force<int> a, Force<int> b) {
+    int ahash = force(a);
+    int bhash = force(b);
+    if (ahash >= 0) {
+      int bhash1 = bhash;
+      return SimpleInt(bhash1 + 1);
+    } else {
+      int bhash2 = bhash;
+      return SimpleInt(bhash2 - 1);
+    }
+  }
+
+  int main() {
+    g_count = 0;
+    printf("\n===mainh2===\n");
+    SimpleInt out = h(thunkify(3), thunkify(41));
+    printf("out: %d\n", out.v);
+    return 0;
+  }
+}
+
 int main() {
   f0::main();
   f1::main();
@@ -485,4 +550,8 @@ int main() {
   g5::main();
   g6::main();
   g7::main();
+  h0::main();
+  h1::main();
+  h2::main();
+
 }

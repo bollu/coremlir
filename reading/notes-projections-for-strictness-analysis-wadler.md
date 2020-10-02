@@ -140,8 +140,8 @@ f u
 #### 2. Projections
 - `p(u) <= u`, and ` p (p(u)) = p(u)` is a projection.
 - We can also rephrase the above as: `p <= id`, `p . p = p`.
-- Projections form a complete lattice with `id` at the top, `bot` at the bottom,
-  where `id u = u`, and `bot u = ⊥`.
+- Projections form a complete lattice with `id` at the top, `bot` at
+  the bottom, where `id u = u`, and `bot u = ⊥`.
 
 ##### Definition: function being strict in context
 
@@ -151,3 +151,193 @@ if `c . f = c . f . s`. We write `f: c => s`. For example, we have seen that
 
 ##### Proposition: `f: a => b` iff `a . f <= f . b`
 
+**Forward proof**
+
+We have that `f: a => b`. that is, `a . f = a . f . b`.  We must show
+that `a . f <= f . b`.
+
+```
+f.b = f.b 
+a.f.b <= f.b  [a is projection, pulls values downwards]
+a.f <= f.b [a.f = a.f.b]
+```
+
+**Backward proof**
+
+We have that `a.f <= f.b`. We must show that
+
+`f: a => b`. that is, `a.f = a.f.b`.
+
+- Step 1: show that `a.f <= a.f.b`.
+
+```
+a(f(x)) <= f(b(x)) [assumption]
+a(a(f(x)) <= a(f(b(x))) [a is monotone; x < y => a(x) <= a(y)]
+a(f(x)) <= a(f(b(x))) [a is projection; a.a = a]
+a.f <= a.f. b [pointfree]
+```
+- Step 2: show that `a.f >= a.f.b`: Since `id >= b`, hence `a.f.id >= a.f.b`.
+  Spelled out:
+```
+x >= b(x) [b is a projection]
+y >= z => a(f(y)) >= a(f(z)) [a.f is monotone]
+a(f(x)) >= a(f(b(x))) [set y=x, z=b(x)]
+a.f >= a.f.b
+```
+
+- Step 3: since `a.f <= a.f.b` and `a.f >= a.f.b` we have that `a.f = a.f.b`.
+
+##### Proposition: if `f: a => b` and `g: b => c` then `f . g : a => c`
+- From above, `a.f <= f.b`
+- From above, `b.g <= g.c`
+
+```
+(a.f).g
+<= (f.b).g
+= f.(b.g)
+<= f.(g.c)
+```
+
+- From above, since `a.f.g <= f.g.c` we have that `f.g: a => c`.
+
+
+##### Propositions: If `A` is a set of projections then `union(A)` exists and is a projection.
+
+- For every `a ∈ A` we have that `a <= id`.
+- In a DCPO, every bounded set has a least upper bound (LUB) which is at most the LUB
+  [TODO: find reference]
+- Thus the element `u = union(A)` exists since `A` is bounded since we are within
+  a DCPO. Also, `u <= id`.
+- We need to show that `u` is a projection.
+- We must have that `u . u <= [u.id = u]` because `u <= id`.
+- It remains to be shown that `u.u >= u`, thereby giving `u.u = u`.
+- The core idea is to expand `u` in terms of its union, and then exploiting
+  that it is built from a union of projections.
+
+```
+(u.u)(x)
+= u(union({ a(x) : a ∈ A}))   [u = union(A)]
+>= union({ u(a(x)) : a ∈ A})) [u <= id]
+>= union({ a(a(x)) : a ∈ A})) [a <= u, since u is LUB]
+>= union({ a(u) : a ∈ A}))    [a is projection]
+= u(x)
+```
+
+- Hence `u.u >= u`. Combining `u.u <= u` we have shown that `u` is a projection.
+
+##### Proposition: intersection of projections need not always be projection
+
+```
+f(c)=c|c---c --   |g(c)=b
+      |        \  |
+f(b)=a|  --b----b |g(b)=b
+      | /	      |
+f(a)=a|a---a---- a|g(a)=a
+```
+
+- Call the intersection of `f` and `g` as `h`. We define `h(x) = intersect(f(x), g(x))`.
+-  Now, `h(a) = a` since both `f, g` map `a` to `a`.
+- `h(b) = a` since `f` pulls `b` down to `a` will `g` keeps `b` at `b`.
+- `h(c) = b` since `g` pulls `c` down to `b` while `f` keeps `c` at `c`.
+- Now note that `h(h(c)) = a` while `h(c) = b`. Thus `h` is not a projection!
+
+
+##### Proposition: defining intersection of projections
+
+- We define the intersection of two projections `p, q` to be the largest projection `r`
+  such that `r <= p` and `r <= q`. Formally, it is:
+  
+```
+intersect(A) = union(lower-bounds(A))
+= union_a({ p ∈ Proj: ∀ a ∈ A, p <= a})
+```
+- This must exist because unions exist because bounded set of DCPO.
+
+#### 3: Strictness and absence
+
+- We have `⊥` which tells us that if forced, we will get a divergent computation.
+  We need a way to talk about divergence itself.
+- Add a new element `⑂` (lightning bolt) which means "divergence". This is less 
+  that `⊥`
+
+##### Unacceptable values
+- A value `u` is **unacceptable** to a projection `p` iff `p(u) = ⑂`.
+- If `f: a => b`  and `u` is unacceptable to `b`, then `f(u)` is
+  unacceptable to `a`
+
+```
+a.f = a.f.b [by defn. f:a => b]
+a(f(u) = a(f(b(u)))
+a(f(u)) = a(f(⑂)) [u is unacceptable to b]
+a(f(u)) = ⑂ [⑂ propagates]
+```
+- Since `a(f(u)) = ⑂`, `f(u)` is unacceptable to `a`.
+
+##### `STR` projection
+
+Define:
+
+```
+STR(⑂) = ⑂
+STR(⊥) = ⑂
+STR(x) = x
+```
+
+##### `FAIL` projection
+
+- `FAIL(_) = ⑂`. This is the new bottom of the lattice.
+
+##### `f: STR => FAIL` iff `f` is divergent
+
+- The intuition is that if we evaluate the return value of `f` [the context `STR=>`],
+  then this is as good as failing [the context `=> FAIL`]. That is, `f` returns a bottom value
+  on **all** inputs when the output is forced.
+  
+```
+STR(f(x)) = STR(f(fail(x)))
+STR(f(x)) = STR(f(⑂)) [defn of fail]
+STR(f(x)) = ⑂ [propagate ⑂]
+f(x) = ⑂ or f(x) = ⊥ [defn of STR]
+```
+
+- Hence, we have that `f(x)` does not produce a useful value on any input.
+
+##### `f: FAIL => FAIL` for all functions
+
+- The intuition is that if we want to fail after `f` returns [the context `FAIL =>`],
+  we might as well fail before evaluating `f` [the context `=> FAIL`].
+  
+```
+FAIL(f(x)) = FAIL(y) = ⑂
+FAIL(f(FAIL(x))) = FAIL(z) = ⑂
+FAIL(f(x)) = FAIL(f(FAIL(x)))
+```
+
+- Hence, if `f` is divergent, so is `f . g` for any `g`, because failing after
+  evaluating `f` is the same as failing before evaluating `f`.
+  
+##### `ABS` projection
+
+- `ABS` detects the absence of values. It squashes all values to `⊥` while leaving
+  divergent as divergent:
+  
+```
+ABS(⑂) = ⑂
+ABS(⊥) = ⊥
+ABS(x) = ⊥
+```
+
+
+##### Ignoring arguments
+- Say that **f ignores its argument** if `f(u) = f(⊥)` for all `u`.
+
+##### `f: STR => ABS` iff `f` ignores its argument
+
+
+
+##### UB versus abort
+
+> 
+
+
+#### Types of strictness annotations

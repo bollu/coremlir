@@ -604,21 +604,21 @@ Now we consider optimizations when we have multiple arguments.
 ** Non-recursive, multiple arguments: V0
 
 #+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
-  namespace h{
-    SimpleInt h0(Thunk<int> a, Thunk<int> b) {
+  namespace h0{
+    SimpleInt h(Thunk<int> a, Thunk<int> b) {
       int ahash = force(a);
-      if (a >= 0) {
+      if (ahash >= 0) {
 	int bhash1 = force(b);
 	return SimpleInt(bhash1 + 1);
-      } else 
+      } else {
 	int bhash2 = force(b);
-	return SimpleInt(bhash1 - 1);
+	return SimpleInt(bhash2 - 1);
       }
     }
     int main() {
 	g_count = 0;
 	printf("\n===mainh0===\n");
-	SimpleInt out = h(thunkify(SimpleInt(3)));
+	SimpleInt out = h(thunkify(3), thunkify(41));
 	printf("out: %d\n", out.v);
 	return 0;
     }
@@ -632,26 +632,29 @@ Now we consider optimizations when we have multiple arguments.
   outer scope.  In general, the rule of thumb is that unwrappings are
   lifted to the beginning of the outermost scope, and wrapping is lifted to
   the end of the outermost scope.
+- Since we always lifting wrappings "upwards" (lower nesting), this is guaranteed
+  to terminate.
 
 #+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
-  namespace h0{
+  namespace h1{
     SimpleInt h(Thunk<int> a, Thunk<int> b) {
       int ahash = force(a);
       int bhash = force(b);
-      if (a >= 0) {
+      if (ahash >= 0) {
 	int bhash1 = bhash;
 	return SimpleInt(bhash1 + 1);
-      } else 
+      } else {
 	int bhash2 = bhash;
-	return SimpleInt(bhash1 - 1);
+	return SimpleInt(bhash2 - 1);
       }
-    
+    }
+
     int main() {
-	g_count = 0;
-	printf("\n===mainh0===\n");
-	SimpleInt out = h(thunkify(SimpleInt(3)));
-	printf("out: %d\n", out.v);
-	return 0;
+      g_count = 0;
+      printf("\n===mainh1===\n");
+      SimpleInt out = h(thunkify(3), thunkify(41));
+      printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -661,24 +664,26 @@ Now we consider optimizations when we have multiple arguments.
 - Perform the usual story of replacing stuff with ~Force<Thunk<int>>~.
 
 #+BEGIN_SRC c++ :tangle sep-30-worker-wrapper.cpp
-  namespace h1{
-    SimpleInt h(Thunk<int> a, Thunk<int> b) {
+  namespace h2{
+    // SimpleInt h(Thunk<int> a, Thunk<int> b) {
+    SimpleInt h(Force<int> a, Force<int> b) {
       int ahash = force(a);
       int bhash = force(b);
-      if (a >= 0) {
+      if (ahash >= 0) {
 	int bhash1 = bhash;
 	return SimpleInt(bhash1 + 1);
-      } else 
+      } else {
 	int bhash2 = bhash;
-	return SimpleInt(bhash1 - 1);
+	return SimpleInt(bhash2 - 1);
       }
-    
+    }
+
     int main() {
-	g_count = 0;
-	printf("\n===mainh0===\n");
-	SimpleInt out = h(thunkify(SimpleInt(3)));
-	printf("out: %d\n", out.v);
-	return 0;
+      g_count = 0;
+      printf("\n===mainh2===\n");
+      SimpleInt out = h(thunkify(3), thunkify(41));
+      printf("out: %d\n", out.v);
+      return 0;
     }
   }
 #+END_SRC
@@ -711,7 +716,7 @@ Now we consider optimizations when we have multiple arguments.
     g7::main();
     h0::main();
     h1::main();
-    p0::main();
+    h2::main();
     
   }
 #+END_SRC
