@@ -14,6 +14,36 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Friday Oct 2nd 2020
+
+#### What is a loop-breaker?
+- [Taken from `mpickering`'s blog](https://mpickering.github.io/posts/2017-03-20-inlining-and-specialisation.html)
+> In general, if we were to inline recursive definitions without care we could
+> easily cause the simplifier to diverge. However, we still want to inline as
+> many functions which appear in mutually recursive blocks as possible. GHC
+> statically analyses each recursive groups of bindings and chooses one of them
+> as the loop-breaker. Any function which is marked as a loop-breaker will
+> never be inlined. Other functions in the recursive group are free to be
+> inlined as eventually a loop-breaker will be reached and the inliner will
+> stop.
+
+He continues to write:
+
+> Sometimes people ask if GHC is smart enough to unroll a recursive definition
+> when given a static argument. For example, if we could define sum using
+> direct recursion:
+
+```hs
+sum :: [Int] -> Int
+sum [] = 0
+sum (x:xs) = x + sum xs
+```
+
+I have no idea if this continues to be the case. 
+
+
+
+
 # Tuesday, Sep 29 2020
 
 - Apparently, I can't print a `mlir::Value` from an `mir::InFlightDiagnostic`.

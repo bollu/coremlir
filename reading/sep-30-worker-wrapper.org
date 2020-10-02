@@ -1,5 +1,7 @@
 * Worker wrapper: multiple arguments, eliminating redundancy
 
+- [GHC worker/wrapper](https://haskell-code-explorer.mfix.io/package/ghc-8.4.3/show/stranal/WorkWrap.hs)
+- [GHC worker/wrapper 'library'](https://haskell-code-explorer.mfix.io/package/ghc-8.4.3/show/stranal/WwLib.hs#L143)
 - Problem 1: Can we eliminate outlining, and somehow express the "variants" of
   the function locally?
 - Problem 2: how do we optimise worker/wrapper locally when we have multiple
