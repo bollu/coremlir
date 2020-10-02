@@ -1,0 +1,724 @@
+-- compiled with GHC -O3
+-- GHC can't optimize this. I would have wanted `eval` to be worker/wrappered.
+module ArithExpr(Expr(..), OptionInt(..), eval) where
+
+-- Example taken from worker/wrapper paper at JFP:
+-- http://ittc.ku.edu/~andygill/papers/wrapper.pdf
+
+data OptionInt =  Some Int | None
+
+data Expr = Add Expr Expr | Val Int | Throw
+
+addOption :: OptionInt -> OptionInt -> OptionInt
+addOption ox oy = 
+  case ox of
+    None -> None
+    Some x -> case oy of
+                None -> None
+                Some y -> Some (x + y)
+        
+
+eval :: Expr -> OptionInt
+eval e = 
+  case e of
+    Add f1 f2 -> addOption (eval f1) (eval f2)
+    Val i -> Some i
+    Throw -> None
+
+
+
+
+-- ==================== Tidy Core ====================
+-- 2020-10-02 08:24:36.651245201 UTC
+-- 
+-- Result size of Tidy Core
+--   = {terms: 159, types: 47, coercions: 0, joins: 0/0}
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$trModule4 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- ArithExpr.$trModule4 = "main"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$trModule3 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- ArithExpr.$trModule3 = GHC.Types.TrNameS ArithExpr.$trModule4
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$trModule2 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 40 0}]
+-- ArithExpr.$trModule2 = "ArithExpr"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$trModule1 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- ArithExpr.$trModule1 = GHC.Types.TrNameS ArithExpr.$trModule2
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$trModule :: GHC.Types.Module
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- ArithExpr.$trModule
+--   = GHC.Types.Module ArithExpr.$trModule3 ArithExpr.$trModule1
+-- 
+-- -- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+-- $krep_rDs :: GHC.Types.KindRep
+-- [GblId, Caf=NoCafRefs, Str=m1, Unf=OtherCon []]
+-- $krep_rDs
+--   = GHC.Types.KindRepTyConApp
+--       GHC.Types.$tcInt (GHC.Types.[] @ GHC.Types.KindRep)
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tcOptionInt2 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 40 0}]
+-- ArithExpr.$tcOptionInt2 = "OptionInt"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tcOptionInt1 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- ArithExpr.$tcOptionInt1 = GHC.Types.TrNameS ArithExpr.$tcOptionInt2
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tcOptionInt :: GHC.Types.TyCon
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tcOptionInt
+--   = GHC.Types.TyCon
+--       15258783972808854360##
+--       10953829962524242922##
+--       ArithExpr.$trModule
+--       ArithExpr.$tcOptionInt1
+--       0#
+--       GHC.Types.krep$*
+-- 
+-- -- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'None1 [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [GblId, Caf=NoCafRefs, Str=m1, Unf=OtherCon []]
+-- ArithExpr.$tc'None1
+--   = GHC.Types.KindRepTyConApp
+--       ArithExpr.$tcOptionInt (GHC.Types.[] @ GHC.Types.KindRep)
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'None3 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 30 0}]
+-- ArithExpr.$tc'None3 = "'None"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'None2 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- ArithExpr.$tc'None2 = GHC.Types.TrNameS ArithExpr.$tc'None3
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'None :: GHC.Types.TyCon
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tc'None
+--   = GHC.Types.TyCon
+--       8790591883049195229##
+--       13269840271473766972##
+--       ArithExpr.$trModule
+--       ArithExpr.$tc'None2
+--       0#
+--       ArithExpr.$tc'None1
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Some1 [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [GblId, Caf=NoCafRefs, Str=m4, Unf=OtherCon []]
+-- ArithExpr.$tc'Some1
+--   = GHC.Types.KindRepFun $krep_rDs ArithExpr.$tc'None1
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Some3 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 30 0}]
+-- ArithExpr.$tc'Some3 = "'Some"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Some2 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- ArithExpr.$tc'Some2 = GHC.Types.TrNameS ArithExpr.$tc'Some3
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Some :: GHC.Types.TyCon
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tc'Some
+--   = GHC.Types.TyCon
+--       15360774560533399064##
+--       5767354170247191362##
+--       ArithExpr.$trModule
+--       ArithExpr.$tc'Some2
+--       0#
+--       ArithExpr.$tc'Some1
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tcExpr2 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- ArithExpr.$tcExpr2 = "Expr"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tcExpr1 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- ArithExpr.$tcExpr1 = GHC.Types.TrNameS ArithExpr.$tcExpr2
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tcExpr :: GHC.Types.TyCon
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tcExpr
+--   = GHC.Types.TyCon
+--       8636076531703083642##
+--       9207012450140410406##
+--       ArithExpr.$trModule
+--       ArithExpr.$tcExpr1
+--       0#
+--       GHC.Types.krep$*
+-- 
+-- -- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Throw1 [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [GblId, Caf=NoCafRefs, Str=m1, Unf=OtherCon []]
+-- ArithExpr.$tc'Throw1
+--   = GHC.Types.KindRepTyConApp
+--       ArithExpr.$tcExpr (GHC.Types.[] @ GHC.Types.KindRep)
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Throw3 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 30 0}]
+-- ArithExpr.$tc'Throw3 = "'Throw"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Throw2 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- ArithExpr.$tc'Throw2 = GHC.Types.TrNameS ArithExpr.$tc'Throw3
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Throw :: GHC.Types.TyCon
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tc'Throw
+--   = GHC.Types.TyCon
+--       1278486978776017100##
+--       10943714997474092530##
+--       ArithExpr.$trModule
+--       ArithExpr.$tc'Throw2
+--       0#
+--       ArithExpr.$tc'Throw1
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- $krep1_rDt :: GHC.Types.KindRep
+-- [GblId, Caf=NoCafRefs, Str=m4, Unf=OtherCon []]
+-- $krep1_rDt
+--   = GHC.Types.KindRepFun ArithExpr.$tc'Throw1 ArithExpr.$tc'Throw1
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Add1 [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [GblId, Caf=NoCafRefs, Str=m4, Unf=OtherCon []]
+-- ArithExpr.$tc'Add1
+--   = GHC.Types.KindRepFun ArithExpr.$tc'Throw1 $krep1_rDt
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Add3 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- ArithExpr.$tc'Add3 = "'Add"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Add2 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- ArithExpr.$tc'Add2 = GHC.Types.TrNameS ArithExpr.$tc'Add3
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Add :: GHC.Types.TyCon
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tc'Add
+--   = GHC.Types.TyCon
+--       16548293851745617133##
+--       13157291164475592725##
+--       ArithExpr.$trModule
+--       ArithExpr.$tc'Add2
+--       0#
+--       ArithExpr.$tc'Add1
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Val1 [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [GblId, Caf=NoCafRefs, Str=m4, Unf=OtherCon []]
+-- ArithExpr.$tc'Val1
+--   = GHC.Types.KindRepFun $krep_rDs ArithExpr.$tc'Throw1
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Val3 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- ArithExpr.$tc'Val3 = "'Val"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Val2 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- ArithExpr.$tc'Val2 = GHC.Types.TrNameS ArithExpr.$tc'Val3
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Val :: GHC.Types.TyCon
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tc'Val
+--   = GHC.Types.TyCon
+--       14084157192244336655##
+--       13298523983265843684##
+--       ArithExpr.$trModule
+--       ArithExpr.$tc'Val2
+--       0#
+--       ArithExpr.$tc'Val1
+-- 
+-- Rec {
+-- -- RHS size: {terms: 25, types: 9, coercions: 0, joins: 0/0}
+-- eval [Occ=LoopBreaker] :: Expr -> OptionInt
+-- [GblId, Arity=1, Caf=NoCafRefs, Str=<S,1*U>, Unf=OtherCon []]
+-- eval
+--   = \ (e_auT :: Expr) ->
+--       case e_auT of {
+--         Add f1_auU f2_auV ->
+--           case eval f1_auU of {
+--             Some x_atF ->
+--               case eval f2_auV of {
+--                 Some y_atG -> ArithExpr.Some (GHC.Num.$fNumInt_$c+ x_atF y_atG);
+--                 None -> ArithExpr.None
+--               };
+--             None -> ArithExpr.None
+--           };
+--         Val i_auW -> ArithExpr.Some i_auW;
+--         Throw -> ArithExpr.None
+--       }
+-- end Rec }
+-- 
+-- 
+--
+--
+
+-- ==================== Worker Wrapper binds ====================
+-- 2020-10-02 08:24:36.646026428 UTC
+-- 
+-- Result size of Worker Wrapper binds
+--   = {terms: 159, types: 47, coercions: 0, joins: 0/0}
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- $trModule_sx9 :: GHC.Prim.Addr#
+-- [LclId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- $trModule_sx9 = "main"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- $trModule_sxa :: GHC.Types.TrName
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- $trModule_sxa = GHC.Types.TrNameS $trModule_sx9
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- $trModule_sxb :: GHC.Prim.Addr#
+-- [LclId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 40 0}]
+-- $trModule_sxb = "ArithExpr"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- $trModule_sxc :: GHC.Types.TrName
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- $trModule_sxc = GHC.Types.TrNameS $trModule_sxb
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$trModule :: GHC.Types.Module
+-- [LclIdX,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- ArithExpr.$trModule = GHC.Types.Module $trModule_sxa $trModule_sxc
+-- 
+-- -- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+-- $krep_awz [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- $krep_awz
+--   = GHC.Types.KindRepTyConApp
+--       GHC.Types.$tcInt (GHC.Types.[] @ GHC.Types.KindRep)
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- $tcOptionInt_sxd :: GHC.Prim.Addr#
+-- [LclId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 40 0}]
+-- $tcOptionInt_sxd = "OptionInt"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- $tcOptionInt_sxe :: GHC.Types.TrName
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- $tcOptionInt_sxe = GHC.Types.TrNameS $tcOptionInt_sxd
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tcOptionInt :: GHC.Types.TyCon
+-- [LclIdX,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tcOptionInt
+--   = GHC.Types.TyCon
+--       15258783972808854360##
+--       10953829962524242922##
+--       ArithExpr.$trModule
+--       $tcOptionInt_sxe
+--       0#
+--       GHC.Types.krep$*
+-- 
+-- -- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+-- $krep_awB [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- $krep_awB
+--   = GHC.Types.KindRepTyConApp
+--       ArithExpr.$tcOptionInt (GHC.Types.[] @ GHC.Types.KindRep)
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- $tc'None_sxf :: GHC.Prim.Addr#
+-- [LclId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 30 0}]
+-- $tc'None_sxf = "'None"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- $tc'None_sxg :: GHC.Types.TrName
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- $tc'None_sxg = GHC.Types.TrNameS $tc'None_sxf
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'None :: GHC.Types.TyCon
+-- [LclIdX,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tc'None
+--   = GHC.Types.TyCon
+--       8790591883049195229##
+--       13269840271473766972##
+--       ArithExpr.$trModule
+--       $tc'None_sxg
+--       0#
+--       $krep_awB
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- $krep_awA [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [LclId,
+--  Str=m4,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- $krep_awA = GHC.Types.KindRepFun $krep_awz $krep_awB
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- $tc'Some_sxh :: GHC.Prim.Addr#
+-- [LclId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 30 0}]
+-- $tc'Some_sxh = "'Some"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- $tc'Some_sxi :: GHC.Types.TrName
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- $tc'Some_sxi = GHC.Types.TrNameS $tc'Some_sxh
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Some :: GHC.Types.TyCon
+-- [LclIdX,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tc'Some
+--   = GHC.Types.TyCon
+--       15360774560533399064##
+--       5767354170247191362##
+--       ArithExpr.$trModule
+--       $tc'Some_sxi
+--       0#
+--       $krep_awA
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- $tcExpr_sxj :: GHC.Prim.Addr#
+-- [LclId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- $tcExpr_sxj = "Expr"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- $tcExpr_sxk :: GHC.Types.TrName
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- $tcExpr_sxk = GHC.Types.TrNameS $tcExpr_sxj
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tcExpr :: GHC.Types.TyCon
+-- [LclIdX,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tcExpr
+--   = GHC.Types.TyCon
+--       8636076531703083642##
+--       9207012450140410406##
+--       ArithExpr.$trModule
+--       $tcExpr_sxk
+--       0#
+--       GHC.Types.krep$*
+-- 
+-- -- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+-- $krep_aww [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- $krep_aww
+--   = GHC.Types.KindRepTyConApp
+--       ArithExpr.$tcExpr (GHC.Types.[] @ GHC.Types.KindRep)
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- $tc'Throw_sxl :: GHC.Prim.Addr#
+-- [LclId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 30 0}]
+-- $tc'Throw_sxl = "'Throw"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- $tc'Throw_sxm :: GHC.Types.TrName
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- $tc'Throw_sxm = GHC.Types.TrNameS $tc'Throw_sxl
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Throw :: GHC.Types.TyCon
+-- [LclIdX,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tc'Throw
+--   = GHC.Types.TyCon
+--       1278486978776017100##
+--       10943714997474092530##
+--       ArithExpr.$trModule
+--       $tc'Throw_sxm
+--       0#
+--       $krep_aww
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- $krep_awx [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [LclId,
+--  Str=m4,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- $krep_awx = GHC.Types.KindRepFun $krep_aww $krep_aww
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- $krep_awv [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [LclId,
+--  Str=m4,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- $krep_awv = GHC.Types.KindRepFun $krep_aww $krep_awx
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- $tc'Add_sxn :: GHC.Prim.Addr#
+-- [LclId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- $tc'Add_sxn = "'Add"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- $tc'Add_sxo :: GHC.Types.TrName
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- $tc'Add_sxo = GHC.Types.TrNameS $tc'Add_sxn
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Add :: GHC.Types.TyCon
+-- [LclIdX,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tc'Add
+--   = GHC.Types.TyCon
+--       16548293851745617133##
+--       13157291164475592725##
+--       ArithExpr.$trModule
+--       $tc'Add_sxo
+--       0#
+--       $krep_awv
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- $krep_awy [InlPrag=NOUSERINLINE[~]] :: GHC.Types.KindRep
+-- [LclId,
+--  Str=m4,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- $krep_awy = GHC.Types.KindRepFun $krep_awz $krep_aww
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- $tc'Val_sxp :: GHC.Prim.Addr#
+-- [LclId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- $tc'Val_sxp = "'Val"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- $tc'Val_sxq :: GHC.Types.TrName
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- $tc'Val_sxq = GHC.Types.TrNameS $tc'Val_sxp
+-- 
+-- -- RHS size: {terms: 7, types: 0, coercions: 0, joins: 0/0}
+-- ArithExpr.$tc'Val :: GHC.Types.TyCon
+-- [LclIdX,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 70}]
+-- ArithExpr.$tc'Val
+--   = GHC.Types.TyCon
+--       14084157192244336655##
+--       13298523983265843684##
+--       ArithExpr.$trModule
+--       $tc'Val_sxq
+--       0#
+--       $krep_awy
+-- 
+-- Rec {
+-- -- RHS size: {terms: 25, types: 9, coercions: 0, joins: 0/0}
+-- eval [Occ=LoopBreaker] :: Expr -> OptionInt
+-- [LclIdX,
+--  Arity=1,
+--  Str=<S,U>,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [50] 160 70}]
+-- eval
+--   = \ (e_auT [Dmd=<S,U>] :: Expr) ->
+--       case e_auT of {
+--         Add f1_auU [Dmd=<S,U>] f2_auV ->
+--           case eval f1_auU of {
+--             Some x_atF [Dmd=<L,U(U)>] ->
+--               case eval f2_auV of {
+--                 Some y_atG [Dmd=<L,U(U)>] ->
+--                   ArithExpr.Some (GHC.Num.$fNumInt_$c+ x_atF y_atG);
+--                 None -> ArithExpr.None
+--               };
+--             None -> ArithExpr.None
+--           };
+--         Val i_auW -> ArithExpr.Some i_auW;
+--         Throw -> ArithExpr.None
+--       }
+-- end Rec }
+-- 
+-- 

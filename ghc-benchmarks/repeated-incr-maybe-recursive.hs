@@ -1,0 +1,268 @@
+-- | Check if GHC can worker/wrapper repeated case analysis in a recursive
+-- call
+-- ANSWER: NO!
+-- To be more specific, it unwraps the `n` parameter into an `I#`. It does
+-- seem to box and rebox the `mx` repeatedly.
+{-# LANGUAGE BangPatterns #-}
+module RepeatedIncrMaybe(incrmN) where
+
+incrm1 :: Maybe Int -> Maybe Int
+incrm1 mx = case mx of Nothing -> Nothing; Just x -> Just (x+1)
+
+incrmN :: Int -> Maybe Int -> Maybe Int
+incrmN !n mx = 
+  case n of 
+    0 -> mx
+    _ -> incrmN (n - 1) (incrm1 mx)
+
+-- ==================== Tidy Core ====================
+-- 2020-10-02 08:43:18.938162006 UTC
+-- 
+-- Result size of Tidy Core
+--   = {terms: 81, types: 45, coercions: 0, joins: 0/0}
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- RepeatedIncrMaybe.$trModule4 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- RepeatedIncrMaybe.$trModule4 = "main"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- RepeatedIncrMaybe.$trModule3 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- RepeatedIncrMaybe.$trModule3
+--   = GHC.Types.TrNameS RepeatedIncrMaybe.$trModule4
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- RepeatedIncrMaybe.$trModule2 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 60 0}]
+-- RepeatedIncrMaybe.$trModule2 = "RepeatedIncrMaybe"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- RepeatedIncrMaybe.$trModule1 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- RepeatedIncrMaybe.$trModule1
+--   = GHC.Types.TrNameS RepeatedIncrMaybe.$trModule2
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- RepeatedIncrMaybe.$trModule :: GHC.Types.Module
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- RepeatedIncrMaybe.$trModule
+--   = GHC.Types.Module
+--       RepeatedIncrMaybe.$trModule3 RepeatedIncrMaybe.$trModule1
+-- 
+-- Rec {
+-- -- RHS size: {terms: 19, types: 6, coercions: 0, joins: 0/0}
+-- RepeatedIncrMaybe.incrmN_$s$wincrmN [Occ=LoopBreaker]
+--   :: Int -> GHC.Prim.Int# -> Maybe Int
+-- [GblId,
+--  Arity=2,
+--  Caf=NoCafRefs,
+--  Str=<L,U(U)><S,1*U>m2,
+--  Unf=OtherCon []]
+-- RepeatedIncrMaybe.incrmN_$s$wincrmN
+--   = \ (sc_s1oc :: Int) (sc1_s1ob :: GHC.Prim.Int#) ->
+--       case sc1_s1ob of ds_X1my {
+--         __DEFAULT ->
+--           RepeatedIncrMaybe.incrmN_$s$wincrmN
+--             (case sc_s1oc of { GHC.Types.I# x_a1mQ ->
+--              GHC.Types.I# (GHC.Prim.+# x_a1mQ 1#)
+--              })
+--             (GHC.Prim.-# ds_X1my 1#);
+--         0# -> GHC.Maybe.Just @ Int sc_s1oc
+--       }
+-- end Rec }
+-- 
+-- Rec {
+-- -- RHS size: {terms: 10, types: 3, coercions: 0, joins: 0/0}
+-- RepeatedIncrMaybe.incrmN_$s$wincrmN1 [Occ=LoopBreaker]
+--   :: GHC.Prim.Int# -> Maybe Int
+-- [GblId, Arity=1, Caf=NoCafRefs, Str=<S,1*U>, Unf=OtherCon []]
+-- RepeatedIncrMaybe.incrmN_$s$wincrmN1
+--   = \ (sc_s1oa :: GHC.Prim.Int#) ->
+--       case sc_s1oa of ds_X1my {
+--         __DEFAULT ->
+--           RepeatedIncrMaybe.incrmN_$s$wincrmN1 (GHC.Prim.-# ds_X1my 1#);
+--         0# -> GHC.Maybe.Nothing @ Int
+--       }
+-- end Rec }
+-- 
+-- -- RHS size: {terms: 26, types: 9, coercions: 0, joins: 0/0}
+-- RepeatedIncrMaybe.$wincrmN [InlPrag=NOUSERINLINE[2]]
+--   :: GHC.Prim.Int# -> Maybe Int -> Maybe Int
+-- [GblId,
+--  Arity=2,
+--  Caf=NoCafRefs,
+--  Str=<S,1*U><S,1*U>,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [30 51] 113 0}]
+-- RepeatedIncrMaybe.$wincrmN
+--   = \ (ww_s1nz :: GHC.Prim.Int#) (w_s1nw :: Maybe Int) ->
+--       case ww_s1nz of ds_X1my {
+--         __DEFAULT ->
+--           case w_s1nw of {
+--             Nothing ->
+--               RepeatedIncrMaybe.incrmN_$s$wincrmN1 (GHC.Prim.-# ds_X1my 1#);
+--             Just x_au1 ->
+--               RepeatedIncrMaybe.incrmN_$s$wincrmN
+--                 (case x_au1 of { GHC.Types.I# x1_a1mQ ->
+--                  GHC.Types.I# (GHC.Prim.+# x1_a1mQ 1#)
+--                  })
+--                 (GHC.Prim.-# ds_X1my 1#)
+--           };
+--         0# -> w_s1nw
+--       }
+-- 
+-- -- RHS size: {terms: 8, types: 5, coercions: 0, joins: 0/0}
+-- incrmN [InlPrag=NOUSERINLINE[2]] :: Int -> Maybe Int -> Maybe Int
+-- [GblId,
+--  Arity=2,
+--  Caf=NoCafRefs,
+--  Str=<S(S),1*U(1*U)><S,1*U>,
+--  Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True,
+--          Guidance=ALWAYS_IF(arity=2,unsat_ok=True,boring_ok=False)
+--          Tmpl= \ (w_s1nv [Occ=Once!] :: Int)
+--                  (w1_s1nw [Occ=Once] :: Maybe Int) ->
+--                  case w_s1nv of { GHC.Types.I# ww1_s1nz [Occ=Once] ->
+--                  RepeatedIncrMaybe.$wincrmN ww1_s1nz w1_s1nw
+--                  }}]
+-- incrmN
+--   = \ (w_s1nv :: Int) (w1_s1nw :: Maybe Int) ->
+--       case w_s1nv of { GHC.Types.I# ww1_s1nz ->
+--       RepeatedIncrMaybe.$wincrmN ww1_s1nz w1_s1nw
+--       }
+-- 
+-- 
+-- ------ Local rules for imported ids --------
+-- "SC:$wincrmN0" [2]
+--     forall (sc_s1oa :: GHC.Prim.Int#).
+--       RepeatedIncrMaybe.$wincrmN sc_s1oa (GHC.Maybe.Nothing @ Int)
+--       = RepeatedIncrMaybe.incrmN_$s$wincrmN1 sc_s1oa
+-- "SC:$wincrmN1" [2]
+--     forall (sc_s1oc :: Int) (sc1_s1ob :: GHC.Prim.Int#).
+--       RepeatedIncrMaybe.$wincrmN sc1_s1ob (GHC.Maybe.Just @ Int sc_s1oc)
+--       = RepeatedIncrMaybe.incrmN_$s$wincrmN sc_s1oc sc1_s1ob
+-- 
+-- ==================== Worker Wrapper binds ====================
+-- 2020-10-02 08:43:18.934410452 UTC
+-- 
+-- Result size of Worker Wrapper binds
+--   = {terms: 59, types: 37, coercions: 0, joins: 0/3}
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- $trModule_s1mw :: GHC.Prim.Addr#
+-- [LclId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- $trModule_s1mw = "main"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- $trModule_s1mx :: GHC.Types.TrName
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- $trModule_s1mx = GHC.Types.TrNameS $trModule_s1mw
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- $trModule_s1my :: GHC.Prim.Addr#
+-- [LclId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 60 0}]
+-- $trModule_s1my = "RepeatedIncrMaybe"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- $trModule_s1mz :: GHC.Types.TrName
+-- [LclId,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- $trModule_s1mz = GHC.Types.TrNameS $trModule_s1my
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- RepeatedIncrMaybe.$trModule :: GHC.Types.Module
+-- [LclIdX,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- RepeatedIncrMaybe.$trModule
+--   = GHC.Types.Module $trModule_s1mx $trModule_s1mz
+-- 
+-- Rec {
+-- -- RHS size: {terms: 35, types: 17, coercions: 0, joins: 0/3}
+-- $wincrmN_s1nB [InlPrag=NOUSERINLINE[2], Occ=LoopBreaker]
+--   :: GHC.Prim.Int# -> Maybe Int -> Maybe Int
+-- [LclId, Arity=2, Str=<S,1*U><S,1*U>]
+-- $wincrmN_s1nB
+--   = \ (ww_s1nz [Dmd=<S,1*U>] :: GHC.Prim.Int#)
+--       (w_s1nw [Dmd=<S,1*U>] :: Maybe Int) ->
+--       let {
+--         w_s1nv [Dmd=<S(S),1*U(1*U)>] :: Int
+--         [LclId]
+--         w_s1nv = GHC.Types.I# ww_s1nz } in
+--       let {
+--         n_ave [Dmd=<S(S),U(U)>] :: Int
+--         [LclId]
+--         n_ave = w_s1nv } in
+--       let {
+--         mx_avf [Dmd=<S,U>] :: Maybe Int
+--         [LclId]
+--         mx_avf = w_s1nw } in
+--       case n_ave of { GHC.Types.I# ipv_s1mB [Dmd=<S,U>] ->
+--       case ipv_s1mB of ds_X1my {
+--         __DEFAULT ->
+--           incrmN
+--             (GHC.Types.I# (GHC.Prim.-# ds_X1my 1#))
+--             (case mx_avf of {
+--                Nothing -> GHC.Maybe.Nothing @ Int;
+--                Just x_au1 [Dmd=<L,U(U)>] ->
+--                  GHC.Maybe.Just
+--                    @ Int
+--                    (case x_au1 of { GHC.Types.I# x_a1mQ ->
+--                     GHC.Types.I# (GHC.Prim.+# x_a1mQ 1#)
+--                     })
+--              });
+--         0# -> mx_avf
+--       }
+--       }
+-- 
+-- -- RHS size: {terms: 8, types: 5, coercions: 0, joins: 0/0}
+-- incrmN [InlPrag=NOUSERINLINE[2]] :: Int -> Maybe Int -> Maybe Int
+-- [LclIdX,
+--  Arity=2,
+--  Str=<S(S),U(U)><S,U>,
+--  Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True,
+--          Guidance=ALWAYS_IF(arity=2,unsat_ok=True,boring_ok=False)
+--          Tmpl= \ (w_s1nv [Occ=Once!, Dmd=<S(S),1*U(1*U)>] :: Int)
+--                  (w_s1nw [Occ=Once, Dmd=<S,1*U>] :: Maybe Int) ->
+--                  case w_s1nv of { GHC.Types.I# ww_s1nz [Occ=Once, Dmd=<S,1*U>] ->
+--                  $wincrmN_s1nB ww_s1nz w_s1nw
+--                  }}]
+-- incrmN
+--   = \ (w_s1nv [Dmd=<S(S),1*U(1*U)>] :: Int)
+--       (w_s1nw [Dmd=<S,1*U>] :: Maybe Int) ->
+--       case w_s1nv of ww_s1ny { GHC.Types.I# ww_s1nz [Dmd=<S,1*U>] ->
+--       $wincrmN_s1nB ww_s1nz w_s1nw
+--       }
+-- end Rec }
+-- 
+-- 
