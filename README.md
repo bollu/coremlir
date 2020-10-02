@@ -16,6 +16,8 @@ Convert GHC Core to MLIR.
 
 # Friday Oct 2nd 2020
 
+- [Meeting documentation](https://docs.google.com/document/d/1JD2RgNbRoztiuSQtN8IskyaYDF4Yd9WWjwecyyVzum4/edit?usp=sharing)
+
 #### What is a loop-breaker?
 - [Taken from `mpickering`'s blog](https://mpickering.github.io/posts/2017-03-20-inlining-and-specialisation.html)
 > In general, if we were to inline recursive definitions without care we could
@@ -39,9 +41,9 @@ sum [] = 0
 sum (x:xs) = x + sum xs
 ```
 
-I have no idea if this continues to be the case. 
-
-
+- I have no idea if this continues to be the case.
+- EDIT: I do know! I implemented the above program. GHC still has
+  this behaviour, so the above program does not become a single constant.
 
 
 # Tuesday, Sep 29 2020

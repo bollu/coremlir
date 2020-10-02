@@ -1,3 +1,15 @@
+* Source haskell program
+#+BEGIN_SRC hs
+incrm1 :: Maybe Int -> Maybe Int
+incrm1 mx = case mx of Nothing -> Nothing; Just x -> Just (x+1)
+
+incrm3 :: Maybe Int -> Maybe Int
+incrm3 mx = incrm1 (incrm1(incrm1(mx)))
+#+END_SRC
+
+* Naive encoding
+
+#+BEGIN_SRC cpp c++ :tangle repeated-incr-maybe.cpp
 #include <assert.h>
 #include <stdio.h>
 
@@ -179,6 +191,12 @@ int main() {
 }
 }  // namespace f0
 
+#+END_SRC
+
+** V1: outline forced functions
+
+#+BEGIN_SRC cpp c++ :tangle repeated-incr-maybe.cpp
+
 // 1. outline forced functions
 namespace f1 {
 Maybe *incrm1_nil() { return new MNothing(); }
@@ -216,6 +234,12 @@ int main() {
     return 0;
 }
 }  // namespace f1
+
+#+END_SRC
+
+
+** V2: incline ~icrm1~ into ~incrm3~
+#+BEGIN_SRC cpp c++ :tangle repeated-incr-maybe.cpp
 
 // 1. outline forced functions
 // 2. inline incrm1 into incrm3 once.
@@ -268,6 +292,11 @@ int main() {
 }
 }  // namespace f2
 
+#+END_SRC
+
+** V3: sink code after ~if/else~ into the ~if/else~
+
+#+BEGIN_SRC cpp c++ :tangle repeated-incr-maybe.cpp
 // 1. outline forced functions
 // 2. inline incrm1 into incrm3 once.
 // 3. duplicate the code *after* the if/else into the two branches of the
@@ -323,6 +352,11 @@ int main() {
 }
 }  // namespace f3
 
+#+END_SRC
+
+** V4: optimize based on sunk code, since we can see what is happening
+
+#+BEGIN_SRC cpp c++ :tangle repeated-incr-maybe.cpp
 // 1. outline forced functions
 // 2. inline incrm1 into incrm3 once.
 // 3. duplicate the code *after* the if/else into the two branches of the
@@ -403,184 +437,198 @@ int main() {
 }
 }  // namespace f4
 
-template <typename L, typename R>
-struct Either {
-   public:
-    Either(L l) : ol_(l){};
-    Either(R r) : or_(r){};
 
-    template <typename LLIKE, typename RLIKE>
-    Either(const Either<LLIKE, RLIKE> &e) {
-	if (e.isl()) {
-	    this->ol_ = L(e.l());
-	} else {
-	    this->or_ = R(e.r());
-	}
-    }
+#+END_SRC
 
-    static Either left(L l) { return Either(l); }
+** Alternative version that tries to extend ADTs
 
-    template <typename RLIKE>
-    static Either right(RLIKE r) {
-	return Either(R(r));
-    }
-    bool isl() const { return ol_.has_value(); }
-    R r() const {
-	assert(or_);
-	return *or_;
-    }
-    L l() const { assert(ol_); return *ol_; }
+#+BEGIN_SRC cpp c++ :tangle repeated-incr-maybe.cpp
+  template <typename L, typename R>
+  struct Either {
+     public:
+      Either(L l) : ol_(l){};
+      Either(R r) : or_(r){};
 
-   private:
-    std::optional<L> ol_;
-    std::optional<R> or_;
-};
+      template <typename LLIKE, typename RLIKE>
+      Either(const Either<LLIKE, RLIKE> &e) {
+	  if (e.isl()) {
+	      this->ol_ = L(e.l());
+	  } else {
+	      this->or_ = R(e.r());
+	  }
+      }
 
-struct Unit {};
+      static Either left(L l) { return Either(l); }
 
-using MaybeADT = Either<Unit, Thunk<SimpleInt>>;
+      template <typename RLIKE>
+      static Either right(RLIKE r) {
+	  return Either(R(r));
+      }
+      bool isl() const { return ol_.has_value(); }
+      R r() const {
+	  assert(or_);
+	  return *or_;
+      }
+      L l() const { assert(ol_); return *ol_; }
 
-namespace g0 {
-// Maybe *incrm1(Thunk<Maybe *> tm) {
-MaybeADT incrm1(Thunk<MaybeADT> tm) {
-    MaybeADT m = force(tm);
-    if (m.isl()) {
-	return MaybeADT::left(Unit());
-    } else {
-	Thunk<SimpleInt> tin = m.r();
-	SimpleInt x = force(tin);
-	int xnexthash = x.v + 1;
-	SimpleInt xnext(xnexthash);
-	return MaybeADT::right((xnext));
-    }
-}
-MaybeADT incrm3(Thunk<MaybeADT> tm0) {
-    MaybeADT tm1 = incrm1(tm0);
-    MaybeADT tm2 = incrm1((tm1));
-    MaybeADT tm3 = incrm1((tm2));
-    return tm3;
-}
+     private:
+      std::optional<L> ol_;
+      std::optional<R> or_;
+  };
 
-int main() {
-    g_count = 0;
-    printf("\n===maing1===\n");
-    MaybeADT out = incrm3((MaybeADT::right((SimpleInt(39)))));
-    Thunk<SimpleInt> jout_val_thunk = out.r();
-    SimpleInt jout_val_val = force(jout_val_thunk);
-    printf("out: %d\n", jout_val_val.v);
-    return 0;
-}
-}  // namespace g0
+  struct Unit {};
 
-// 1. replace Thunk with Force
-namespace g1 {
-// Maybe *incrm1(Thunk<Maybe *> tm) {
-MaybeADT incrm1(Force<MaybeADT> tm) {
-    MaybeADT m = tm;
-    if (m.isl()) {
-	return MaybeADT::left(Unit());
-    } else {
-	Thunk<SimpleInt> tin = m.r();
-	SimpleInt x = force(tin);
-	int xnexthash = x.v + 1;
-	SimpleInt xnext(xnexthash);
-	return MaybeADT::right((xnext));
-    }
-}
-MaybeADT incrm3(Thunk<MaybeADT> tm0) {
-    MaybeADT tm1 = incrm1(tm0);
-    MaybeADT tm2 = incrm1((tm1));
-    MaybeADT tm3 = incrm1((tm2));
-    return tm3;
-}
+  using MaybeADT = Either<Unit, Thunk<SimpleInt>>;
 
-int main() {
-    g_count = 0;
-    printf("\n===maing1===\n");
-    MaybeADT out = incrm3((MaybeADT::right((SimpleInt(39)))));
-    Thunk<SimpleInt> jout_val_thunk = out.r();
-    SimpleInt jout_val_val = force(jout_val_thunk);
-    printf("out: %d\n", jout_val_val.v);
-    return 0;
-}
-}  // namespace g0
+  namespace g0 {
+  // Maybe *incrm1(Thunk<Maybe *> tm) {
+  MaybeADT incrm1(Thunk<MaybeADT> tm) {
+      MaybeADT m = force(tm);
+      if (m.isl()) {
+	  return MaybeADT::left(Unit());
+      } else {
+	  Thunk<SimpleInt> tin = m.r();
+	  SimpleInt x = force(tin);
+	  int xnexthash = x.v + 1;
+	  SimpleInt xnext(xnexthash);
+	  return MaybeADT::right((xnext));
+      }
+  }
+  MaybeADT incrm3(Thunk<MaybeADT> tm0) {
+      MaybeADT tm1 = incrm1(tm0);
+      MaybeADT tm2 = incrm1((tm1));
+      MaybeADT tm3 = incrm1((tm2));
+      return tm3;
+  }
 
-// 1. replace Thunk with Force
-// 2. remove  using Force
-namespace g2 {
-// Maybe *incrm1(Thunk<Maybe *> tm) {
-MaybeADT incrm1(Force<MaybeADT> tm) {
-    MaybeADT m = tm;
-    if (m.isl()) {
-	return MaybeADT::left(Unit());
-    } else {
-	Thunk<SimpleInt> tin = m.r();
-	SimpleInt x = force(tin);
-	int xnexthash = x.v + 1;
-	SimpleInt xnext(xnexthash);
-	return MaybeADT::right((xnext));
-    }
-}
-MaybeADT incrm3(Thunk<MaybeADT> tm0) {
-    MaybeADT tm1 = incrm1(tm0);
-    // MaybeADT tm2 = incrm1((tm1));
-    MaybeADT tm2 = incrm1(tm1);
-    // MaybeADT tm3 = incrm1((tm2));
-    MaybeADT tm3 = incrm1(tm2);
-    return tm3;
-}
+  int main() {
+      g_count = 0;
+      printf("\n===maing1===\n");
+      MaybeADT out = incrm3((MaybeADT::right((SimpleInt(39)))));
+      Thunk<SimpleInt> jout_val_thunk = out.r();
+      SimpleInt jout_val_val = force(jout_val_thunk);
+      printf("out: %d\n", jout_val_val.v);
+      return 0;
+  }
+  }  // namespace g0
 
-int main() {
-    g_count = 0;
-    printf("\n===maing2===\n");
-    MaybeADT out = incrm3((MaybeADT::right((SimpleInt(39)))));
-    Thunk<SimpleInt> jout_val_thunk = out.r();
-    SimpleInt jout_val_val = force(jout_val_thunk);
-    printf("out: %d\n", jout_val_val.v);
-    return 0;
-}
-}  // namespace g0
+  // 1. replace Thunk with Force
+  namespace g1 {
+  // Maybe *incrm1(Thunk<Maybe *> tm) {
+  MaybeADT incrm1(Force<MaybeADT> tm) {
+      MaybeADT m = tm;
+      if (m.isl()) {
+	  return MaybeADT::left(Unit());
+      } else {
+	  Thunk<SimpleInt> tin = m.r();
+	  SimpleInt x = force(tin);
+	  int xnexthash = x.v + 1;
+	  SimpleInt xnext(xnexthash);
+	  return MaybeADT::right((xnext));
+      }
+  }
+  MaybeADT incrm3(Thunk<MaybeADT> tm0) {
+      MaybeADT tm1 = incrm1(tm0);
+      MaybeADT tm2 = incrm1((tm1));
+      MaybeADT tm3 = incrm1((tm2));
+      return tm3;
+  }
+
+  int main() {
+      g_count = 0;
+      printf("\n===maing1===\n");
+      MaybeADT out = incrm3((MaybeADT::right((SimpleInt(39)))));
+      Thunk<SimpleInt> jout_val_thunk = out.r();
+      SimpleInt jout_val_val = force(jout_val_thunk);
+      printf("out: %d\n", jout_val_val.v);
+      return 0;
+  }
+  }  // namespace g0
+
+  // 1. replace Thunk with Force
+  // 2. remove  using Force
+  namespace g2 {
+  // Maybe *incrm1(Thunk<Maybe *> tm) {
+  MaybeADT incrm1(Force<MaybeADT> tm) {
+      MaybeADT m = tm;
+      if (m.isl()) {
+	  return MaybeADT::left(Unit());
+      } else {
+	  Thunk<SimpleInt> tin = m.r();
+	  SimpleInt x = force(tin);
+	  int xnexthash = x.v + 1;
+	  SimpleInt xnext(xnexthash);
+	  return MaybeADT::right((xnext));
+      }
+  }
+  MaybeADT incrm3(Thunk<MaybeADT> tm0) {
+      MaybeADT tm1 = incrm1(tm0);
+      // MaybeADT tm2 = incrm1((tm1));
+      MaybeADT tm2 = incrm1(tm1);
+      // MaybeADT tm3 = incrm1((tm2));
+      MaybeADT tm3 = incrm1(tm2);
+      return tm3;
+  }
+
+  int main() {
+      g_count = 0;
+      printf("\n===maing2===\n");
+      MaybeADT out = incrm3((MaybeADT::right((SimpleInt(39)))));
+      Thunk<SimpleInt> jout_val_thunk = out.r();
+      SimpleInt jout_val_val = force(jout_val_thunk);
+      printf("out: %d\n", jout_val_val.v);
+      return 0;
+  }
+  }  // namespace g0
 
 
 
-// 1. replace Thunk with Force
-// 2. remove  using Force
-// 3. Change the right component of MaybeADT to be a Force<SimpleInt>
-namespace g3 {
-using MaybeADTStrictR = Either<Unit, Force<SimpleInt>>;
-// Maybe *incrm1(Thunk<Maybe *> tm) {
-// MaybeADT incrm1(Force<MaybeADT> tm) {
-MaybeADT incrm1(Force<MaybeADTStrictR> tm) {
-    MaybeADT m = tm.v;
-    if (m.isl()) {
-	return MaybeADT::left(Unit());
-    } else {
-	Thunk<SimpleInt> tin = m.r();
-	SimpleInt x = force(tin);
-	int xnexthash = x.v + 1;
-	SimpleInt xnext(xnexthash);
-	return MaybeADT::right((xnext));
-    }
-}
-MaybeADT incrm3(Thunk<MaybeADT> tm0) {
-    MaybeADT tm1 = incrm1((tm0));
-    // MaybeADT tm2 = incrm1((tm1));
-    MaybeADT tm2 = incrm1((tm1));
-    // MaybeADT tm3 = incrm1((tm2));
-    MaybeADT tm3 = incrm1((tm2));
-    return tm3;
-}
+  // 1. replace Thunk with Force
+  // 2. remove  using Force
+  // 3. Change the right component of MaybeADT to be a Force<SimpleInt>
+  namespace g3 {
+  using MaybeADTStrictR = Either<Unit, Force<SimpleInt>>;
+  // Maybe *incrm1(Thunk<Maybe *> tm) {
+  // MaybeADT incrm1(Force<MaybeADT> tm) {
+  MaybeADT incrm1(Force<MaybeADTStrictR> tm) {
+      MaybeADT m = tm.v;
+      if (m.isl()) {
+	  return MaybeADT::left(Unit());
+      } else {
+	  Thunk<SimpleInt> tin = m.r();
+	  SimpleInt x = force(tin);
+	  int xnexthash = x.v + 1;
+	  SimpleInt xnext(xnexthash);
+	  return MaybeADT::right((xnext));
+      }
+  }
+  MaybeADT incrm3(Thunk<MaybeADT> tm0) {
+      MaybeADT tm1 = incrm1((tm0));
+      // MaybeADT tm2 = incrm1((tm1));
+      MaybeADT tm2 = incrm1((tm1));
+      // MaybeADT tm3 = incrm1((tm2));
+      MaybeADT tm3 = incrm1((tm2));
+      return tm3;
+  }
 
-int main() {
-    g_count = 0;
-    printf("\n===maing3===\n");
-    MaybeADT out = incrm3((MaybeADT::right((SimpleInt(39)))));
-    Thunk<SimpleInt> jout_val_thunk = out.r();
-    SimpleInt jout_val_val = force(jout_val_thunk);
-    printf("out: %d\n", jout_val_val.v);
-    return 0;
-}
-}  // namespace g0
+  int main() {
+      g_count = 0;
+      printf("\n===maing3===\n");
+      MaybeADT out = incrm3((MaybeADT::right((SimpleInt(39)))));
+      Thunk<SimpleInt> jout_val_thunk = out.r();
+      SimpleInt jout_val_val = force(jout_val_thunk);
+      printf("out: %d\n", jout_val_val.v);
+      return 0;
+  }
+  }  // namespace g0
+
+
+#+END_SRC
+
+
+** Odds and ends
+
+#+BEGIN_SRC cpp c++ :tangle repeated-incr-maybe.cpp
 
 int main() {
     f0::main();
@@ -593,3 +641,4 @@ int main() {
     g2::main();
     g3::main();
 }
+#+END_SRC

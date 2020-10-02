@@ -2,6 +2,8 @@
 
 - [GHC worker/wrapper](https://haskell-code-explorer.mfix.io/package/ghc-8.4.3/show/stranal/WorkWrap.hs)
 - [GHC worker/wrapper 'library'](https://haskell-code-explorer.mfix.io/package/ghc-8.4.3/show/stranal/WwLib.hs#L143)
+- [GHC demand analysis](https://gitlab.haskell.org/ghc/ghc/-/wikis/demand-analysis)
+- [GHC commentary on demands (outdated?)](https://gitlab.haskell.org/ghc/ghc/-/wikis/commentary/compiler/demand)
 - Problem 1: Can we eliminate outlining, and somehow express the "variants" of
   the function locally?
 - Problem 2: how do we optimise worker/wrapper locally when we have multiple
