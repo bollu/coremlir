@@ -1,0 +1,162 @@
+module Sum(sum, main) where
+
+sumList :: [Int] -> Int
+sumList [] = 0
+sumList (x:xs) = x + sumList xs
+
+main :: IO ()
+main = print(sumList [42,43,44])
+
+
+-- We would expect to find the number `129 = 42 + 43 + 44` in the core
+-- but there is no such thing:
+-- https://mpickering.github.io/posts/2017-03-20-inlining-and-specialisation.html
+--
+-- > A user might expect sum [1,2,3] to be optimised to 6. However, GHC will not
+-- > inline sum because it is a self-recursive definition and hence a loop-breaker.
+-- > The compiler is not smart enough to realise that repeatedly inlining sum will
+-- > terminate.
+
+
+
+
+-- ==================== Tidy Core ====================
+-- 2020-10-02 07:42:07.742184191 UTC
+-- 
+-- Result size of Tidy Core
+--   = {terms: 75, types: 50, coercions: 0, joins: 0/0}
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- Sum.$trModule4 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- Sum.$trModule4 = "main"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- Sum.$trModule3 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- Sum.$trModule3 = GHC.Types.TrNameS Sum.$trModule4
+-- 
+-- -- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+-- Sum.$trModule2 :: GHC.Prim.Addr#
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 20 0}]
+-- Sum.$trModule2 = "Sum"#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- Sum.$trModule1 :: GHC.Types.TrName
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m1,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- Sum.$trModule1 = GHC.Types.TrNameS Sum.$trModule2
+-- 
+-- -- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+-- Sum.$trModule :: GHC.Types.Module
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- Sum.$trModule = GHC.Types.Module Sum.$trModule3 Sum.$trModule1
+-- 
+-- Rec {
+-- -- RHS size: {terms: 9, types: 4, coercions: 0, joins: 0/0}
+-- Sum.main_$s$wsumList [Occ=LoopBreaker]
+--   :: GHC.Prim.Int# -> [Int] -> GHC.Prim.Int#
+-- [GblId, Arity=2, Caf=NoCafRefs, Str=<L,U><S,1*U>, Unf=OtherCon []]
+-- Sum.main_$s$wsumList
+--   = \ (sc_s109 :: GHC.Prim.Int#) (sc1_s10a :: [Int]) ->
+--       case $wsumList_r10C sc1_s10a of ww_sZu { __DEFAULT ->
+--       GHC.Prim.+# sc_s109 ww_sZu
+--       }
+-- 
+-- -- RHS size: {terms: 16, types: 10, coercions: 0, joins: 0/0}
+-- $wsumList_r10C :: [Int] -> GHC.Prim.Int#
+-- [GblId, Arity=1, Caf=NoCafRefs, Str=<S,1*U>, Unf=OtherCon []]
+-- $wsumList_r10C
+--   = \ (w_sZr :: [Int]) ->
+--       case w_sZr of {
+--         [] -> 0#;
+--         : x_atw xs_atx ->
+--           case x_atw of { GHC.Types.I# x1_aYc ->
+--           case $wsumList_r10C xs_atx of ww_sZu { __DEFAULT ->
+--           GHC.Prim.+# x1_aYc ww_sZu
+--           }
+--           }
+--       }
+-- end Rec }
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- Sum.main5 :: Int
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- Sum.main5 = GHC.Types.I# 43#
+-- 
+-- -- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+-- Sum.main4 :: Int
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 20}]
+-- Sum.main4 = GHC.Types.I# 44#
+-- 
+-- -- RHS size: {terms: 3, types: 2, coercions: 0, joins: 0/0}
+-- Sum.main3 :: [Int]
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m2,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- Sum.main3 = GHC.Types.: @ Int Sum.main4 (GHC.Types.[] @ Int)
+-- 
+-- -- RHS size: {terms: 3, types: 1, coercions: 0, joins: 0/0}
+-- Sum.main2 :: [Int]
+-- [GblId,
+--  Caf=NoCafRefs,
+--  Str=m2,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True, Guidance=IF_ARGS [] 10 30}]
+-- Sum.main2 = GHC.Types.: @ Int Sum.main5 Sum.main3
+-- 
+-- -- RHS size: {terms: 14, types: 12, coercions: 0, joins: 0/0}
+-- Sum.main1 :: String
+-- [GblId,
+--  Unf=Unf{Src=<vanilla>, TopLvl=True, Value=False, ConLike=False,
+--          WorkFree=False, Expandable=False, Guidance=IF_ARGS [] 100 30}]
+-- Sum.main1
+--   = case Sum.main_$s$wsumList 42# Sum.main2 of ww_sZu { __DEFAULT ->
+--     case GHC.Show.$wshowSignedInt 0# ww_sZu (GHC.Types.[] @ Char) of
+--     { (# ww5_aYu, ww6_aYv #) ->
+--     GHC.Types.: @ Char ww5_aYu ww6_aYv
+--     }
+--     }
+-- 
+-- -- RHS size: {terms: 4, types: 0, coercions: 0, joins: 0/0}
+-- main :: IO ()
+-- [GblId,
+--  Arity=1,
+--  Str=<L,U>,
+--  Unf=Unf{Src=InlineStable, TopLvl=True, Value=True, ConLike=True,
+--          WorkFree=True, Expandable=True,
+--          Guidance=ALWAYS_IF(arity=0,unsat_ok=True,boring_ok=False)
+--          Tmpl= GHC.IO.Handle.Text.hPutStr'
+--                  GHC.IO.Handle.FD.stdout Sum.main1 GHC.Types.True}]
+-- main
+--   = GHC.IO.Handle.Text.hPutStr'
+--       GHC.IO.Handle.FD.stdout Sum.main1 GHC.Types.True
+-- 
+-- 
