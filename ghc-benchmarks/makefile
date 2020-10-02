@@ -1,4 +1,4 @@
-targets = incr-incr repeated-incr-maybe-recursive
+targets = incr-incr repeated-incr-maybe-recursive repeated-incr-maybe
 
 all: $(targets)
 
