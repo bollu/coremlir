@@ -1,14 +1,13 @@
-#include <stdio.h>
+#include <assert.h>
 #include <functional>
 #include <optional>
-#include <assert.h>
+#include <stdio.h>
 
 // incrm1 :: Maybe Int -> Maybe Int
 // incrm1 mx = case mx of Nothing -> Nothing; Just x -> Just (x+1)
-// 
+//
 // incrm3 :: Maybe Int -> Maybe Int
 // incrm3 mx = incrm1 (incrm1(incrm1(mx)))
-
 
 int g_count = 0;
 
@@ -20,20 +19,15 @@ struct SimpleInt {
 
   operator int() { return v; }
 };
-int casedefault(SimpleInt s) {
-  return s.v;
-}
+int casedefault(SimpleInt s) { return s.v; }
 
-
-
-template<typename T>
-struct Thunk {
+template <typename T> struct Thunk {
   Thunk(std::function<T()> lzf) : lzf(lzf) {
     printf("- thunking: #%d\n", ++g_count);
   }
 
   T v() {
-    if(!cached) {
+    if (!cached) {
       printf("- forcing: #%d\n", ++g_count);
       cached = lzf();
     }
@@ -46,82 +40,69 @@ private:
   std::function<T()> lzf;
 };
 
+template <typename T> T force(Thunk<T> thnk) { return thnk.v(); }
 
-template<typename T>
-T force(Thunk<T> thnk) { return thnk.v(); }
+template <typename T> Thunk<T> thunkify(T v) {
+  return Thunk<T>([v]() { return v; });
+}
 
-template<typename T>
-Thunk<T> thunkify(T v) { return Thunk<T>([v]() { return v; }); }
-
-template<typename R, typename... Args> 
-Thunk<R> ap(std::function<R(Args...)> f, Args... args) { 
+template <typename R, typename... Args>
+Thunk<R> ap(std::function<R(Args...)> f, Args... args) {
   return Thunk<R>([=]() { return f(args...); });
 }
 
-template<typename R, typename... Args> 
-Thunk<R> ap(R(*f)(Args...), Args... args) { 
+template <typename R, typename... Args>
+Thunk<R> ap(R (*f)(Args...), Args... args) {
   return Thunk<R>([=]() { return f(args...); });
 }
 
-template<typename R, typename... Args> 
-R apStrict(std::function<R(Args...)> f, Args... args) { 
-  return f(args...); 
+template <typename R, typename... Args>
+R apStrict(std::function<R(Args...)> f, Args... args) {
+  return f(args...);
 }
 
 // function arguments and real arguments can be mismatched,
 // since function can take a Force instead of a Thunk ?
-template<typename R, typename... FArgs, typename... Args> 
-R apStrict(R(*f)(FArgs...), Args... args) { 
+template <typename R, typename... FArgs, typename... Args>
+R apStrict(R (*f)(FArgs...), Args... args) {
   return f(args...);
 }
 
-template<typename T>
-struct Force {
+template <typename T> struct Force {
   T v;
-  Force(T v): v(v) {};
-  Force(Thunk<T> thnk) : v(thnk.v()) {};
-  operator T() { return T(v);}
-
+  Force(T v) : v(v){};
+  Force(Thunk<T> thnk) : v(thnk.v()){};
+  operator T() { return T(v); }
 };
 
-template<typename T>
-T force(Force<T> forcedv) { return forcedv.v; }
+template <typename T> T force(Force<T> forcedv) { return forcedv.v; }
 
-
-template<typename Outer, typename Inner>
-struct Unwrap {
+template <typename Outer, typename Inner> struct Unwrap {
   Inner v;
-  Unwrap(Outer outer) : v(outer) {};
-  Unwrap(Inner inner) : v(inner) {};
+  Unwrap(Outer outer) : v(outer){};
+  Unwrap(Inner inner) : v(inner){};
   operator Inner() { return v; }
 };
 
 // specialize to allow implicit construction of a
 // Unwrap<Force<Outer>> from an Outer
-template<typename Outer, typename Inner>
-struct Unwrap<Force<Outer>, Inner> {
+template <typename Outer, typename Inner> struct Unwrap<Force<Outer>, Inner> {
   Inner v;
-  Unwrap(Outer outer) : v(outer.v) {};
-  Unwrap(Thunk<Outer> outer) : v(outer.v()) {};
-  Unwrap(Inner inner) : v(inner) {};
+  Unwrap(Outer outer) : v(outer.v){};
+  Unwrap(Thunk<Outer> outer) : v(outer.v()){};
+  Unwrap(Inner inner) : v(inner){};
   operator Inner() { return v; }
 };
 
 // denotes that we are wrapping a value into another value.
-template <typename Inner, typename Outer>
-struct Wrap {
+template <typename Inner, typename Outer> struct Wrap {
   Inner wi;
 
   Wrap(Inner i) : wi(i) {}
 
-  operator Outer () {
-    return Outer(wi);
-  }
-  operator Inner () {
-    return wi;
-  }
+  operator Outer() { return Outer(wi); }
+  operator Inner() { return wi; }
 };
-
 
 enum class MaybeTy { Nothing, Just };
 struct Maybe {
@@ -136,55 +117,194 @@ struct MNothing : public Maybe {
 };
 struct MJust : public Maybe {
   // thunk of value inside MJust
-  MJust(Thunk<SimpleInt> tin) 
-      : Maybe(MaybeTy::Just), tin(tin) {
+  MJust(Thunk<SimpleInt> tin) : Maybe(MaybeTy::Just), tin(tin) {
     printf("- building MJust: #%d\n", ++g_count);
   };
   Thunk<SimpleInt> tin;
 };
 
 void printMaybe(Maybe *mx) {
-    if (mx->ty == MaybeTy::Nothing) {
-        printf("Nothing");
-    } else {
-        printf("Some");
-    }
+  if (mx->ty == MaybeTy::Nothing) {
+    printf("Nothing");
+  } else {
+    printf("Some");
+  }
 }
 
 namespace f0 {
-  Maybe *incrm1(Thunk<Maybe *> tm) {
-    Maybe *m = force(tm);
+Maybe *incrm1(Thunk<Maybe *> tm) {
+  Maybe *m = force(tm);
+  if (m->ty == MaybeTy::Nothing) {
+    return new MNothing();
+  } else {
+    MJust *mj = (MJust *)(m);
+    Thunk<SimpleInt> tin = mj->tin;
+    SimpleInt x = force(tin);
+    int xnexthash = x.v + 1;
+    SimpleInt xnext(xnexthash);
+    return (Maybe *)(new MJust(thunkify(xnext)));
+  }
+}
+Maybe *incrm3(Thunk<Maybe *> tm0) {
+  Maybe *tm1 = incrm1(tm0);
+  Maybe *tm2 = incrm1(thunkify(tm1));
+  Maybe *tm3 = incrm1(thunkify(tm2));
+  return tm3;
+}
+int main() {
+  g_count = 0;
+  printf("\n===mainf0===\n");
+  Maybe *out = incrm3(thunkify((Maybe *)new MJust(thunkify(SimpleInt(39)))));
+  MJust *jout = (MJust *)out;
+  Thunk<SimpleInt> jout_val_thunk = jout->tin;
+  SimpleInt jout_val_val = force(jout_val_thunk);
+  printf("out: %d\n", jout_val_val.v);
+  return 0;
+}
+} // namespace f0
+
+// 1. inline incrm1 into incrm3
+namespace f1 {
+// nuked incrm1
+
+Maybe *incrm3(Thunk<Maybe *> tm0) {
+  // Maybe *tm1 = incrm1(tm0);
+  Maybe *tm1 = nullptr;
+  {
+    Maybe *m = force(tm0);
     if (m->ty == MaybeTy::Nothing) {
-        return new MNothing();
+      tm1 = new MNothing();
     } else {
-        MJust *mj = (MJust *)(m);
-        Thunk<SimpleInt> tin = mj->tin;
-        SimpleInt x = force(tin);
-        int xnexthash = x.v + 1;
-        SimpleInt xnext(xnexthash);
-        return (Maybe *)(new MJust(thunkify(xnext)));
+      MJust *mj = (MJust *)(m);
+      Thunk<SimpleInt> tin = mj->tin;
+      SimpleInt x = force(tin);
+      int xnexthash = x.v + 1;
+      SimpleInt xnext(xnexthash);
+      tm1 = (Maybe *)(new MJust(thunkify(xnext)));
+    }
+  }
+  // incrm1(thunkify(tm1));
+  Thunk<Maybe *> tm1_thnk = thunkify(tm1);
+  Maybe *tm2 = nullptr;
+  {
+    Maybe *m = force(tm1_thnk);
+    if (m->ty == MaybeTy::Nothing) {
+      tm2 = new MNothing();
+    } else {
+      MJust *mj = (MJust *)(m);
+      Thunk<SimpleInt> tin = mj->tin;
+      SimpleInt x = force(tin);
+      int xnexthash = x.v + 1;
+      SimpleInt xnext(xnexthash);
+      tm2 = (Maybe *)(new MJust(thunkify(xnext)));
     }
   }
 
-  Maybe *incrm3(Thunk<Maybe *>tm0) {
-      Maybe *tm1 = incrm1(tm0);
-      Maybe *tm2 = incrm1(thunkify(tm1));
-      Maybe *tm3 = incrm1(thunkify(tm2));
-      return tm3;
+  //  Maybe *tm3 = incrm1(thunkify(tm2));
+  Thunk<Maybe *> tm2_thunk = thunkify(tm2);
+  Maybe *tm3 = nullptr;
+  {
+    Maybe *m = force(tm2_thunk);
+    if (m->ty == MaybeTy::Nothing) {
+      tm3 = new MNothing();
+    } else {
+      MJust *mj = (MJust *)(m);
+      Thunk<SimpleInt> tin = mj->tin;
+      SimpleInt x = force(tin);
+      int xnexthash = x.v + 1;
+      SimpleInt xnext(xnexthash);
+      tm3 = (Maybe *)(new MJust(thunkify(xnext)));
+    }
   }
 
-  int main() {
-    g_count = 0;
-    printf("\n===mainf0===\n");
-    Maybe *out = incrm3(thunkify((Maybe *)new MJust(thunkify(SimpleInt(39)))));
-    MJust *jout = (MJust *)out;
-    Thunk<SimpleInt> jout_val_thunk = jout->tin;
-    SimpleInt jout_val_val = force(jout_val_thunk);
-    printf("out: %d\n", jout_val_val.v);
-    return 0;
-  }
+  return tm3;
 }
+int main() {
+  g_count = 0;
+  printf("\n===mainf1===\n");
+  Maybe *out = incrm3(thunkify((Maybe *)new MJust(thunkify(SimpleInt(39)))));
+  MJust *jout = (MJust *)out;
+  Thunk<SimpleInt> jout_val_thunk = jout->tin;
+  SimpleInt jout_val_val = force(jout_val_thunk);
+  printf("out: %d\n", jout_val_val.v);
+  return 0;
+}
+} // namespace f1
+
+
+// 1. inline incrm1 into incrm3
+// 2. simplify force(thunkify(...))
+namespace f2 {
+// nuked incrm1
+
+Maybe *incrm3(Thunk<Maybe *> tm0) {
+  // Maybe *tm1 = incrm1(tm0);
+  Maybe *tm1 = nullptr;
+  {
+    Maybe *m = force(tm0);
+    if (m->ty == MaybeTy::Nothing) {
+      tm1 = new MNothing();
+    } else {
+      MJust *mj = (MJust *)(m);
+      Thunk<SimpleInt> tin = mj->tin;
+      SimpleInt x = force(tin);
+      int xnexthash = x.v + 1;
+      SimpleInt xnext(xnexthash);
+      tm1 = (Maybe *)(new MJust(thunkify(xnext)));
+    }
+  }
+  // incrm1(thunkify(tm1));
+  // Thunk<Maybe *> tm1_thnk = thunkify(tm1);
+  Maybe *tm2 = nullptr;
+  {
+    // Maybe *m = force(tm1_thnk);
+    Maybe *m = tm1;
+    if (m->ty == MaybeTy::Nothing) {
+      tm2 = new MNothing();
+    } else {
+      MJust *mj = (MJust *)(m);
+      Thunk<SimpleInt> tin = mj->tin;
+      SimpleInt x = force(tin);
+      int xnexthash = x.v + 1;
+      SimpleInt xnext(xnexthash);
+      tm2 = (Maybe *)(new MJust(thunkify(xnext)));
+    }
+  }
+
+  //  Maybe *tm3 = incrm1(thunkify(tm2));
+  Thunk<Maybe *> tm2_thunk = thunkify(tm2);
+  Maybe *tm3 = nullptr;
+  {
+    // Maybe *m = force(tm2_thunk);
+    Maybe *m = tm2;
+    if (m->ty == MaybeTy::Nothing) {
+      tm3 = new MNothing();
+    } else {
+      MJust *mj = (MJust *)(m);
+      Thunk<SimpleInt> tin = mj->tin;
+      SimpleInt x = force(tin);
+      int xnexthash = x.v + 1;
+      SimpleInt xnext(xnexthash);
+      tm3 = (Maybe *)(new MJust(thunkify(xnext)));
+    }
+  }
+
+  return tm3;
+}
+int main() {
+  g_count = 0;
+  printf("\n===mainf2===\n");
+  Maybe *out = incrm3(thunkify((Maybe *)new MJust(thunkify(SimpleInt(39)))));
+  MJust *jout = (MJust *)out;
+  Thunk<SimpleInt> jout_val_thunk = jout->tin;
+  SimpleInt jout_val_val = force(jout_val_thunk);
+  printf("out: %d\n", jout_val_val.v);
+  return 0;
+}
+} // namespace f1
 
 int main() {
   f0::main();
+  f1::main();
+  f2::main();
 }
