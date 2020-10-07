@@ -84,3 +84,7 @@ musquared.code-workspace
 build
 
 *.code-workspace
+
+# CCLS cache for emacs LSP
+.ccls-cache
+
