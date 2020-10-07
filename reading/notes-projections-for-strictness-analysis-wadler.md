@@ -337,7 +337,209 @@ ABS(x) = ⊥
 
 ##### UB versus abort
 
-> 
+The semantcs of `abort` is such that the program simply errors out. If we want
+to optimize programs, it seems that we can replace these semantics with that
+of undefined behaviour. This gives us a pretty precise definition of what
+UB is and how it can propagate.
 
 
-#### Types of strictness annotations
+##### Domain of projections
+
+We get a lattice:
+
+```   ID
+  ABS    STR
+     FAIL
+```
+which is a _subdomain_ of all projections of the full domain `D`. Here, the
+different labels mean:
+- `FAIL`: no value returned by `e` is acceptable. We can implement `e` by 
+  immediately aborting.
+- `ABS`: the value of `e` is ignored. We don't need to pass the parameter `e`.
+- `STR`: e is forced. We can evaluate `e` immediately.
+- `ID`: `e` is either forced, or not used. We must construct a thunk
+  for `e`.
+
+##### 4 Finite domains
+
+For primitive types, we can build a domain with a projection operator called
+`EQUAL(x0): D -> D` which operates as:
+
+```
+EQUAL(x0)(x) = x0 [if x = x0]
+EQUL(x0)(_) = ⑂  [otherwise]
+```
+
+- Thus, if we have `f: EQUAL(y) => EQUAL(x)` then we must have that `f(x) = y`.
+- This is generally "too precise". We don't need this much of information about
+  a datatype.
+  
+##### 5 Finite domains for lists
+- `LIST D` is the domain whose elements come from the domain `D`. we've already
+seen `H` and `T`. here we see two more projections called `NIL` and `CONS`
+which strictly expect to see a `NIL` or a `CONS` node:
+
+```
+NIL :: LIST(D) -> LIST(D)
+NIL (⑂) = ⑂
+NIL (⊥) = ⑂
+NIL ([]) = []
+NIL (x:xs) = ⑂
+```
+
+- a `CONS` is a _projection transformer_. It takes two projections, one for the
+  head, a `px: Proj(D)` and one for the tail, a projection for the rest of the 
+  list, `pxs: Proj(LIST(D))`, and it applies these if it finds a cons otherwise.
+  Otherwise, it `⑂`s out.
+
+```
+CONS :: Proj(D) -> Proj(LIST(D)) -> LIST(D) -> LIST(D)
+CONS px pxs (⑂) = ⑂
+CONS px pxs (⊥) = ⑂
+CONS px pxs ([]) = ⑂
+CONS px pxs (x:xs) = (px x):(pxs xs)
+```
+
+We can describe the shape of lists exactly using these. For example, the projection:
+
+```
+CONS ID (CONS EQUAL(0) NIL))
+```
+
+Interestingly, we can also describe exactly finite and infinite lists with
+these recursive definitions:
+
+```
+FIN (a) = NIL U CONS a (FIN a)
+INF (a) = NIL U CONS a (ABS U INF a)
+```
+
+- `Fin` needs both the head and the tail to be strictly evaluatable. This is 
+  only possible if the list is finite. Consider `let xs = 1:xs`. We can't evaluate
+  the tail of the list reucrsively in finite time!
+- `INF` allows the tail to be absent, thereby allowing us to pass off
+  infinite lists.
+- We have `length: STR => FIN ABS`, which means that if we demand `length`,
+  then we need the input to be a finite list that ignores its input.
+
+#### 6 Context Analysis
+
+Given a function `f` and a projection `α` we want to find a projection `β` such that
+`f: α => β`. Recall that this condition is phrased in two equivalent ways:
+- (original): `α . f = α . f . β`:
+  it is safe to elide `β` more data from the input if all we want is `α` amount of data in the output
+- (equivalent): `α . f <= f . β`: The output from `f` after removing `β` amount of information 
+  is still larger than what is perceived by `α` with _no_ information removed. It is thus safe to
+  remove `β` amount of information.
+
+It is equivalent to halting to find the smallest `β` for a given `α`: We have that
+`f: STR ⇒ FAIL` only holds iff `f` diverges for each argument. Thus, we can check
+if a function halts or not on all inputs by asking `f: STR ⇒ ?`
+
+##### LANGUAGE
+
+```
+e := x [variable]
+   | k [constant]
+   | f(e1, ..., en) [function application]
+   | if e0 then e1 else e2 [conditionals]
+   | case e0 of [] => e1 | y:ys => e2
+```
+
+#### 6.2: Projection transformers
+
+##### Projection transformers for functions
+
+For a given demand `α (f(u1, ..., un))`, we define `f[i](α)` to be the safe
+demand on the input `ui`. That is:
+
+```
+α(f(u1, ..., ui, ... , un)) <= f(u1, ..., f[i](α)[ui], ..., un)
+```
+
+Equivalently this can be phrased as:
+
+```
+α(f(u1, ..., ui, ... , un)) = α(f(u1, ..., f[i](α)[ui], ..., un))
+```
+
+This tells us that `f[i](α)` is a safe demand on the input `ui` when the demand
+on the output is `α`. So formally, if `f: T1 -> .. -> Ti -> .. -> Tn -> R`, 
+then we must have `α: PROJ(R)`, `β = f[i](α): PROJ(Ti)`, this we must have
+`f[i]: PROJ(R) -> PROJ(Ti)`: A projection transformer that transforms a
+projection on the return type to a projection on the `i`th input.
+
+##### Projection transformers for expressions
+
+Similarly, for a given expression `e : Te` and  a variable  `x: Tx`
+we define `e[x]: PROJ(Te) -> PROJ(Tx)` which transforms a projection on the
+output to a projection on the variable `Tx`, defined by the relation:
+
+```
+α(e) <= substitute(expr=e, var=x, replacement=e[x](α)(x))
+```
+
+That is, given a demand of `α` on `e`, we can safely replace the variable `x`
+with the variable `e[x](α)(x)`.
+
+#### Definition of `e[x](α)`:
+
+```
+x[y](α) = x == y ? α : ABS [variable]
+k[y](α) = ABS [constant]
+e[x](α) = α |> e[x](α') [α' is the strict version of α]
+
+α' STRICT:
+----------
+
+(f(e1, ..., en))[x](α) = [function application]
+  e1[x](f[1](α)) U! ... U! en[x](f[n](α))
+
+(if e0 then e1 else e2)[x](α) =  [conditionals]
+   e0[x](STR) U! (e1[x](α) U e2[x](α))
+
+(case e0 of [] => e1 | y:ys => e2)[x](α) = [case]
+  (e0[x](NIL) U! e1[x](α)) U
+  (e0[x](CONS(e2[y](α), e2[ys](α) U! e2[x](α))
+```
+
+- NOTE: I rename the `&` operator as the `U!` operator because I feel that this
+  actually captures the spirit of what the operator is trying to do.
+
+
+#### 6.3: the `|>` [guard] operation:
+
+Notice that if we have a projection that is lazy in our four point domain
+`{FAIL, ABS, STR, ID}` , then we can decompose its 
+effect into two parts: the part that is `ABS` and the "strict part". For example,
+- `ABS = ABS U FAIL`.
+- `ID = ABS U STR`.
+
+All projections that are built out of the 4-point domain (such as `CONS ABS ABS`)
+can again be reucrsively decomposed into the "strict" part and the "lazy" part.
+So we build an operator `|>` whose entire job is to help us decompose the domain
+into the lazy part and the strict part. so it has the rules:
+
+```
+FAIL |> β = FAIL
+ABS |> β = ABS
+α |> β = β [if α is strict and α != FAIL]
+```
+
+So, if we have some kind of lazy operator `α`, we can write its effect as:
+
+```
+α |> α'
+```
+
+where `α'` is the strictified version of `α`. So we use this to define the
+effect of `e[x](α)` for only strict and non-fail operators, and use the `|>`
+operator to compose the effect of laziness / failure.
+
+#### 6.4: function application
+
+#### 6.5: conditional expression
+#### 6.6: case 
+#### 6.7: primitives
+
+
