@@ -18,7 +18,6 @@
 #define GIVE
 #define TAKE
 #define KEEP
-using namespace std;
 using ll = long long;
 
 struct Span;
@@ -76,8 +75,8 @@ private:
   }
 };
 
-ostream &operator<<(ostream &o, const Loc &l) {
-  return cout << ":" << l.line << ":" << l.col;
+std::ostream &operator<<(std::ostream &o, const Loc &l) {
+  return o << ":" << l.line << ":" << l.col;
 }
 
 // half open [...)
@@ -100,8 +99,8 @@ Span Loc::moveMut(Loc next) {
   return s;
 };
 
-ostream &operator<<(ostream &o, const Span &s) {
-  return cout << s.begin << " - " << s.end;
+std::ostream &operator<<(std::ostream &o, const Span &s) {
+  return o << s.begin << " - " << s.end;
 }
 
 // TODO: upgrade this to take a space, not just a location.
@@ -110,15 +109,15 @@ void vprintfspan(Span span, const char *raw_input, const char *fmt,
   char *outstr = nullptr;
   vasprintf(&outstr, fmt, args);
   assert(outstr);
-  cerr << "===\n";
-  cerr << span.begin << ":" << span.end << "\n";
+  std::cerr << "===\n";
+  std::cerr << span.begin << ":" << span.end << "\n";
 
-  cerr << "===\n";
-  cerr << span << "\t" << outstr << "\n";
+  std::cerr << "===\n";
+  std::cerr << span << "\t" << outstr << "\n";
   for (ll i = span.begin.si; i < span.end.si; ++i) {
-    cerr << raw_input[i];
+      std::cerr << raw_input[i];
   }
-  cerr << "\n===\n";
+  std::cerr << "\n===\n";
 }
 
 void printfspan(Span span, const char *raw_input, const char *fmt, ...) {
@@ -177,7 +176,7 @@ void vprintferr(Loc loc, const char *raw_input, const char *fmt, va_list args) {
     line_buf[outix] = pointer_buf[outix] = '\0';
   }
 
-  cerr << "\n==\n"
+  std::cerr << "\n==\n"
        << outstr << "\n"
        << loc.filename << loc << "\n"
        << line_buf << "\n"
@@ -199,66 +198,50 @@ bool isReservedSigil(char c) {
 }
 
 struct Error {
-  string errmsg;
+  std::string errmsg;
   Loc loc;
 
-  Error(Loc loc, string errmsg) : errmsg(errmsg), loc(loc){};
+  Error(Loc loc, std::string errmsg) : errmsg(errmsg), loc(loc){};
 };
 
 struct Identifier {
   const Span span;
-  const string name;
+  const std::string name;
   Identifier(const Identifier &other) = default;
-  Identifier(Span span, string name) : span(span), name(name){};
+  Identifier(Span span, std::string name) : span(span), name(name){};
 
   Identifier operator=(const Identifier &other) { return Identifier(other); }
 
-  void print(ostream &f) const { f << name; }
+  void print(std::ostream &f) const { f << name; }
 };
 
 struct Parser {
   Parser(const char *filename, const char *raw)
-      : s(string(filename)), l(filename, 0, 1, 1){};
+      : s(std::string(raw)), l(filename, 0, 1, 1){};
 
-  void parseOpenCurly() { parseSigil(string("{")); }
-  void parseCloseCurly() { parseSigil(string("}")); }
-  void parseFatArrow() { parseSigil(string("=>")); }
-  bool parseOptionalCloseCurly() {
-    return bool(parseOptionalSigil(string("}")));
-  }
-  void parseOpenRoundBracket() { parseSigil(string("(")); }
-  bool parseOptionalOpenRoundBracket() {
-    return bool(parseOptionalSigil(string("(")));
-  }
-  bool parseCloseRoundBracket() {
-    return bool(parseOptionalSigil(string(")")));
-  }
-  bool parseOptionalCloseRoundBracket() {
-    return bool(parseOptionalSigil(string(")")));
-  }
-  void parseColon() { parseSigil(string(":")); }
-  bool parseOptionalComma() { return bool(parseOptionalSigil(string(","))); }
-  void parseComma() { parseSigil(string(",")); }
-  void parseSemicolon() { parseSigil(string(";")); }
-  bool parseOptionalSemicolon() {
-    return bool(parseOptionalSigil(string(";")));
-  }
-  void parseThinArrow() { parseSigil(string("->")); }
+  Span parseOpenRoundBracket() { return parseSigil(std::string("(")); }
 
-  pair<Span, ll> parseInteger() {
-    optional<pair<Span, ll>> out = parseOptionalInteger();
+  std::optional<Span> parseOptionalOpenRoundBracket() {
+    return parseOptionalSigil(std::string("("));
+  }
+
+  void parseCloseRoundBracket(Span open) { parseMatchingSigil(open, std::string(")")); }
+  bool parseOptionalCloseRoundBracket(Span open) { return bool(parseOptionalMatchingSigil(open, std::string(")"))); }
+
+  std::pair<Span, ll> parseInteger() {
+    std::optional<std::pair<Span, ll>> out = parseOptionalInteger();
     if (!out) {
-      this->addErr(Error(l, string("unble to find integer")));
+      this->addErr(Error(l, std::string("unble to find integer")));
       exit(1);
     }
     return *out;
   }
 
   // [-][0-9]+
-  optional<pair<Span, ll>> parseOptionalInteger() {
+  std::optional<std::pair<Span, ll>> parseOptionalInteger() {
     eatWhitespace();
     bool negate = false;
-    optional<char> ccur; // peeking character
+    std::optional<char> ccur; // peeking character
     Loc lcur = l;
 
     ccur = this->at(lcur);
@@ -293,8 +276,8 @@ struct Parser {
     return {{span, number}};
   }
 
-  Span parseSigil(const string sigil) {
-    optional<Span> span = parseOptionalSigil(sigil);
+  Span parseSigil(const std::string sigil) {
+    std::optional<Span> span = parseOptionalSigil(sigil);
     if (span) {
       return *span;
     }
@@ -303,11 +286,32 @@ struct Parser {
     exit(1);
   }
 
+    std::optional<Span> parseOptionalMatchingSigil(Span open, const std::string sigil) {
+      std::optional<Span> span = parseOptionalSigil(sigil);
+      if (span) { return span; }
+      else if (this->eof()) {
+          addErr(Error(l, "found end of file!"));
+          addErr(Error(l, "expected closing sigil: |" + sigil + "|"));
+          addErr(Error(open.begin, "unmatched sigil opened here"));
+          exit(1);
+      }
+      return {};
+  }
+
+  Span parseMatchingSigil(Span open, const std::string sigil) {
+      std::optional<Span> span = parseOptionalMatchingSigil(open, sigil);
+      if (span) { return *span; }
+      addErr(Error(l, "expected closing sigil: |" + sigil + "|"));
+      addErr(Error(open.begin, "unmatched sigil opened here"));
+
+      exit(1);
+  }
+
   // difference is that a sigil needs no whitespace after it, unlike
   // a keyword.
-  optional<Span> parseOptionalSigil(const string sigil) {
-    cerr << __FUNCTION__ << "|" << sigil.c_str() << "|\n";
-    optional<char> ccur;
+  std::optional<Span> parseOptionalSigil(const std::string sigil) {
+    // std::cerr << __FUNCTION__ << "|" << sigil.c_str() << "|\n";
+    std::optional<char> ccur;
     eatWhitespace();
     Loc lcur = l;
     // <sigil>
@@ -325,19 +329,19 @@ struct Parser {
   }
 
   Identifier parseIdentifier() {
-    optional<Identifier> ms = parseOptionalIdentifier();
+    std::optional<Identifier> ms = parseOptionalIdentifier();
     if (ms.has_value()) {
       return *ms;
     }
-    addErr(Error(l, string("expected identifier")));
+    addErr(Error(l, std::string("expected identifier")));
     exit(1);
   }
 
-  optional<Identifier> parseOptionalIdentifier() {
+  std::optional<Identifier> parseOptionalIdentifier() {
     eatWhitespace();
     Loc lcur = l;
 
-    optional<char> fst = this->at(lcur);
+    std::optional<char> fst = this->at(lcur);
     if (!fst) {
       return {};
     }
@@ -347,7 +351,7 @@ struct Parser {
     lcur = lcur.nextc(*fst);
 
     while (1) {
-      optional<char> cchar = this->at(lcur);
+      std::optional<char> cchar = this->at(lcur);
       if (!cchar) {
         return {};
       }
@@ -361,12 +365,12 @@ struct Parser {
     return Identifier(span, s.substr(span.begin.si, span.nchars()));
   }
 
-  optional<Span> parseOptionalKeyword(const string keyword) {
+  std::optional<Span> parseOptionalKeyword(const std::string keyword) {
     eatWhitespace();
     // <keyword><non-alpha-numeric>
     Loc lcur = l;
     for (int i = 0; i < keyword.size(); ++i) {
-      optional<char> c = this->at(lcur);
+      std::optional<char> c = this->at(lcur);
       if (!c) {
         return {};
       }
@@ -375,7 +379,7 @@ struct Parser {
       }
       lcur = lcur.nextc(*c);
     }
-    optional<char> c = this->at(lcur);
+    std::optional<char> c = this->at(lcur);
     if (!c) {
       return {};
     }
@@ -386,8 +390,8 @@ struct Parser {
     return l.moveMut(lcur);
   };
 
-  Span parseKeyword(const string keyword) {
-    optional<Span> ms = parseOptionalKeyword(keyword);
+  Span parseKeyword(const std::string keyword) {
+    std::optional<Span> ms = parseOptionalKeyword(keyword);
     if (ms) {
       return *ms;
     }
@@ -402,7 +406,7 @@ struct Parser {
     printferr(e.loc, s.c_str(), e.errmsg.c_str());
   }
 
-  void addErrAtCurrentLoc(string err) { addErr(Error(l, err)); }
+  void addErrAtCurrentLoc(std::string err) { addErr(Error(l, err)); }
 
   bool eof() {
     eatWhitespace();
@@ -415,20 +419,20 @@ struct Parser {
   }
 
 private:
-  const string s;
+  const std::string s;
   Loc l;
-  vector<Error> errs;
+  std::vector<Error> errs;
 
-  optional<char> at(Loc loc) {
+  std::optional<char> at(Loc loc) {
     if (loc.si >= s.size()) {
-      return optional<char>();
+      return std::optional<char>();
     }
     return s[loc.si];
   }
 
   void eatWhitespace() {
     while (1) {
-      optional<char> ccur = this->at(l);
+      std::optional<char> ccur = this->at(l);
       if (!ccur) {
         return;
       }
@@ -439,3 +443,22 @@ private:
     }
   }
 };
+
+Parser parserFromPath(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        std::cerr << "unable to open file |" << path << "|\n";
+        assert(false && "unable to open file.");
+    }
+
+    fseek(f, 0, SEEK_END);
+    ll len = ftell(f);
+    rewind(f);
+    char *buf = (char *)malloc(len + 1);
+    ll nread = fread(buf, 1, len, f);
+    assert(nread == len);
+    buf[nread] = 0;
+    fclose(f);
+
+    return Parser(path, buf);
+}
