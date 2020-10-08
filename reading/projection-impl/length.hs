@@ -1,5 +1,5 @@
-(length
+(length xs
   (case xs
-    NIL ;; NIL case
+    NIL 
     y ys (+ 1 (length ys))))
 

@@ -1,12 +1,9 @@
 #pragma once
 #include <assert.h>
-#include <assert.h>
 #include <fstream>
-#include <iostream>
 #include <iostream>
 #include <optional>
 #include <stdarg.h>
-#include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,6 +16,7 @@
 #define TAKE
 #define KEEP
 using ll = long long;
+
 
 struct Span;
 
@@ -115,7 +113,7 @@ void vprintfspan(Span span, const char *raw_input, const char *fmt,
   std::cerr << "===\n";
   std::cerr << span << "\t" << outstr << "\n";
   for (ll i = span.begin.si; i < span.end.si; ++i) {
-      std::cerr << raw_input[i];
+    std::cerr << raw_input[i];
   }
   std::cerr << "\n===\n";
 }
@@ -177,10 +175,10 @@ void vprintferr(Loc loc, const char *raw_input, const char *fmt, va_list args) {
   }
 
   std::cerr << "\n==\n"
-       << outstr << "\n"
-       << loc.filename << loc << "\n"
-       << line_buf << "\n"
-       << pointer_buf << "\n==\n";
+            << outstr << "\n"
+            << loc.filename << loc << "\n"
+            << line_buf << "\n"
+            << pointer_buf << "\n==\n";
   free(outstr);
 }
 
@@ -225,8 +223,12 @@ struct Parser {
     return parseOptionalSigil(std::string("("));
   }
 
-  void parseCloseRoundBracket(Span open) { parseMatchingSigil(open, std::string(")")); }
-  bool parseOptionalCloseRoundBracket(Span open) { return bool(parseOptionalMatchingSigil(open, std::string(")"))); }
+  void parseCloseRoundBracket(Span open) {
+    parseMatchingSigil(open, std::string(")"));
+  }
+  bool parseOptionalCloseRoundBracket(Span open) {
+    return bool(parseOptionalMatchingSigil(open, std::string(")")));
+  }
 
   std::pair<Span, ll> parseInteger() {
     std::optional<std::pair<Span, ll>> out = parseOptionalInteger();
@@ -286,25 +288,29 @@ struct Parser {
     exit(1);
   }
 
-    std::optional<Span> parseOptionalMatchingSigil(Span open, const std::string sigil) {
-      std::optional<Span> span = parseOptionalSigil(sigil);
-      if (span) { return span; }
-      else if (this->eof()) {
-          addErr(Error(l, "found end of file!"));
-          addErr(Error(l, "expected closing sigil: |" + sigil + "|"));
-          addErr(Error(open.begin, "unmatched sigil opened here"));
-          exit(1);
-      }
-      return {};
+  std::optional<Span> parseOptionalMatchingSigil(Span open,
+                                                 const std::string sigil) {
+    std::optional<Span> span = parseOptionalSigil(sigil);
+    if (span) {
+      return span;
+    } else if (this->eof()) {
+      addErr(Error(l, "found end of file!"));
+      addErr(Error(l, "expected closing sigil: |" + sigil + "|"));
+      addErr(Error(open.begin, "unmatched sigil opened here"));
+      exit(1);
+    }
+    return {};
   }
 
   Span parseMatchingSigil(Span open, const std::string sigil) {
-      std::optional<Span> span = parseOptionalMatchingSigil(open, sigil);
-      if (span) { return *span; }
-      addErr(Error(l, "expected closing sigil: |" + sigil + "|"));
-      addErr(Error(open.begin, "unmatched sigil opened here"));
+    std::optional<Span> span = parseOptionalMatchingSigil(open, sigil);
+    if (span) {
+      return *span;
+    }
+    addErr(Error(l, "expected closing sigil: |" + sigil + "|"));
+    addErr(Error(open.begin, "unmatched sigil opened here"));
 
-      exit(1);
+    exit(1);
   }
 
   // difference is that a sigil needs no whitespace after it, unlike
@@ -342,20 +348,12 @@ struct Parser {
     Loc lcur = l;
 
     std::optional<char> fst = this->at(lcur);
-    if (!fst) {
-      return {};
-    }
-    if (!isalpha(*fst)) {
-      return {};
-    }
+    if (!fst || isReservedSigil(*fst)) { return {}; }
     lcur = lcur.nextc(*fst);
 
     while (1) {
-      std::optional<char> cchar = this->at(lcur);
-      if (!cchar) {
-        return {};
-      }
-      if (isWhitespace(*cchar) || isReservedSigil(*cchar)) {
+      std::optional<char> c = this->at(lcur);
+      if (!c || isWhitespace(*c) || isReservedSigil(*c)) {
         break;
       }
       lcur = lcur.nextc(s[lcur.si]);
@@ -445,20 +443,20 @@ private:
 };
 
 Parser parserFromPath(const char *path) {
-    FILE *f = fopen(path, "r");
-    if (!f) {
-        std::cerr << "unable to open file |" << path << "|\n";
-        assert(false && "unable to open file.");
-    }
+  FILE *f = fopen(path, "r");
+  if (!f) {
+    std::cerr << "unable to open file |" << path << "|\n";
+    assert(false && "unable to open file.");
+  }
 
-    fseek(f, 0, SEEK_END);
-    ll len = ftell(f);
-    rewind(f);
-    char *buf = (char *)malloc(len + 1);
-    ll nread = fread(buf, 1, len, f);
-    assert(nread == len);
-    buf[nread] = 0;
-    fclose(f);
+  fseek(f, 0, SEEK_END);
+  ll len = ftell(f);
+  rewind(f);
+  char *buf = (char *)malloc(len + 1);
+  ll nread = fread(buf, 1, len, f);
+  assert(nread == len);
+  buf[nread] = 0;
+  fclose(f);
 
-    return Parser(path, buf);
+  return Parser(path, buf);
 }
