@@ -13,6 +13,128 @@ Convert GHC Core to MLIR.
 
 
 # Log:  [newest] to [oldest]
+# Friday Oct 9th 
+
+ - [Compiling without continuations video](https://www.youtube.com/watch?v=LMTr8yw0Gk4)
+
+We might intially be tempted to convert
+
+ ```hs
+ case (case xs of [] -> T; _ -> F) of
+   T -> BIG1; F -> BIG2
+ ```
+
+ into:
+ 
+ ```hs
+ case xs of
+   [] -> case T of T -> BIG1; F -> BIG2
+   _ -> case F of T -> BIG1; F -> BIG2
+ ```
+
+ of course this involves copying. so we should rather transform
+ this into
+
+ ```
+let j1 () = BIG1; j2 () = BIG2
+in case xs of
+     [] -> case T of T -> j1 (); F -> j2 ()
+     _ -> case F of T -> j1 (); F -> j2 ()
+ ```
+
+ Essentially, they once again outline code into a common
+ names called `(j1, j2)` and then convert the rest into
+ function invocations.
+
+ Clearly this also works for pattern bound variables. We can transform:
+
+ ```hs
+ case (case xs of [] -> Nothing; (p:ps) -> Just p) of
+   Nothing -> BIG1; Just x -> BIG2 x
+ ```
+
+ into:
+
+ ```
+ let j1 () = BIG11; j2 x = BIG2 x
+ in case (case xs of [] -> Nothing; (p:ps) -> Just p) of
+      Nothing -> j1; Just x -> j2 x
+ ```
+
+#### What is a join point?
+ - All calls are saturated tail calls, 
+ - They are not captured in a thunk/closure, so they can be compiled
+   efficiently
+
+#### We don't want to lose join points: A bad transformation example
+
+We case-of-case on this program:
+
+```hs
+case (let j x = E1
+       in case xs of Just x -> j x; Nothing -> E2) of
+  True -> R1; False - R2
+```
+
+to get this program:
+
+```hs
+let j x = E1
+in case xs of 
+  Just x ->  case j x of True -> R1; False -> R2 
+  Nothing -> case E2 of  True -> R1; False -> R2
+```
+
+- Note that this `j x` is now case-scrutinized, and is thus not a tail. The
+   R1/R2 case does not actually use `E1`?
+
+- So what we do is to perform this transformation:
+
+#### Join based:
+
+- Original `let` based starting program, deprecated, shown for comparison:
+
+```hs
+-- | original `let`
+case (let j x = E1
+       in case xs of Just x -> j x; Nothing -> E2) of
+  True -> R1; False - R2
+```
+
+- New starting program with `let` changed to `join!`. We are yet to sink the
+  `case` inside.
+
+```hs
+-- | original with `join!` instead of `let`
+case (join! j x = E1
+       in case xs of Just x -> j x; Nothing -> E2) of
+  True -> R1; False - R2
+```
+
+- Since we have a `Just x -> j x` where `j = join! ... `,
+  we're going to try to preserve the tail call `j x`.
+  when we push the outer `case` inside, (1) we don't push the `case` *around* the `join`.
+  Rather, we push the `case` _into_ the `join!`. (2) we push the `case` around 
+  the `Nothing -> E2` as usual. This gives us the program:
+
+```hs
+-- | case pushed inside origin with `join!`
+join j x = case E1 of  True -> R1; False -> R2
+in case xs of 
+    Just x -> j x; 
+    Nothing -> case E2 of True -> R1; False -> R2
+```
+
+- Peyton jones says that "this slide is the **slide to remember**"
+- (1) We want to move the outer evaluation context into the body of the join-point.
+- (2) For E2, since the body eats `E2`, we push it in.
+- Formalize join points as a language construct.
+- Add join-point bindings and jumps into the language.
+- This has deep relationships to [sequent calculus](https://ncatlab.org/nlab/show/sequent+calculus)
+- Infer which `let` bindings are join-points: `contification` is the keyword
+  to look for.
+- Automagically allows `Stream`s to fuse without needing an extraneous `Skip`
+  constructor. Don't know what this is referring to.
 
 # Friday Oct 2nd 2020
 
