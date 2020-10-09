@@ -9,6 +9,13 @@ extern "C" {
 const char *__asan_default_options() { return "detect_leaks=0"; }
 };
 
+// ===PARSING AST ===
+// ===PARSING AST ===
+// ===PARSING AST ===
+// ===PARSING AST ===
+// ===PARSING AST ===
+// ===PARSING AST ===
+
 void print_indent(std::ostream &o, int indent) {
   for (int i = 0; i < indent; ++i) {
     o << "  ";
@@ -20,7 +27,9 @@ struct Newline {
 };
 
 std::ostream &operator<<(std::ostream &o, Newline nl) {
-  o << "\n"; print_indent(o, nl.indent); return o;
+  o << "\n";
+  print_indent(o, nl.indent);
+  return o;
 }
 struct Expr {
   virtual void print(std::ostream &o, int indent = 0) const = 0;
@@ -73,9 +82,9 @@ struct Case : public Expr {
   virtual void print(std::ostream &o, int indent) const {
     o << "(case ";
     scrutinee->print(o, indent);
-    o << Newline(indent+1);
-    rhsNil->print(o, indent+1);
-    o << Newline(indent+1);
+    o << Newline(indent + 1);
+    rhsNil->print(o, indent + 1);
+    o << Newline(indent + 1);
     o << nameCons.first << " " << nameCons.second << " ";
     rhsCons->print(o, indent);
     o << ")";
@@ -102,47 +111,6 @@ std::ostream &operator<<(std::ostream &o, const Expr &e) {
   e.print(o, 0);
   return o;
 }
-
-enum class FlatDomain { FAIL, ID, ABS, STR };
-
-std::ostream &operator<<(std::ostream &o, FlatDomain f) {
-  switch (f) {
-  case FlatDomain::FAIL:
-    return o << "FAIL";
-  case FlatDomain::ID:
-    return o << "ID";
-  case FlatDomain::ABS:
-    return o << "ABS";
-  case FlatDomain::STR:
-    return o << "STR";
-  }
-}
-
-struct Env {
-  void add(std::string s, Expr *e) {
-    assert(!env.count(s));
-    env[s] = e;
-  }
-
-  Expr *getOrNull(std::string name) {
-    if (env.count(name)) {
-      return env[name];
-    }
-    return nullptr;
-  }
-
-  Expr *getOrFail(std::string name) {
-    Expr *e = getOrNull(name);
-    if (!e) {
-      std::cerr << "unable to find |" << name << "\n";
-      assert(false && "unable to find key");
-    }
-    return e;
-  }
-
-private:
-  std::map<std::string, Expr *> env;
-};
 
 Expr *parseExpr(Parser &p) {
   if (std::optional<Identifier> id = p.parseOptionalIdentifier()) {
@@ -207,6 +175,156 @@ FnDefinition *parseFn(Parser &p) {
   p.parseCloseRoundBracket(open);
   return fndefn;
 }
+
+// === VALUES ===
+// === VALUES ===
+// === VALUES ===
+// === VALUES ===
+// === VALUES ===
+// === VALUES ===
+// === VALUES ===
+
+// the types of values we have in our language.
+struct Value {
+  virtual void print(std::ostream &o) const = 0;
+};
+
+struct Bottom : public Value {
+  void print(std::ostream &o) const override { o << "⊥ "; }
+};
+
+struct Halt : public Value {
+  void print(std::ostream &o) const override { o << "⑂"; }
+};
+
+struct Int : public Value {
+  int i;
+  Int(int i){};
+  void print(std::ostream &o) const override { o << i; }
+};
+
+struct Nil : public Value {
+  void print(std::ostream &o) const override { o << "NIL"; }
+};
+
+struct Cons : public Value {
+  Value *head, *tail;
+  void print(std::ostream &o) const override {
+    o << "(CONS ";
+    head->print(o);
+    o << " ";
+    tail->print(o);
+    o << ")";
+  }
+};
+
+// === DOMAINS ===
+// === DOMAINS ===
+// === DOMAINS ===
+// === DOMAINS ===
+// === DOMAINS ===
+// === DOMAINS ===
+// === DOMAINS ===
+
+enum class FlatProjType { FAIL, ID, ABS, STR };
+
+std::ostream &operator<<(std::ostream &o, FlatProjType f) {
+  switch (f) {
+  case FlatProjType::FAIL:
+    return o << "FAIL";
+  case FlatProjType::ID:
+    return o << "ID";
+  case FlatProjType::ABS:
+    return o << "ABS";
+  case FlatProjType::STR:
+    return o << "STR";
+  }
+}
+
+struct FlatProj {
+  FlatProjType ty;
+  FlatProj(FlatProjType ty) : ty(ty) {}
+  FlatProj cup(FlatProj other) {
+    // x U x = x
+    if (ty == other.ty) {
+      return other;
+    }
+    // GIVEN: this != other
+    // fail U <anything> = <anything>
+    if (ty == FlatProjType::FAIL) {
+      return other;
+    }
+    // bot U <anything other than bot> = id
+    // str U <anything other than str> = id
+    // id U <anything> = id
+    return FlatProj(FlatProjType::ID);
+  }
+
+  bool operator==(const FlatProj &other) { return other.ty == ty; }
+
+  bool operator<=(const FlatProj &other) {
+    // everything is equal to itself.
+    if (ty == other.ty) {
+      return true;
+    }
+    // everything is greater than fail.
+    if (ty == FlatProjType::FAIL) {
+      return true;
+    }
+    // everything is less than id.
+    if (other.ty == FlatProjType::ID) {
+      return true;
+    }
+    // no other case exists.
+    return false;
+  }
+};
+
+std::ostream &operator<<(std::ostream &o, FlatProj f) { o << f.ty; }
+
+struct ListProj {
+  virtual void print(std::ostream &o) const = 0;
+};
+struct NilProj : public ListProj {
+  void print(std::ostream &o) const override { o << "πNIL"; }
+};
+struct ConsProj : public ListProj {
+  FlatProj headProj;
+  ListProj *tailProj;
+  void print(std::ostream &o) const override {
+    o << "πCONS(" << headProj << ", ";
+    tailProj->print(o);
+    o << ")";
+  }
+};
+
+// === ENVIRONMENTS ===
+
+struct Env {
+  void add(std::string s, Expr *e) {
+    assert(!env.count(s));
+    env[s] = e;
+  }
+
+  Expr *getOrNull(std::string name) {
+    if (env.count(name)) {
+      return env[name];
+    }
+    return nullptr;
+  }
+
+  Expr *getOrFail(std::string name) {
+    Expr *e = getOrNull(name);
+    if (!e) {
+      std::cerr << "unable to find |" << name << "\n";
+      assert(false && "unable to find key");
+    }
+    return e;
+  }
+
+private:
+  std::map<std::string, Expr *> env;
+};
 
 int main(int argc, char *argv[]) {
   assert(argc == 2 && "usage: <program-name> <path-to-input-program>");
