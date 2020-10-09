@@ -141,7 +141,6 @@ void main() {
 }
 }  // namespace f1
 
-// 2. hoist force to top of function.
 namespace f2 {
 MaybeInt incrmN(int i, Thunk<MaybeInt> mt) {
     MaybeInt mv = mt.force();
@@ -183,7 +182,6 @@ void main() {
 }
 }  // namespace f2
 
-// 3. outline forced computation
 namespace f3 {
 MaybeInt incrmN(int i, Thunk<MaybeInt> mt);
 MaybeInt incrmN_2(int i, MaybeInt mv) {
@@ -229,9 +227,6 @@ void main() {
 }
 }  // end namespace f3
 
-// - Convert recursive call `incrmN(..., thunkify(x))`
-//   to become incrmN_2(..., x)`
-//   immediately forces its argument.
 namespace f4 {
 MaybeInt incrmN(int i, Thunk<MaybeInt> mt);
 MaybeInt incrmN_2(int i, MaybeInt mv) {
@@ -278,7 +273,7 @@ void main() {
 }
 }  // end namespace f4
 
-// - Copy the `return incrmN_2(i - 1, mv2)` into both branches
+// - Copy the =return incrmN_2(i - 1, mv2)= into both branches
 //   to get more information from the local context.
 // - For more, think about  the "compiling with continuations" paper
 //   where they advocate  outlining the computation after the branches
@@ -335,9 +330,6 @@ void main() {
 }
 }  // namespace f5
 
-// - Cleanup the code from `f5`, eliminate `mv2` which was only necessary since
-//   there was code *after*  the `if(mv.isJust()) { ... } else { ... }` which
-//   no longer exists.
 namespace f6 {
 
 MaybeInt incrmN(int i, Thunk<MaybeInt> mt);
@@ -377,9 +369,6 @@ void main() {
 }
 }  // namespace f6
 
-// - Since we have another force at the call site
-//   `if (mv.isJust()) { Thunk<int> sit = mv.just(); int si = sit.force();`,
-//   outline the part after the `force()`.
 namespace f7 {
 
 MaybeInt incrmN(int i, Thunk<MaybeInt> mt);

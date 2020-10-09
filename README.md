@@ -15,6 +15,10 @@ Convert GHC Core to MLIR.
 # Log:  [newest] to [oldest]
 # Friday Oct 9th 
 
+- [Meeting docs](https://docs.google.com/document/d/1tbeqlwunRKomN8WdfxuCJxVQUMuLd5kRqpIsGxF-w6o/preview)
+
+#### Compiling without continuations
+
  - [Compiling without continuations video](https://www.youtube.com/watch?v=LMTr8yw0Gk4)
 
 We might intially be tempted to convert
