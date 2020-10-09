@@ -55,8 +55,8 @@ struct MaybeInt {
 };
 
 namespace f0 {
-// incrm1 :: Maybe Int -> Maybe Int
-// incrm1 mx = case mx of Nothing -> Nothing; Just x -> Just (x+1)
+// incrm1Raw# :: Maybe# -> Maybe#
+// incrm1Raw# mx = case mx of Nothing# -> Nothing# ; Just# x -> Just# (x +# 1#)
 MaybeInt incrm1(Thunk<MaybeInt> mt) {
     MaybeInt mv = mt.force();
     if (mv.isJust()) {
@@ -73,8 +73,10 @@ MaybeInt incrm1(Thunk<MaybeInt> mt) {
     }
 }
 
-// incrm3 :: Maybe Int -> Maybe Int
-// incrm3 mx = incrm1 (incrm1(incrm1(mx)))
+// incrmNRaw# :: Int# -> Maybe# -> Maybe#
+// incrmNRaw# n mx = 
+//   case n of 
+//     0# -> mx; _ -> incrmNRaw# (n -# 1#) (incrm1Raw# mx)
 MaybeInt incrmN(int i, Thunk<MaybeInt> mt) {
     if (i == 0) {
         MaybeInt mv = mt.force();
@@ -97,7 +99,6 @@ void main() {
 }
 }  // end namespace f0
 
-// 1. Inline incrm1
 namespace f1 {
 // incrm3 :: Maybe Int -> Maybe Int
 // incrm3 mx = incrm1 (incrm1(incrm1(mx)))
@@ -282,6 +283,7 @@ void main() {
 // - For more, think about  the "compiling with continuations" paper
 //   where they advocate  outlining the computation after the branches
 //   into a function and then creating function calls.
+
 namespace f5 {
 
 MaybeInt incrmN(int i, Thunk<MaybeInt> mt);
@@ -421,17 +423,6 @@ void main() {
 }
 }  // namespace f7
 
-// This is where I'm stuck. I'm not sure how we should optimize further.
-// How do we figure out that we should *unbox* the `Thunk<int>` inside
-// the `MaybeInt` type? So this seems to be the *wrong* direction.
-//
-// If we have
-// a `MaybeInt ~= Thunk<int> || ()`, we shouldn't create  a function that
-// exposes the `int` directly. Rather we should create a new `MaybeIntUnlifted
-// ~= int | ()`.! This is because we always want to maintain "calling
-// convention" as much as possible. Shifting to `int` does not give us a
-// harmonious calling convention [of the same "shape"].
-
 struct MaybeIntUnlifted {
     MaybeIntUnlifted(int v) : mv(v){};
     explicit MaybeIntUnlifted() : mv() {}
@@ -455,10 +446,6 @@ struct MaybeIntUnlifted {
     std::optional<int> mv;
 };
 
-// - Outline the code after `Thunk<int> sit = mv.just(); int si = sit.force();`
-//   since we have a 'force point' right after. This gives us
-//   `incrmN_3_Just(int, MaybeIntUnlifted)`.
-// - uses f6 as base, NOT f7!
 namespace f8 {
 
 MaybeInt incrmN(int i, Thunk<MaybeInt> mt);
@@ -518,8 +505,6 @@ void main() {
 }
 }  // namespace f8
 
-// - Notice that we have a call `incrmN_2(..., MaybeInt(Thunkify(x)))`. Replace
-// with `incrmN_3(..., MaybeIntUnlifted(x))`
 namespace f9 {
 
 MaybeInt incrmN(int i, Thunk<MaybeInt> mt);
