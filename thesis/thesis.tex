@@ -1,10 +1,80 @@
 \documentclass{book}
 \begin{document}
 \chapter{Introduction}
-Foo bar.
 
-42
+\section{Goals and Non-goals}
 
-45: touching thesis
+I begin with a lofty idea: Can haskell run faster than it does with GHC? It is
+a difficult question to answer, due to the coupling of
+haskell-the-language-2010, and
+haskell-with-extensions-the-language-implemented-by-GHC. Haskell is a mature
+language, with a large feature set: software transactional memory, great
+garbage collection, a mature concurrency story with complex semantics, a
+sophisticated type system, and so on. Therefore, it seems prudent to rephrase
+the lofty into something managable:
+
+\begin{quote}
+Can I write a kernel for a lazy language that is faster on Haskell98?
+\end{quote}
+
+This too is too broad, vague, and ambitious, since it makes no reference in what
+\emph{domain} we wish to be faster than Haskell98, and how I plan on implementing
+this new compiler. This is where MLIR enters into the picture. 
+
+MLIR is a new \emph{compiler framework} which attempts to take the lessons
+learnt from building LLVM, and then democratizing it to all compiler
+development. Therefore, it provides:
+\begin{itemize}
+\item Easy interfaces for parsing, printing, round-tripping,
+and verifying the intermediate representation of a choice of language.
+\item The ability to mingle multiple intermediate representations (which MLIR calls \emph{dialects}),
+       and raise/lower between different intermediate representations.
+\item An SSA based paradigm for all intermediate representations which
+      encourages certain styles of intermediate representation that are easy to
+      analyze and transform.
+\item An already strong optimization framework for array and tensor processing
+      workloads, which is being used by TensorFlow.
+\end{itemize}
+
+So, rephrasing the original problem statement to include the phrase:
+
+\begin{quote}
+Can I write a kernel for a lazy language that is faster on Haskell98, 
+\emph{using the MLIR compiler framework}
+\end{quote}
+
+Naturally leads to a modified problem statement, which reads:
+
+\begin{quote}
+Can I write a new dialect \emph{within the MLIR compiler framework} which represents
+and optimizes away laziness, using an SSA based encoding, and can beat
+Haskell98 on tensor processing workloads?
+\end{quote}
+
+The modified problem statement tacitly carries with it many research questions:
+\begin{itemize}
+\item How does SSA compare to (i) GHC's Core intermediate representation, (ii) 
+      Continuation based representations for optimizing lazy functional programs?
+\item Does SSA offer new insights to lazy program compilation? Does it unify 
+   transformations between strict and lazy languages?
+\item Can we express memory management in a separate dialect which is re-usable
+      by other compilers?
+\item Can we make the fragile and sometimes duplicated code around garbage collection
+      more robust by expressing garbage collection in a higher level dialect?
+\item Can we borrow ideas from Gibbon, ASAP (as static as possible memory management),
+      and other such efforts for better data representation and manipulation to 
+      improve the allocation story of lazy functional languages?
+\item Can the infrastructure we build for haskell be leveraged by Nix? OCaml? How
+      much of this is reusable?
+\item Can we reuse the wildly successful ideas of Polyhedral Compilation which
+      precisely analyzes array computations to a broader class of data structures
+      which is manipulated by a functional language?
+\end{itemize}
+
+My thesis attempts to chart a course through this terrain. While the classical
+ideas are well understood (SSA, demand analysis, compiling lazy functional programs,
+garbage collection), I
+hope to offer new insight into this amalgamation which is powered by MLIR and
+the ``static single information philosophy''. 
 
 \end{document}

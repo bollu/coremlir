@@ -6,6 +6,10 @@ Convert GHC Core to MLIR.
 
 # Notes on GHC
 
+- Argument order matters for worker/wrapper, because GHC can only partially
+  apply functions in the worker/wrapper, and not reorder parameters. So if we
+  have `f x y` where `x` is reused, we can worker/wrapper around `y`.
+
 - smallest size is `32` bit word. Can't pack stuff!
 - GHC plugin that strictifies/unboxes most things and prints out the new
   file.

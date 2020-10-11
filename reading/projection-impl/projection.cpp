@@ -241,7 +241,11 @@ std::ostream &operator<<(std::ostream &o, FlatProjType f) {
   }
 }
 
-struct FlatProj {
+struct Proj {
+  virtual ~Proj() {}
+};
+
+struct FlatProj : public Proj {
   FlatProjType ty;
   FlatProj(FlatProjType ty) : ty(ty) {}
   FlatProj cup(FlatProj other) {
@@ -282,7 +286,7 @@ struct FlatProj {
 
 std::ostream &operator<<(std::ostream &o, FlatProj f) { o << f.ty; }
 
-struct ListProj {
+struct ListProj : public Proj {
   virtual void print(std::ostream &o) const = 0;
 };
 struct NilProj : public ListProj {
@@ -300,21 +304,21 @@ struct ConsProj : public ListProj {
 
 // === ENVIRONMENTS ===
 
-struct Env {
-  void add(std::string s, Expr *e) {
-    assert(!env.count(s));
-    env[s] = e;
+template <typename T> struct Env {
+  void add(std::string k, T *v) {
+    assert(!env.count(k));
+    env[k] = v;
   }
 
-  Expr *getOrNull(std::string name) {
+  T *getOrNull(std::string name) {
     if (env.count(name)) {
       return env[name];
     }
     return nullptr;
   }
 
-  Expr *getOrFail(std::string name) {
-    Expr *e = getOrNull(name);
+  T *getOrFail(std::string name) {
+    T *e = getOrNull(name);
     if (!e) {
       std::cerr << "unable to find |" << name << "\n";
       assert(false && "unable to find key");
@@ -323,8 +327,78 @@ struct Env {
   }
 
 private:
-  std::map<std::string, Expr *> env;
+  std::map<std::string, T *> env;
 };
+
+Proj *unionProj(Proj *a, Proj *b) {
+  assert(false && "unimplemented union");
+  return nullptr;
+}
+
+bool isFail(Proj *a) {
+  if (FlatProj *flat = dynamic_cast<FlatProj *>(a)) {
+    return flat->ty == FlatProjType::FAIL;
+  }
+  return false;
+}
+
+Proj *unionBangProj(Proj *a, Proj *b) {
+  if (isFail(a) || isFail(b)) {
+    return new FlatProj(FlatProjType::FAIL);
+  }
+  return unionProj(a, b);
+}
+
+// === DEMAND ANALYSIS ===
+// === DEMAND ANALYSIS ===
+// === DEMAND ANALYSIS ===
+// === DEMAND ANALYSIS ===
+// === DEMAND ANALYSIS ===
+// === DEMAND ANALYSIS ===
+Proj *calculateDemandForExprAtVar(Env<Proj *> env, Expr *e, std::string x,
+                                  Proj *alpha);
+Proj *calculateDemandForFnAtArg(Env<Proj *> env, FnApplication *f, int i,
+                                Proj *alpha);
+
+// f^i(α)
+Proj *calculateDemandForFnAtArg(Env<Proj * env>, FnApplication *f, int i,
+                                Proj *alpha) {
+    // 6.2 Projection transformer
+    // Definitions of `f^i` for primitive `f` appear in Section 6.7
+    // f x1 ... xn = 3
+    // f^i (α) = e^(x_i) (α)
+    // return calculateDemandForExprAtVar(env, 
+}
+
+// e^x(α)
+Proj *calculateDemandForExprAtVar(Env<Proj *> env, Expr *e, std::string x,
+                                  Proj *alpha) {
+  // x^x (a)                                                            O
+  if (Variable *v = dynamic_cast<Variable *>(e)) {
+    if (v->name == x) {
+      return alpha;
+    } else {
+      return new FlatProj(FlatProjType::ABS);
+    }
+  } else if (dynamic_cast<ConstNumber *>(e)) {
+    return new FlatProj(FlatProjType::ABS);
+  } else if (FnApplication *ap = dynamic_cast<FnApplication *>(e)) {
+    assert(ap->args.size() >= 1);
+    Proj *p = calculateDemandForFnAtArg(env, ap, 0, alpha);
+    for (int i = 1; i < ap->args.size(); ++i) {
+      p = unionBangProj(p, calculateDemandForFnAtArg(env, ap, i, alpha));
+    }
+  } else if (IfThenElse *ite = dynamic_cast<IfThenElse *>(ite)) {
+  } else if (Case *c = dynamic_cast<Case *>(c)) {
+  } else {
+    assert(false && "unknown");
+  }
+}
+
+// we want a projection for the output assuming a strict demand.
+ListProj *interpretFn(ListProj *initial, FnDefinition fn) {
+  // fn.body
+}
 
 int main(int argc, char *argv[]) {
   assert(argc == 2 && "usage: <program-name> <path-to-input-program>");

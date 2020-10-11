@@ -1,4 +1,4 @@
-(doubles [xs] 
+(doubles xs
   (case xs
-    NIL ;; NIL case
+    NIL 
     y ys (CONS (* 2 y) (doubles ys))))
