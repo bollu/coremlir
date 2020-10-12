@@ -226,8 +226,23 @@ struct Parser {
   void parseCloseRoundBracket(Span open) {
     parseMatchingSigil(open, std::string(")"));
   }
+
   bool parseOptionalCloseRoundBracket(Span open) {
     return bool(parseOptionalMatchingSigil(open, std::string(")")));
+  }
+
+  Span parseOpenSquareBracket() { return parseSigil(std::string("[")); }
+
+  std::optional<Span> parseOptionalOpenSquareBracket() {
+    return parseOptionalSigil(std::string("["));
+  }
+
+  void parseCloseSquareBracket(Span open) {
+    parseMatchingSigil(open, std::string("]"));
+  }
+
+  bool parseOptionalCloseSquareBracket(Span open) {
+    return bool(parseOptionalMatchingSigil(open, std::string("]")));
   }
 
   std::pair<Span, ll> parseInteger() {

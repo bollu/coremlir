@@ -9,6 +9,11 @@ extern "C" {
 const char *__asan_default_options() { return "detect_leaks=0"; }
 };
 
+template<typename T1, typename T2>
+std::ostream & operator << (std::ostream &o, const std::pair<T1, T2> &p) {
+    return o << "(" << p.first << ", " << p.second << ")";
+}
+
 // ===PARSING AST ===
 // ===PARSING AST ===
 // ===PARSING AST ===
@@ -37,12 +42,18 @@ struct Expr {
 struct FnDefinition : public Expr {
   std::string name;
   // TOO get multi argument functions.
-  std::string arg;
+  std::vector<std::string> args;
   Expr *body;
 
   void print(std::ostream &o, int indent) const {
     Newline nl(indent);
     o << nl << "(" << name << " ";
+    o << "[";
+    for(int i = 0; i < args.size(); ++i) {
+        o << args[i];
+        if (i +1 < args.size()) { o << " "; }
+    }
+    o << "] ";
     body->print(o, indent + 1);
     o << ")";
   }
@@ -166,13 +177,16 @@ Expr *parseExpr(Parser &p) {
 }
 
 FnDefinition *parseFn(Parser &p) {
-  Span open = p.parseOpenRoundBracket();
+  Span openBody = p.parseOpenRoundBracket();
   FnDefinition *fndefn = new FnDefinition;
   fndefn->name = p.parseIdentifier().name;
-  fndefn->arg = p.parseIdentifier().name;
-  fndefn->body = parseExpr(p);
 
-  p.parseCloseRoundBracket(open);
+  Span openArgs = p.parseOpenSquareBracket();
+  while (!p.parseOptionalCloseSquareBracket(openArgs)) {
+    fndefn->args.push_back(p.parseIdentifier().name);
+  }
+  fndefn->body = parseExpr(p);
+  p.parseCloseRoundBracket(openBody);
   return fndefn;
 }
 
@@ -242,8 +256,13 @@ std::ostream &operator<<(std::ostream &o, FlatProjType f) {
 }
 
 struct Proj {
-  virtual ~Proj() {}
+  virtual void print(std::ostream &o) const = 0;
 };
+
+std::ostream &operator<<(std::ostream &o, const Proj &p) {
+  p.print(o);
+  return o;
+}
 
 struct FlatProj : public Proj {
   FlatProjType ty;
@@ -282,9 +301,8 @@ struct FlatProj : public Proj {
     // no other case exists.
     return false;
   }
+  void print(std::ostream &o) const { o << ty; }
 };
-
-std::ostream &operator<<(std::ostream &o, FlatProj f) { o << f.ty; }
 
 struct ListProj : public Proj {
   virtual void print(std::ostream &o) const = 0;
@@ -293,10 +311,26 @@ struct NilProj : public ListProj {
   void print(std::ostream &o) const override { o << "πNIL"; }
 };
 struct ConsProj : public ListProj {
-  FlatProj headProj;
+  FlatProj *headProj;
   ListProj *tailProj;
+
+  ConsProj(Proj *head, Proj *tail) {
+    if (FlatProj *flatHead = dynamic_cast<FlatProj *>(head)) {
+      headProj = flatHead;
+    } else {
+      assert(false && "incorrect projection given for cons head.");
+    }
+
+    if (ListProj *listTail = dynamic_cast<ListProj *>(tail)) {
+      tailProj = listTail;
+    } else {
+      assert(false && "incorrect projection given for cons tail");
+    }
+  }
   void print(std::ostream &o) const override {
-    o << "πCONS(" << headProj << ", ";
+    o << "πCONS(";
+    headProj->print(o);
+    o << ", ";
     tailProj->print(o);
     o << ")";
   }
@@ -304,30 +338,35 @@ struct ConsProj : public ListProj {
 
 // === ENVIRONMENTS ===
 
-template <typename T> struct Env {
-  void add(std::string k, T *v) {
+template <typename K, typename T> struct Env {
+  void add(K k, T v) {
     assert(!env.count(k));
     env[k] = v;
   }
 
-  T *getOrNull(std::string name) {
+  void replace(K k, T v) {
+    assert(env.count(k));
+    env[k] = v;
+  }
+
+  T getOrNull(K name) {
     if (env.count(name)) {
       return env[name];
     }
     return nullptr;
   }
 
-  T *getOrFail(std::string name) {
-    T *e = getOrNull(name);
+  T getOrFail(K name) {
+    T e = getOrNull(name);
     if (!e) {
-      std::cerr << "unable to find |" << name << "\n";
+      std::cerr << "===ERROR: unable to find key |" << name << "|===\n";
       assert(false && "unable to find key");
     }
     return e;
   }
 
 private:
-  std::map<std::string, T *> env;
+  std::map<K, T> env;
 };
 
 Proj *unionProj(Proj *a, Proj *b) {
@@ -355,24 +394,26 @@ Proj *unionBangProj(Proj *a, Proj *b) {
 // === DEMAND ANALYSIS ===
 // === DEMAND ANALYSIS ===
 // === DEMAND ANALYSIS ===
-Proj *calculateDemandForExprAtVar(Env<Proj *> env, Expr *e, std::string x,
-                                  Proj *alpha);
-Proj *calculateDemandForFnAtArg(Env<Proj *> env, FnApplication *f, int i,
-                                Proj *alpha);
+using FnAndArg = std::pair<std::string, int>;
+Proj *calculateDemandForExprAtVar(Env<FnAndArg, Proj *> env, Expr *e,
+                                  std::string x, Proj *alpha);
+Proj *calculateDemandForFnAtArg(Env<FnAndArg, Proj *> env, FnApplication *f,
+                                int i, Proj *alpha);
 
 // f^i(α)
-Proj *calculateDemandForFnAtArg(Env<Proj * env>, FnApplication *f, int i,
-                                Proj *alpha) {
-    // 6.2 Projection transformer
-    // Definitions of `f^i` for primitive `f` appear in Section 6.7
-    // f x1 ... xn = 3
-    // f^i (α) = e^(x_i) (α)
-    // return calculateDemandForExprAtVar(env, 
+Proj *calculateDemandForFnAtArg(Env<FnAndArg, Proj *> env, FnApplication *f,
+                                int i, Proj *alpha) {
+  // 6.2 Projection transformer
+  // Definitions of `f^i` for primitive `f` appear in Section 6.7
+  // f x1 ... xn = 3
+  // f^i (α) = e^(x_i) (α)
+  // return calculateDemandForExprAtVar(env,
+  return env.getOrFail({f->fnname, i});
 }
 
 // e^x(α)
-Proj *calculateDemandForExprAtVar(Env<Proj *> env, Expr *e, std::string x,
-                                  Proj *alpha) {
+Proj *calculateDemandForExprAtVar(Env<FnAndArg, Proj *> env, Expr *e,
+                                  std::string x, Proj *alpha) {
   // x^x (a)                                                            O
   if (Variable *v = dynamic_cast<Variable *>(e)) {
     if (v->name == x) {
@@ -388,16 +429,31 @@ Proj *calculateDemandForExprAtVar(Env<Proj *> env, Expr *e, std::string x,
     for (int i = 1; i < ap->args.size(); ++i) {
       p = unionBangProj(p, calculateDemandForFnAtArg(env, ap, i, alpha));
     }
-  } else if (IfThenElse *ite = dynamic_cast<IfThenElse *>(ite)) {
-  } else if (Case *c = dynamic_cast<Case *>(c)) {
+  } else if (IfThenElse *ite = dynamic_cast<IfThenElse *>(e)) {
+    Proj *pi = calculateDemandForExprAtVar(env, ite->i, x,
+                                           new FlatProj(FlatProjType::STR));
+    Proj *pt = calculateDemandForExprAtVar(env, ite->t, x, alpha);
+    Proj *pe = calculateDemandForExprAtVar(env, ite->e, x, alpha);
+    return unionBangProj(pi, unionProj(pt, pe));
+  } else if (Case *c = dynamic_cast<Case *>(e)) {
+    Proj *scrutineeNil =
+        calculateDemandForExprAtVar(env, c->scrutinee, x, new NilProj);
+    Proj *rhsNil = calculateDemandForExprAtVar(env, c->rhsNil, x, alpha);
+
+    // y:ys
+    Proj *projy =
+        calculateDemandForExprAtVar(env, c->rhsCons, c->nameCons.first, alpha);
+    Proj *projys =
+        calculateDemandForExprAtVar(env, c->rhsCons, c->nameCons.second, alpha);
+
+    Proj *scrutineeCons = calculateDemandForExprAtVar(
+        env, c->scrutinee, x, new ConsProj(projy, projys));
+    Proj *rhsCons = calculateDemandForExprAtVar(env, c->rhsCons, x, alpha);
+    return unionProj(unionBangProj(scrutineeNil, rhsNil),
+                     unionBangProj(scrutineeCons, rhsCons));
   } else {
     assert(false && "unknown");
   }
-}
-
-// we want a projection for the output assuming a strict demand.
-ListProj *interpretFn(ListProj *initial, FnDefinition fn) {
-  // fn.body
 }
 
 int main(int argc, char *argv[]) {
@@ -406,5 +462,36 @@ int main(int argc, char *argv[]) {
   FnDefinition *fn = parseFn(p);
   fn->print(std::cout, 0);
   std::cout << "\n";
+  {
+    Env<FnAndArg, Proj *> env;
+    const int NITER = 1;
+    for (int n = 0; n < NITER; ++n) {
+
+      for (int i = 0; i < fn->args.size(); ++i) {
+        env.add({fn->name, i}, new FlatProj(FlatProjType::FAIL));
+      }
+
+      std::vector<Proj *> newps;
+      for (int i = 0; i < fn->args.size(); ++i) {
+        newps.push_back(calculateDemandForExprAtVar(
+            env, fn->body, fn->args[i], new FlatProj(FlatProjType::STR)));
+      }
+
+      for (int i = 0; i < newps.size(); ++i) {
+        env.replace({fn->name, i}, newps[i]);
+      }
+
+      std::cout << "===\n";
+      std::cout << "projections after iteration |" << n + 1 << "|:\n";
+      for (int i = 0; i < fn->args.size(); ++i) {
+        std::cout << fn->name << "[i]"
+                  << ":\n";
+        std::cout << "    ";
+        env.getOrFail({fn->name, i})->print(std::cout);
+        std::cout << "\n";
+      }
+    }
+  }
+
   return 0;
 }
