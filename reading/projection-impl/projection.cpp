@@ -9,9 +9,9 @@ extern "C" {
 const char *__asan_default_options() { return "detect_leaks=0"; }
 };
 
-template<typename T1, typename T2>
-std::ostream & operator << (std::ostream &o, const std::pair<T1, T2> &p) {
-    return o << "(" << p.first << ", " << p.second << ")";
+template <typename T1, typename T2>
+std::ostream &operator<<(std::ostream &o, const std::pair<T1, T2> &p) {
+  return o << "(" << p.first << ", " << p.second << ")";
 }
 
 // ===PARSING AST ===
@@ -49,9 +49,11 @@ struct FnDefinition : public Expr {
     Newline nl(indent);
     o << nl << "(" << name << " ";
     o << "[";
-    for(int i = 0; i < args.size(); ++i) {
-        o << args[i];
-        if (i +1 < args.size()) { o << " "; }
+    for (int i = 0; i < args.size(); ++i) {
+      o << args[i];
+      if (i + 1 < args.size()) {
+        o << " ";
+      }
     }
     o << "] ";
     body->print(o, indent + 1);
@@ -267,21 +269,7 @@ std::ostream &operator<<(std::ostream &o, const Proj &p) {
 struct FlatProj : public Proj {
   FlatProjType ty;
   FlatProj(FlatProjType ty) : ty(ty) {}
-  FlatProj cup(FlatProj other) {
-    // x U x = x
-    if (ty == other.ty) {
-      return other;
-    }
-    // GIVEN: this != other
-    // fail U <anything> = <anything>
-    if (ty == FlatProjType::FAIL) {
-      return other;
-    }
-    // bot U <anything other than bot> = id
-    // str U <anything other than str> = id
-    // id U <anything> = id
-    return FlatProj(FlatProjType::ID);
-  }
+  FlatProj(const FlatProj &other) : ty(other.ty){};
 
   bool operator==(const FlatProj &other) { return other.ty == ty; }
 
@@ -303,6 +291,24 @@ struct FlatProj : public Proj {
   }
   void print(std::ostream &o) const { o << ty; }
 };
+
+FlatProj *cupFlatProj(FlatProj *a, FlatProj *b) {
+  // x U x = x
+  if (a->ty == b->ty) {
+    return b;
+  }
+  // GIVEN: this != other
+  // fail U <anything> = <anything>
+  if (a->ty == FlatProjType::FAIL) {
+    return b;
+  }
+  // bot U <anything other than bot> = id
+  // str U <anything other than str> = id
+  // id U <anything> = id
+  return new FlatProj(FlatProjType::ID);
+}
+
+struct ListCupProj;
 
 struct ListProj : public Proj {
   virtual void print(std::ostream &o) const = 0;
@@ -333,6 +339,43 @@ struct ConsProj : public ListProj {
     o << ", ";
     tailProj->print(o);
     o << ")";
+  }
+};
+
+struct ListCupProj : public ListProj {
+  NilProj *nil;
+  ConsProj *cons;
+  ListCupProj(NilProj *nil, ConsProj *cons) : nil(nil), cons(cons){};
+  void print(std::ostream &o) const override {
+    o << "(";
+    nil->print(o);
+    o << " U ";
+    cons->print(o);
+    o << ")";
+  }
+};
+
+ListProj *cupListProj(ListProj *a, ListProj *b) {
+  if (NilProj *na = dynamic_cast<NilProj *>(a)) {
+    if (NilProj *nb = dynamic_cast<NilProj *>(b)) {
+      return new NilProj();
+    } else {
+      ConsProj *cb = dynamic_cast<ConsProj *>(b);
+      assert(cb);
+      return new ListCupProj(na, cb);
+    }
+  } else {
+    ConsProj *ca = dynamic_cast<ConsProj *>(a);
+    assert(ca);
+
+    if (NilProj *nb = dynamic_cast<NilProj *>(b)) {
+      return new ListCupProj(nb, ca);
+    } else {
+      ConsProj *cb = dynamic_cast<ConsProj *>(b);
+      assert(cb);
+      return new ConsProj(cupFlatProj(ca->headProj, cb->headProj),
+                          cupListProj(ca->tailProj, cb->tailProj));
+    }
   }
 };
 
@@ -370,7 +413,24 @@ private:
 };
 
 Proj *unionProj(Proj *a, Proj *b) {
-  assert(false && "unimplemented union");
+  if (FlatProj *fa = dynamic_cast<FlatProj *>(a)) {
+    FlatProj *fb = dynamic_cast<FlatProj *>(fb);
+    if (!fb) {
+      std::cerr << "trying to union flat|";
+      a->print(std::cerr);
+      std::cerr << "| with non flat|";
+      b->print(std::cerr);
+      std::cerr << "|\n";
+      assert(false && "union does not type check");
+    }
+    return cupFlatProj(fa, fb);
+  } else {
+    ListProj *la = dynamic_cast<ListProj *>(a);
+    assert(la && "projection must be either flat or list");
+    ListProj *lb = dynamic_cast<ListProj *>(b);
+    assert(lb && "b must have same type as a");
+    return cupListProj(la, lb);
+  }
   return nullptr;
 }
 
@@ -429,6 +489,7 @@ Proj *calculateDemandForExprAtVar(Env<FnAndArg, Proj *> env, Expr *e,
     for (int i = 1; i < ap->args.size(); ++i) {
       p = unionBangProj(p, calculateDemandForFnAtArg(env, ap, i, alpha));
     }
+    return p;
   } else if (IfThenElse *ite = dynamic_cast<IfThenElse *>(e)) {
     Proj *pi = calculateDemandForExprAtVar(env, ite->i, x,
                                            new FlatProj(FlatProjType::STR));
@@ -464,6 +525,9 @@ int main(int argc, char *argv[]) {
   std::cout << "\n";
   {
     Env<FnAndArg, Proj *> env;
+    // is this correct? o_O
+    env.add({"+", 0}, new FlatProj(FlatProjType::STR));
+    env.add({"+", 1}, new FlatProj(FlatProjType::STR));
     const int NITER = 1;
     for (int n = 0; n < NITER; ++n) {
 
