@@ -324,12 +324,21 @@ struct ConsProj : public ListProj {
     if (FlatProj *flatHead = dynamic_cast<FlatProj *>(head)) {
       headProj = flatHead;
     } else {
+      head->print(std::cerr);
+      std::cerr << "|, |";
+      tail->print(std::cerr);
+      std::cerr << "|)\n";
       assert(false && "incorrect projection given for cons head.");
     }
 
     if (ListProj *listTail = dynamic_cast<ListProj *>(tail)) {
       tailProj = listTail;
     } else {
+      std::cerr << "incorrect Cons(|";
+      head->print(std::cerr);
+      std::cerr << "|, |";
+      tail->print(std::cerr);
+      std::cerr << "|)\n";
       assert(false && "incorrect projection given for cons tail");
     }
   }
@@ -474,7 +483,14 @@ Proj *calculateDemandForFnAtArg(Env<FnAndArg, Proj *> env, FnApplication *f,
 // e^x(α)
 Proj *calculateDemandForExprAtVar(Env<FnAndArg, Proj *> env, Expr *e,
                                   std::string x, Proj *alpha) {
-  // x^x (a)                                                            O
+
+  std::cerr << "{";
+  e->print(std::cerr);
+  std::cerr << "}(" << x << ", ";
+  alpha->print(std::cerr);
+  std::cerr << ")\n";
+
+  // x^x (a)
   if (Variable *v = dynamic_cast<Variable *>(e)) {
     if (v->name == x) {
       return alpha;
