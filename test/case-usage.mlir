@@ -6,8 +6,7 @@
 // %x = case {.. ret }; return(%x)
 // but we have %x = case { ... ret }; %y = nontrivial(%x)
 module {
-  hask.func @main {
-    %lambda = hask.lambda() {
+  hask.func @main () -> !hask.adt<@X>{
       %lit_43 = hask.make_i64(43)
       %case_val = hask.caseint %lit_43 
       [0 -> { ^entry(%ival: !hask.value): 
@@ -23,7 +22,4 @@ module {
       %x = hask.construct(@X, %case_val:!hask.value): !hask.adt<@X>
       hask.return(%x) : !hask.adt<@X>
     }
-    hask.return(%lambda) : !hask.fn<() -> !hask.adt<@X>>
-  }
-    
 }

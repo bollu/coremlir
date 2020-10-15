@@ -9,6 +9,7 @@
 #include "Hask/HaskOps.h"
 #include "Hask/HaskDialect.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/Module.h"
@@ -16,7 +17,6 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Support/LLVM.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Support/LogicalResult.h"
 #include <mlir/Parser.h>
 #include <sstream>
@@ -297,13 +297,12 @@ void ApEagerOp::print(OpAsmPrinter &p) {
 };
 
 void ApEagerOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                 Value fn, SmallVectorImpl<Value> &params) {
+                      Value fn, SmallVectorImpl<Value> &params) {
 
   // hack! we need to construct the type properly.
   state.addOperands(fn);
   assert(fn.getType().isa<HaskFnType>());
   HaskFnType fnty = fn.getType().cast<HaskFnType>();
-
 
   assert(params.size() == fnty.getInputTypes().size());
 
@@ -408,7 +407,9 @@ llvm::Optional<int> CaseOp::getDefaultAltIndex() {
 ParseResult DefaultCaseOp::parse(OpAsmParser &parser, OperationState &result) {
   OpAsmParser::OperandType scrutinee;
 
-  if (parser.parseLParen()) { return failure(); }
+  if (parser.parseLParen()) {
+    return failure();
+  }
   FlatSymbolRefAttr constructorName;
   if (parser.parseAttribute<FlatSymbolRefAttr>(
           constructorName, CaseOp::getCaseTypeKey(), result.attributes)) {
@@ -420,11 +421,13 @@ ParseResult DefaultCaseOp::parse(OpAsmParser &parser, OperationState &result) {
     return failure();
   }
   Type retty;
-  if (parser.parseColonType(retty))  { return failure(); }
-  parser.resolveOperand(scrutinee, 
-          ADTType::get(parser.getBuilder().getContext(), constructorName),
-          result.operands);
-
+  if (parser.parseColonType(retty)) {
+    return failure();
+  }
+  parser.resolveOperand(
+      scrutinee,
+      ADTType::get(parser.getBuilder().getContext(), constructorName),
+      result.operands);
 
   result.addTypes(retty);
   return success();
@@ -433,8 +436,9 @@ ParseResult DefaultCaseOp::parse(OpAsmParser &parser, OperationState &result) {
 void DefaultCaseOp::print(OpAsmPrinter &p) {
   p << getOperationName() << "(";
   p << this->getOperation()->getAttrOfType<FlatSymbolRefAttr>(
-          this->getCaseTypeKey());
-  p << ", " << this->getScrutinee()  << ")" << " : " << this->getResult().getType();
+      this->getCaseTypeKey());
+  p << ", " << this->getScrutinee() << ")"
+    << " : " << this->getResult().getType();
 };
 
 // === LAMBDA OP ===
@@ -443,74 +447,74 @@ void DefaultCaseOp::print(OpAsmPrinter &p) {
 // === LAMBDA OP ===
 // === LAMBDA OP ===
 
-ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
-
-  if (parser.parseLParen()) {
-    return failure();
-  }
-
-  SmallVector<OpAsmParser::OperandType, 4> args;
-  SmallVector<Type, 4> argTys;
-  if (succeeded(parser.parseOptionalRParen())) {
-    // we have no params.
-  } else {
-    while (1) {
-      OpAsmParser::OperandType arg;
-      if (parser.parseRegionArgument(arg)) {
-        return failure();
-      };
-      args.push_back(arg);
-
-      if (parser.parseColon()) {
-        return failure();
-      }
-      Type argType;
-      if (parser.parseType(argType)) {
-        return failure();
-      }
-      argTys.push_back(argType);
-
-      if (!(argType.isa<ThunkType>() || argType.isa<ValueType>() ||
-            argType.isa<HaskFnType>())) {
-        return parser.emitError(
-            arg.location,
-            "argument must either ValueType, ThunkType, or HaskFnType");
-      }
-
-      if (succeeded(parser.parseOptionalRParen())) {
-        break;
-      } else if (parser.parseComma()) {
-        return failure();
-      }
-    }
-  }
-
-  Region *r = result.addRegion();
-  if (parser.parseRegion(*r, {args}, {argTys}))
-    return failure();
-
-  HaskReturnOp ret = cast<HaskReturnOp>(r->getBlocks().front().getTerminator());
-  Value retval = ret.getInput();
-  Type rettyy = retval.getType();
-
-  result.addTypes(parser.getBuilder().getType<HaskFnType>(argTys, rettyy));
-  return success();
-}
-
-void LambdaOp::print(OpAsmPrinter &p) {
-  p << "hask.lambda";
-  p << "(";
-  for (int i = 0; i < this->getNumInputs(); ++i) {
-    p << this->getInput(i);
-    p << ":" << this->getInput(i).getType();
-    if (i < this->getNumInputs() - 1) {
-      p << ",";
-    }
-  }
-  p << ")";
-  p.printRegion(this->getBody(), /*printEntryBlockArgs=*/false);
-  // p.printRegion(this->getBody(), /*printEntryBlockArgs=*/true);
-}
+//!  ParseResult LambdaOp::parse(OpAsmParser &parser, OperationState &result) {
+//!
+//!    if (parser.parseLParen()) {
+//!      return failure();
+//!    }
+//!
+//!    SmallVector<OpAsmParser::OperandType, 4> args;
+//!    SmallVector<Type, 4> argTys;
+//!    if (succeeded(parser.parseOptionalRParen())) {
+//!      // we have no params.
+//!    } else {
+//!      while (1) {
+//!        OpAsmParser::OperandType arg;
+//!        if (parser.parseRegionArgument(arg)) {
+//!          return failure();
+//!        };
+//!        args.push_back(arg);
+//!
+//!        if (parser.parseColon()) {
+//!          return failure();
+//!        }
+//!        Type argType;
+//!        if (parser.parseType(argType)) {
+//!          return failure();
+//!        }
+//!        argTys.push_back(argType);
+//!
+//!        if (!(argType.isa<ThunkType>() || argType.isa<ValueType>() ||
+//!              argType.isa<HaskFnType>())) {
+//!          return parser.emitError(
+//!              arg.location,
+//!              "argument must either ValueType, ThunkType, or HaskFnType");
+//!        }
+//!
+//!        if (succeeded(parser.parseOptionalRParen())) {
+//!          break;
+//!        } else if (parser.parseComma()) {
+//!          return failure();
+//!        }
+//!      }
+//!    }
+//!
+//!    Region *r = result.addRegion();
+//!    if (parser.parseRegion(*r, {args}, {argTys}))
+//!      return failure();
+//!
+//!    HaskReturnOp ret =
+//!    cast<HaskReturnOp>(r->getBlocks().front().getTerminator()); Value retval
+//!    = ret.getInput(); Type rettyy = retval.getType();
+//!
+//!    result.addTypes(parser.getBuilder().getType<HaskFnType>(argTys, rettyy));
+//!    return success();
+//!  }
+//!
+//!  void LambdaOp::print(OpAsmPrinter &p) {
+//!    p << "hask.lambda";
+//!    p << "(";
+//!    for (int i = 0; i < this->getNumInputs(); ++i) {
+//!      p << this->getInput(i);
+//!      p << ":" << this->getInput(i).getType();
+//!      if (i < this->getNumInputs() - 1) {
+//!        p << ",";
+//!      }
+//!    }
+//!    p << ")";
+//!    p.printRegion(this->getBody(), /*printEntryBlockArgs=*/false);
+//!    // p.printRegion(this->getBody(), /*printEntryBlockArgs=*/true);
+//!  }
 
 // === RECURSIVEREF OP ===
 // === RECURSIVEREF OP ===
@@ -557,16 +561,15 @@ LogicalResult HaskRefOp::verify() {
   HaskFuncOp fn = mod.lookupSymbol<HaskFuncOp>(this->getRef());
   HaskGlobalOp global = mod.lookupSymbol<HaskGlobalOp>(this->getRef());
   if (fn) {
-    LambdaOp lam = fn.getLambda();
     // how do I attach an error message?
-    if (lam.getType() == this->getResult().getType()) {
+    if (fn.getType() == this->getResult().getType()) {
       return success();
     }
     llvm::errs() << "ERROR at HaskRefOp type verification:"
                  << "\n-mismatch of types at ref."
                  << "\n-Found from function"
                  << " " << fn.getLoc() << " "
-                 << "name:" << this->getRef() << " [" << lam.getType()
+                 << "name:" << this->getRef() << " [" << fn.getType()
                  << "]\n"
                     "-Declared at ref as ["
                  << this->getLoc() << " " << *this << "]\n";
@@ -635,9 +638,78 @@ ParseResult HaskFuncOp::parse(OpAsmParser &parser, OperationState &result) {
     return failure();
   };
 
-  auto *body = result.addRegion();
-  return parser.parseRegion(*body, {}, ArrayRef<Type>());
+  SmallVector<OpAsmParser::OperandType, 4> args;
+  SmallVector<Type, 4> argTys;
+  Type retty;
+
+  if (parser.parseLParen()) { return failure(); }
+
+  if (succeeded(parser.parseOptionalRParen())) {
+    // we have no params.
+  } else {
+    while (1) {
+      OpAsmParser::OperandType arg;
+      if (parser.parseRegionArgument(arg)) {
+        return failure();
+      };
+      args.push_back(arg);
+
+      if (parser.parseColon()) {
+        return failure();
+      }
+      Type argType;
+      if (parser.parseType(argType)) {
+        return failure();
+      }
+      argTys.push_back(argType);
+
+      if (!(argType.isa<ThunkType>() || argType.isa<ValueType>() ||
+            argType.isa<HaskFnType>())) {
+        return parser.emitError(
+            arg.location,
+            "argument must either ValueType, ThunkType, or HaskFnType");
+      }
+
+      if (succeeded(parser.parseOptionalRParen())) {
+        break;
+      } else if (parser.parseComma()) {
+        return failure();
+      }
+    }
+  }
+
+  // -> retty
+  if(parser.parseArrow() || parser.parseType(retty)) {
+      return failure();
+  }
+
+  //  result.add
+  result.addAttribute(HaskFuncOp::getReturnTypeAttributeKey(),
+                      mlir::TypeAttr::get(retty));
+  // result.addTypes(
+
+  Region *r = result.addRegion();
+  if (parser.parseRegion(*r, {args}, {argTys})) {
+    return failure();
+  }
+
+
+
+  // result.addTypes(parser.getBuilder().getType<HaskFnType>(argTys, retty));
+  return success();
 };
+
+Type HaskFuncOp::getType() {
+    SmallVector<Type, 4> argTys(this->getRegion().getArgumentTypes());
+    llvm::errs() << "attr: |" << this->getAttr(getReturnTypeAttributeKey()) << "|\n";
+    Type retty = this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey()).getValue();
+    assert(this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey()) &&
+         "found return type attribute!");
+    assert(retty && "found return type!");
+
+    llvm::errs() << "retty: |" << retty << "|\n";
+    return HaskFnType::get(this->getContext(), argTys, retty);
+}
 
 void HaskFuncOp::print(OpAsmPrinter &p) {
   p << "hask.func" << ' ';
@@ -654,32 +726,32 @@ llvm::StringRef HaskFuncOp::getFuncName() {
       .getValue();
 }
 
-LambdaOp HaskFuncOp::getLambda() {
-  assert(this->getOperation()->getNumRegions() == 1 &&
-         "func needs exactly one region");
-  Region &region = this->getRegion();
-  // TODO: put this in a `verify` block.
-  assert(region.getBlocks().size() == 1 && "func has more than one BB");
-  Block &entry = region.front();
-  HaskReturnOp ret = cast<HaskReturnOp>(entry.getTerminator());
-  Value retval = ret.getInput();
-  return cast<LambdaOp>(retval.getDefiningOp());
-}
+//! LambdaOp HaskFuncOp::getLambda() {
+//!   assert(this->getOperation()->getNumRegions() == 1 &&
+//!          "func needs exactly one region");
+//!   Region &region = this->getRegion();
+//!   // TODO: put this in a `verify` block.
+//!   assert(region.getBlocks().size() == 1 && "func has more than one BB");
+//!   Block &entry = region.front();
+//!   HaskReturnOp ret = cast<HaskReturnOp>(entry.getTerminator());
+//!   Value retval = ret.getInput();
+//!   return cast<LambdaOp>(retval.getDefiningOp());
+//! }
 
 bool HaskFuncOp::isRecursive() {
   // https://mlir.llvm.org/docs/Tutorials/UnderstandingTheIRStructure/
-  llvm::errs() << "Checking: isFunctionRecursive? " << this->getFuncName() << "\n";
+  llvm::errs() << "Checking: isFunctionRecursive? " << this->getFuncName()
+               << "\n";
   bool isrec = false;
   this->walk([&](HaskRefOp ref) {
-      if (ref.getRef() == this->getFuncName()) {
-        isrec = true;
-        return WalkResult::interrupt();
-      }
-      return WalkResult::advance();
+    if (ref.getRef() == this->getFuncName()) {
+      isrec = true;
+      return WalkResult::interrupt();
+    }
+    return WalkResult::advance();
   });
   return isrec;
 }
-
 
 // === FORCE OP ===
 // === FORCE OP ===
@@ -718,11 +790,6 @@ void ForceOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
   state.addOperands(scrutinee);
   state.addTypes(t.getElementType());
 }
-
-
-
-
-
 
 // === ADT OP ===
 // === ADT OP ===
@@ -1073,19 +1140,20 @@ void TransmuteOp::print(OpAsmPrinter &p) {
 
 // ===== FORCE OP REWRITES =====
 
-// clone the basic block toBeCloned into `beforeInDest`, before location `before`, using `args
-// for the arguments.
+// clone the basic block toBeCloned into `beforeInDest`, before location
+// `before`, using `args for the arguments.
 // https://github.com/llvm/llvm-project/blob/f91f28c350df6815d37c521e8f3dc0641a3ca467/mlir/lib/IR/Region.cpp#L79
 Block *cloneBlock(Block &toBeCloned) {
+  assert(false && "very dubious");
   BlockAndValueMapping mapper;
   Block *newBlock = new Block();
   mapper.map(&toBeCloned, newBlock);
   for (BlockArgument &arg : toBeCloned.getArguments()) {
-      mapper.map(arg, newBlock->addArgument(arg.getType()));
+    mapper.map(arg, newBlock->addArgument(arg.getType()));
   }
 
   // Clone and remap the operations within this block.
-    for (auto &op : toBeCloned) {
+  for (auto &op : toBeCloned) {
     newBlock->push_back(op.clone(mapper));
   }
 
@@ -1105,8 +1173,9 @@ Block *cloneBlock(Block &toBeCloned) {
   return newBlock;
 };
 
-//https://github.com/llvm/llvm-project/blob/1372e23c7d4b25fd23689842246e66f70c949b46/mlir/lib/IR/PatternMatch.cpp#L136
-Block *cloneBlockBefore(mlir::PatternRewriter &rewriter, Operation *beforeAtDest, Block &src,
+// https://github.com/llvm/llvm-project/blob/1372e23c7d4b25fd23689842246e66f70c949b46/mlir/lib/IR/PatternMatch.cpp#L136
+Block *cloneBlockBefore(mlir::PatternRewriter &rewriter,
+                        Operation *beforeAtDest, Block &src,
                         ValueRange argValues = llvm::None) {
   assert(beforeAtDest);
   Block *newbb = cloneBlock(src);
@@ -1114,115 +1183,112 @@ Block *cloneBlockBefore(mlir::PatternRewriter &rewriter, Operation *beforeAtDest
   return newbb;
 }
 
-
-struct ForceOfKnownApCanonicalizationPattern : public mlir::OpRewritePattern<ForceOp> {
+struct ForceOfKnownApCanonicalizationPattern
+    : public mlir::OpRewritePattern<ForceOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
   /// them in order of profitability.
   ForceOfKnownApCanonicalizationPattern(mlir::MLIRContext *context)
-      : OpRewritePattern<ForceOp>(context, /*benefit=*/1) { }
-
+      : OpRewritePattern<ForceOp>(context, /*benefit=*/1) {}
 
   mlir::LogicalResult
-  matchAndRewrite(ForceOp force, mlir::PatternRewriter &rewriter) const override {
-      ModuleOp mod = force.getParentOfType<ModuleOp>();
-      HaskFuncOp fn = force.getParentOfType<HaskFuncOp>();
+  matchAndRewrite(ForceOp force,
+                  mlir::PatternRewriter &rewriter) const override {
+    ModuleOp mod = force.getParentOfType<ModuleOp>();
+    HaskFuncOp fn = force.getParentOfType<HaskFuncOp>();
 
-      ApOp ap = force.getResult().getDefiningOp<ApOp>();
-      if (!ap) { return failure(); }
-      HaskRefOp ref = ap.getFn().getDefiningOp<HaskRefOp>();
-      if (!ref) { return failure(); }
+    ApOp ap = force.getResult().getDefiningOp<ApOp>();
+    if (!ap) {
+      return failure();
+    }
+    HaskRefOp ref = ap.getFn().getDefiningOp<HaskRefOp>();
+    if (!ref) {
+      return failure();
+    }
 
-      llvm::errs() << "\nref: " << ref  << "\n"
-          << "\nap: " << ap << "\n"
-          << "\nforce: " << force <<" \n";
+    llvm::errs() << "\nref: " << ref << "\n"
+                 << "\nap: " << ap << "\n"
+                 << "\nforce: " << force << " \n";
 
+    HaskFuncOp forcedFn = mod.lookupSymbol<HaskFuncOp>(ref.getRef());
 
-      HaskFuncOp forcedFn = mod.lookupSymbol<HaskFuncOp>(ref.getRef());
-
-      // cannot inline a recursive function. Can replace with
-      // an apEager
-      if (forcedFn.isRecursive()) { 
-          rewriter.setInsertionPoint(ap);
-          ApEagerOp eager = rewriter.create<ApEagerOp>(ap.getLoc(), ref, ap.getFnArguments());
-          rewriter.replaceOp(force, eager.getResult());
-          return success();
-      }
-
-      Block &forcedFnBB = forcedFn.getLambda().getBodyBB();
-
-
-      llvm::errs() << "\nforced fn body:\n-------\n";
-      forcedFnBB.dump();
-
-      llvm::errs() << "\nforce parent(original):\n----\n";
-      force.getParentOfType<HaskFuncOp>().dump();
-
-      Block *clonedBB = cloneBlock(forcedFnBB);
-      clonedBB->insertBefore(force.getOperation()->getBlock());
-      llvm::errs() << "\nforced called fn(cloned BB):\n----\n";
-      clonedBB->dump();
-      HaskReturnOp ret = dyn_cast<HaskReturnOp>(clonedBB->getTerminator());
-
-      llvm::errs() << "\nforce parent(inlined):\n-----------\n";
-      force.getParentOfType<HaskFuncOp>().dump();
-      llvm::errs() << "\n";
-
-      llvm::errs() << "\nforce parent(inlined+merged):\n-----------\n";
-      rewriter.mergeBlockBefore(clonedBB, force.getOperation(), ap.getFnArguments());
-      force.getParentOfType<HaskFuncOp>().dump();
-      llvm::errs() << "\n";
-
-
-
-      llvm::errs() << "\nreturnop:\n------\n" << ret << "\n";
-
-      llvm::errs() << "\nforce parent(inlined+merged+force-replaced):\n-----------\n";
-      rewriter.replaceOp(force, ret.getOperand());
-      rewriter.eraseOp(ret);
-      fn.dump();
-      llvm::errs() << "\n";
+    // cannot inline a recursive function. Can replace with
+    // an apEager
+    if (forcedFn.isRecursive()) {
+      rewriter.setInsertionPoint(ap);
+      ApEagerOp eager =
+          rewriter.create<ApEagerOp>(ap.getLoc(), ref, ap.getFnArguments());
+      rewriter.replaceOp(force, eager.getResult());
       return success();
+    }
 
+    Block *forcedFnBB = forcedFn.getBodyBB();
+    // Block &forcedFnBB = forcedFn.getLambda().getBodyBB();
+
+    llvm::errs() << "\nforced fn body:\n-------\n";
+    forcedFnBB->dump();
+
+    llvm::errs() << "\nforce parent(original):\n----\n";
+    force.getParentOfType<HaskFuncOp>().dump();
+
+    Block *clonedBB = cloneBlock(*forcedFnBB);
+    clonedBB->insertBefore(force.getOperation()->getBlock());
+    llvm::errs() << "\nforced called fn(cloned BB):\n----\n";
+    clonedBB->dump();
+    HaskReturnOp ret = dyn_cast<HaskReturnOp>(clonedBB->getTerminator());
+
+    llvm::errs() << "\nforce parent(inlined):\n-----------\n";
+    force.getParentOfType<HaskFuncOp>().dump();
+    llvm::errs() << "\n";
+
+    llvm::errs() << "\nforce parent(inlined+merged):\n-----------\n";
+    rewriter.mergeBlockBefore(clonedBB, force.getOperation(),
+                              ap.getFnArguments());
+    force.getParentOfType<HaskFuncOp>().dump();
+    llvm::errs() << "\n";
+
+    llvm::errs() << "\nreturnop:\n------\n" << ret << "\n";
+
+    llvm::errs()
+        << "\nforce parent(inlined+merged+force-replaced):\n-----------\n";
+    rewriter.replaceOp(force, ret.getOperand());
+    rewriter.eraseOp(ret);
+    fn.dump();
+    llvm::errs() << "\n";
+    return success();
   }
-
 };
 
-struct ForceOfThunkifyCanonicalizationPattern : public mlir::OpRewritePattern<ForceOp> {
+struct ForceOfThunkifyCanonicalizationPattern
+    : public mlir::OpRewritePattern<ForceOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
   /// them in order of profitability.
   ForceOfThunkifyCanonicalizationPattern(mlir::MLIRContext *context)
-      : OpRewritePattern<ForceOp>(context, /*benefit=*/1) { }
-
+      : OpRewritePattern<ForceOp>(context, /*benefit=*/1) {}
 
   mlir::LogicalResult
-  matchAndRewrite(ForceOp force, mlir::PatternRewriter &rewriter) const override {
-      HaskFuncOp fn = force.getParentOfType<HaskFuncOp>();
-      ThunkifyOp thunkify = force.getOperand().getDefiningOp<ThunkifyOp>();
-      if (!thunkify) { return failure(); }
-      rewriter.replaceOp(force, thunkify.getOperand());
-      return success();
+  matchAndRewrite(ForceOp force,
+                  mlir::PatternRewriter &rewriter) const override {
+    HaskFuncOp fn = force.getParentOfType<HaskFuncOp>();
+    ThunkifyOp thunkify = force.getOperand().getDefiningOp<ThunkifyOp>();
+    if (!thunkify) {
+      return failure();
+    }
+    rewriter.replaceOp(force, thunkify.getOperand());
+    return success();
   }
-
 };
 
-
-
 void ForceOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                       MLIRContext *context) {
+                                          MLIRContext *context) {
   results.insert<ForceOfThunkifyCanonicalizationPattern>(context);
   results.insert<ForceOfKnownApCanonicalizationPattern>(context);
 }
 
-
 // worker/wrapper
 void HaskFuncOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                                MLIRContext *context) {
-
-}
-
-
+                                             MLIRContext *context) {}
 
 // === LOWERING ===
 // === LOWERING ===
@@ -1338,8 +1404,7 @@ mlir::LLVM::LLVMType haskToLLVMType(MLIRContext *context, Type t) {
 class HaskGlobalOpConversionPattern : public ConversionPattern {
 public:
   explicit HaskGlobalOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(HaskGlobalOp::getOperationName(), 1,
-                          context) {}
+      : ConversionPattern(HaskGlobalOp::getOperationName(), 1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -1379,8 +1444,7 @@ public:
 class HaskFuncOpConversionPattern : public ConversionPattern {
 public:
   explicit HaskFuncOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(HaskFuncOp::getOperationName(), 1,
-                          context) {}
+      : ConversionPattern(HaskFuncOp::getOperationName(), 1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
@@ -1392,32 +1456,33 @@ public:
     // TODO: deal with free floating lambads. This LambdaOp is going to
     // become a top-level function. Other lambdas will become toplevel functions
     // with synthetic names.
-    llvm::errs() << "running HaskFuncOpConversionPattern on: " << op->getName()
-                 << " | " << op->getLoc() << "\n";
-    auto fn = cast<HaskFuncOp>(op);
-    LambdaOp lam = fn.getLambda();
+    assert(false);
+    // 1 llvm::errs() << "running HaskFuncOpConversionPattern on: " <<
+    // op->getName() 1              << " | " << op->getLoc() << "\n"; 1 auto fn =
+    // cast<HaskFuncOp>(op); 1 LambdaOp lam = fn.getLambda();
 
-    SmallVector<LLVM::LLVMType, 4> fnArgTys;
-    auto I8PtrTy = LLVMType::getInt8PtrTy(rewriter.getContext());
-    for (int i = 0; i < lam.getNumInputs(); ++i) {
-      // fnArgTys.push_back(LLVMType::getInt64Ty(rewriter.getContext()));
-      fnArgTys.push_back(I8PtrTy);
-    }
+    // 1 SmallVector<LLVM::LLVMType, 4> fnArgTys;
+    // 1 auto I8PtrTy = LLVMType::getInt8PtrTy(rewriter.getContext());
+    // 1 for (int i = 0; i < lam.getNumInputs(); ++i) {
+    // 1   // fnArgTys.push_back(LLVMType::getInt64Ty(rewriter.getContext()));
+    // 1   fnArgTys.push_back(I8PtrTy);
+    // 1 }
 
-    LLVMFuncOp llvmfn =
-        rewriter.create<LLVMFuncOp>(fn.getLoc(), fn.getFuncName().str(),
-                                    LLVMFunctionType::get(I8PtrTy, fnArgTys));
+    // 1 LLVMFuncOp llvmfn =
+    // 1     rewriter.create<LLVMFuncOp>(fn.getLoc(), fn.getFuncName().str(),
+    // 1                                 LLVMFunctionType::get(I8PtrTy,
+    // fnArgTys));
 
-    Region &lamBody = lam.getBody();
-    Block *llvmfnEntry = llvmfn.addEntryBlock();
-    Block &lamEntry = lamBody.getBlocks().front();
+    // 1 Region &lamBody = lam.getBody();
+    // 1 Block *llvmfnEntry = llvmfn.addEntryBlock();
+    // 1 Block &lamEntry = lamBody.getBlocks().front();
 
-    llvm::errs() << "converting lambda:\n";
-    llvm::errs() << *lamBody.getParentOp() << "\n";
-    rewriter.mergeBlocks(&lamBody.getBlocks().front(), llvmfnEntry,
-                         llvmfnEntry->getArguments());
+    // 1 llvm::errs() << "converting lambda:\n";
+    // 1 llvm::errs() << *lamBody.getParentOp() << "\n";
+    // 1 rewriter.mergeBlocks(&lamBody.getBlocks().front(), llvmfnEntry,
+    // 1                      llvmfnEntry->getArguments());
 
-    rewriter.eraseOp(op);
+    // 1 rewriter.eraseOp(op);
     // llvm::errs() << *module << "\n";
     // assert(false);
     // assert(false);
@@ -1600,23 +1665,23 @@ public:
   }
 };
 
-class LambdaOpConversionPattern : public ConversionPattern {
-public:
-  explicit LambdaOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(LambdaOp::getOperationName(), 1,
-                          context) {}
-
-  LogicalResult
-  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto lam = cast<LambdaOp>(op);
-    assert(lam);
-    llvm::errs() << "running LambdaOpConversionPattern on: " << op->getName()
-                 << " | " << op->getLoc() << "\n";
-
-    return failure();
-  }
-};
+// 1 class LambdaOpConversionPattern : public ConversionPattern {
+// 1 public:
+// 1   explicit LambdaOpConversionPattern(MLIRContext *context)
+// 1       : ConversionPattern(LambdaOp::getOperationName(), 1,
+// 1                           context) {}
+// 1
+// 1   LogicalResult
+// 1   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+// 1                   ConversionPatternRewriter &rewriter) const override {
+// 1     auto lam = cast<LambdaOp>(op);
+// 1     assert(lam);
+// 1     llvm::errs() << "running LambdaOpConversionPattern on: " <<
+// op->getName() 1                  << " | " << op->getLoc() << "\n";
+// 1
+// 1     return failure();
+// 1   }
+// 1 };
 
 // Humongous hack: we run a sort of "type inference" algorithm, where at the
 // call-site, we convert from a !hask.untyped to a concrete (say, int64)
@@ -2007,15 +2072,13 @@ Block *splitBlockAfter(PatternRewriter &rewriter, Block::iterator after) {
 class CaseIntOpConversionPattern : public ConversionPattern {
 public:
   explicit CaseIntOpConversionPattern(MLIRContext *context)
-      : ConversionPattern(CaseIntOp::getOperationName(), 1,
-                          context) {}
+      : ConversionPattern(CaseIntOp::getOperationName(), 1, context) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     using namespace mlir::LLVM;
     auto caseop = cast<CaseIntOp>(op);
-
 
     const Optional<int> default_ix = caseop.getDefaultAltIndex();
 
@@ -2029,7 +2092,8 @@ public:
     Type caseRetty = caseop.getResult().getType();
 
     Block *prevBB = caseop.getOperation()->getBlock();
-    Block *afterCaseBB = splitBlockAfter(rewriter, caseop.getOperation()->getIterator());
+    Block *afterCaseBB =
+        splitBlockAfter(rewriter, caseop.getOperation()->getIterator());
 
     afterCaseBB->addArgument(caseRetty);
 
@@ -2041,7 +2105,9 @@ public:
     llvm::errs() << __LINE__ << "\n";
     for (int i = 0; i < caseop.getNumAlts(); ++i) {
 
-      if (default_ix && i == *default_ix) { continue; }
+      if (default_ix && i == *default_ix) {
+        continue;
+      }
 
       Block *thenBB =
           rewriter.createBlock(caseop.getParentRegion(), /*insertPt=*/{});
@@ -2075,12 +2141,11 @@ public:
     if (default_ix) {
       // default block should have have no parameters?
       Block &defaultRhsBlock = caseop.getAltRHS(*default_ix).front();
-      HaskReturnOp defaultRet = cast<HaskReturnOp>(defaultRhsBlock.getTerminator());
-      rewriter.mergeBlocks(&defaultRhsBlock,
-                           prevBB, {});
-      rewriter.replaceOpWithNewOp<LLVM::BrOp>(defaultRet,
-                                              defaultRet.getOperand(),
-                                              afterCaseBB);
+      HaskReturnOp defaultRet =
+          cast<HaskReturnOp>(defaultRhsBlock.getTerminator());
+      rewriter.mergeBlocks(&defaultRhsBlock, prevBB, {});
+      rewriter.replaceOpWithNewOp<LLVM::BrOp>(
+          defaultRet, defaultRet.getOperand(), afterCaseBB);
 
     } else {
       rewriter.setInsertionPointToEnd(prevBB);
@@ -2090,7 +2155,6 @@ public:
     rewriter.replaceOp(caseop, afterCaseBB->getArgument(0));
     return success();
   }
-
 };
 
 static FlatSymbolRefAttr getOrInsertMkClosureThunkify(PatternRewriter &rewriter,
@@ -2199,7 +2263,7 @@ void LowerHaskToStandardPass::runOnOperation() {
   target.addIllegalDialect<HaskDialect>();
   // target.addLegalOp<HaskRefOp>();
   target.addLegalOp<HaskADTOp>();
-  target.addLegalOp<LambdaOp>();
+  // target.addLegalOp<LambdaOp>();
   // target.addLegalOp<HaskGlobalOp>();
   // target.addLegalOp<HaskReturnOp>();
   // target.addLegalOp<CaseOp>();

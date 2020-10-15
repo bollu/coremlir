@@ -319,7 +319,7 @@ struct Interpreter {
   InterpValue interpretFunction(HaskFuncOp func, ArrayRef<InterpValue> args) {
     llvm::errs() << "interpreting function |" << func.getName() << "|\n";
     // functions are isolated from above; create a fresh environment.
-    return interpretRegion(func.getLambda().getRegion(), args, Env());
+    return interpretRegion(func.getRegion(), args, Env());
   }
 
   Interpreter(ModuleOp module) : module(module){};

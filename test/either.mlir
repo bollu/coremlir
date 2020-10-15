@@ -11,8 +11,7 @@ module {
 
 
   // extract e = case e of @Right e2-> case e2 of @Left v -> v
-  hask.func @extract {
-    %lam = hask.lambda(%t: !hask.thunk<!hask.adt<@Either>>) {
+  hask.func @extract (%t: !hask.thunk<!hask.adt<@Either>>) -> !hask.value {
        %v = hask.force(%t) : !hask.adt<@Either>
        %ret = hask.case @Either %v 
            [@Right -> { ^entry(%t2: !hask.thunk<!hask.adt<@Either>>):
@@ -26,31 +25,22 @@ module {
            }]
         hask.return(%ret):!hask.value
     } 
-    hask.return(%lam):  !hask.fn<(!hask.thunk<!hask.adt<@Either>>) -> !hask.value>
-  }
 
-  hask.func @one {
-      %lam = hask.lambda() {
+  hask.func @one () -> !hask.adt<@SimpleInt> { 
           %v = hask.make_i64(1)
           %boxed = hask.construct(@SimpleInt, %v:!hask.value) :!hask.adt<@SimpleInt>
           hask.return(%boxed): !hask.adt<@SimpleInt>
       }
-      hask.return(%lam): !hask.fn<() -> !hask.adt<@SimpleInt>>
-  }
 
-  hask.func @leftOne {
-    %lam = hask.lambda() {
+  hask.func @leftOne () -> !hask.adt<@Either> {
         %ofn = hask.ref(@one) : !hask.fn<() -> !hask.adt<@SimpleInt>>
         %o = hask.ap(%ofn  : !hask.fn<() -> !hask.adt<@SimpleInt>>)
 
         %l = hask.construct(@Left, %o: !hask.thunk<!hask.adt<@SimpleInt>>) :!hask.adt<@Either>
         hask.return(%l) :!hask.adt<@Either>
     }
-    hask.return(%lam) :!hask.fn<() -> !hask.adt<@Either>>
-  }
 
-  hask.func @rightLeftOne {
-    %lam = hask.lambda() {
+  hask.func @rightLeftOne() -> !hask.adt<@Either> {
       %lfn = hask.ref(@leftOne): !hask.fn<() -> !hask.adt<@Either>>
       %l_t = hask.ap(%lfn: !hask.fn<() -> !hask.adt<@Either>>)
 
@@ -58,12 +48,9 @@ module {
       %r_t = hask.thunkify(%r :!hask.adt<@Either>):!hask.thunk<!hask.adt<@Either>>
       hask.return(%r):!hask.adt<@Either>
     }
-    hask.return(%lam)  :!hask.fn<() -> !hask.adt<@Either>>
-  }
 
   // 1 + 2 = 3
-  hask.func@main {
-    %lam = hask.lambda() {
+  hask.func@main () -> !hask.value {
       %rlo = hask.ref(@rightLeftOne): !hask.fn<() -> !hask.adt<@Either>>
       %input = hask.ap(%rlo : !hask.fn<() -> !hask.adt<@Either>>)
       %extract = hask.ref(@extract) :!hask.fn<(!hask.thunk<!hask.adt<@Either>>) -> !hask.value>
@@ -73,6 +60,4 @@ module {
       hask.return(%extract_v):!hask.value
 
     }
-    hask.return (%lam) : !hask.fn<() -> !hask.value>
-  }
 }

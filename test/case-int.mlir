@@ -5,8 +5,7 @@
 // Test that case of int works.
 module {
   // strict function
-  hask.func @prec {
-    %lam = hask.lambda(%ihash: !hask.value) {
+  hask.func @prec (%ihash: !hask.value) -> !hask.value {
      // do we know that %ihash is an int here?
      %ret = hask.caseint %ihash 
      [0 -> { ^entry(%ival: !hask.value): 
@@ -20,11 +19,8 @@ module {
      }]
      hask.return (%ret) : !hask.value
     }
-    hask.return (%lam): !hask.fn<(!hask.value) -> !hask.value>
-  }
 
-  hask.func @main {
-    %lambda = hask.lambda() {
+  hask.func @main () -> !hask.value {
       %lit_42 = hask.make_i64(42)
       %prec = hask.ref(@prec)  : !hask.fn<(!hask.value) -> !hask.value>
       %out_v = hask.ap(%prec : !hask.fn<(!hask.value) -> !hask.value>, %lit_42)
@@ -32,7 +28,4 @@ module {
       %x = hask.construct(@X, %out_v_forced:!hask.value): !hask.adt<@X>
       hask.return(%x) : !hask.adt<@X>
     }
-    hask.return(%lambda) : !hask.fn<() -> !hask.adt<@X>>
-  }
-    
 }

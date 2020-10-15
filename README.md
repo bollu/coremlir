@@ -17,6 +17,26 @@ Convert GHC Core to MLIR.
 
 
 # Log:  [newest] to [oldest]
+# Thursday, Oct 15th
+
+- Wow, another amazing nit:
+``` cpp
+Type retty = 
+  this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey())
+    .getType();
+// retty will be null!
+```
+- The correct invocation is:
+
+```cpp
+Type retty = 
+  this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey())
+  .getValue();
+```
+- Because the _value_ of the `TypeAttr` is the type. The `Type` is `none`! It's
+  forced to have a `Type` because, well, that's how inheritance works. It should
+  just return `Type` so we have `Type : Type` and we're set :)
+
 # Friday Oct 9th 
 
 - [Meeting docs](https://docs.google.com/document/d/1tbeqlwunRKomN8WdfxuCJxVQUMuLd5kRqpIsGxF-w6o/preview)

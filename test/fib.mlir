@@ -11,8 +11,7 @@ module {
 
   // plus :: SimpleInt -> SimpleInt -> SimpleInt
   // plus i j = case i of SimpleInt ival -> case j of SimpleInt jval -> SimpleInt (ival +# jval)
-  hask.func @plus {
-    %lam = hask.lambda(%i : !hask.thunk<!hask.adt<@SimpleInt>>, %j: !hask.thunk<!hask.adt<@SimpleInt>>) {
+  hask.func @plus (%i : !hask.thunk<!hask.adt<@SimpleInt>>, %j: !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt> {
       %icons = hask.force(%i): !hask.adt<@SimpleInt>
       %reti = hask.case @SimpleInt %icons 
            [@SimpleInt -> { ^entry(%ival: !hask.value):
@@ -26,14 +25,11 @@ module {
               hask.return(%retj): !hask.adt<@SimpleInt>
            }]
       hask.return(%reti): !hask.adt<@SimpleInt>
-    }
-    hask.return(%lam): !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>, !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
   }
 
   // minus :: SimpleInt -> SimpleInt -> SimpleInt
   // minus i j = case i of SimpleInt ival -> case j of SimpleInt jval -> SimpleInt (ival -# jval)
-  hask.func @minus {
-    %lam = hask.lambda(%i : !hask.thunk<!hask.adt<@SimpleInt>>, %j: !hask.thunk<!hask.adt<@SimpleInt>>) {
+  hask.func @minus (%i : !hask.thunk<!hask.adt<@SimpleInt>>, %j: !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt> {
       %icons = hask.force(%i):!hask.adt<@SimpleInt>
       %reti = hask.case @SimpleInt %icons 
            [@SimpleInt -> { ^entry(%ival: !hask.value):
@@ -48,46 +44,32 @@ module {
               hask.return(%retj):!hask.adt<@SimpleInt>
            }]
       hask.return(%reti): !hask.adt<@SimpleInt>
-    }
-    hask.return(%lam): !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>, !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
   }
 
 
-  hask.func @zero {
-     %lam = hask.lambda() {
-       %v = hask.make_i64(0)
-       %boxed = hask.construct(@SimpleInt, %v:!hask.value) : !hask.adt<@SimpleInt>
-       hask.return(%boxed): !hask.adt<@SimpleInt>
-     }
-     hask.return(%lam) : !hask.fn<() -> !hask.adt<@SimpleInt>>
+  hask.func @zero() -> !hask.adt<@SimpleInt> {
+    %v = hask.make_i64(0)
+    %boxed = hask.construct(@SimpleInt, %v:!hask.value) : !hask.adt<@SimpleInt>
+    hask.return(%boxed): !hask.adt<@SimpleInt>
   }
   
-  hask.func @one {
-     %lam = hask.lambda() {
+  hask.func @one () -> !hask.adt<@SimpleInt>  {
        %v = hask.make_i64(1)
        %boxed = hask.construct(@SimpleInt, %v:!hask.value): !hask.adt<@SimpleInt> 
        hask.return(%boxed): !hask.adt<@SimpleInt> 
      }
-     hask.return(%lam) : !hask.fn<() -> !hask.adt<@SimpleInt>>
+
+
+  hask.func @two () -> !hask.adt<@SimpleInt>  {
+     %v = hask.make_i64(2)
+     %boxed = hask.construct(@SimpleInt, %v:!hask.value) : !hask.adt<@SimpleInt> 
+     hask.return(%boxed): !hask.adt<@SimpleInt> 
   }
 
-
-  hask.func @two {
-     %lam = hask.lambda() {
-       %v = hask.make_i64(2)
-       %boxed = hask.construct(@SimpleInt, %v:!hask.value) : !hask.adt<@SimpleInt> 
-       hask.return(%boxed): !hask.adt<@SimpleInt> 
-     }
-     hask.return(%lam) : !hask.fn<() -> !hask.adt<@SimpleInt>>
-  }
-
-  hask.func @eight {
-     %lam = hask.lambda() {
+  hask.func @eight () -> !hask.adt<@SimpleInt>  {
        %v = hask.make_i64(8)
        %boxed = hask.construct(@SimpleInt, %v:!hask.value): !hask.adt<@SimpleInt> 
        hask.return(%boxed): !hask.adt<@SimpleInt>
-     }
-     hask.return(%lam) : !hask.fn<() -> !hask.adt<@SimpleInt>>
   }
 
 
@@ -99,8 +81,7 @@ module {
   //               0# -> zero
   //               1# -> one
   //               _ -> plus (fib i) (fib (minus i one))
-  hask.func @fib {
-    %lam = hask.lambda(%i: !hask.thunk<!hask.adt<@SimpleInt>>) {
+  hask.func @fib (%i: !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>  {
         %icons = hask.force(%i):!hask.adt<@SimpleInt>
         %ret = hask.case @SimpleInt %icons
                [@SimpleInt -> { ^entry(%ihash: !hask.value):
@@ -152,14 +133,11 @@ module {
                }]
         hask.return (%ret):!hask.adt<@SimpleInt>
     }
-    hask.return (%lam): !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
-  }
 
 
   // ix:  0 1 2 3 4 5 6
   // val: 0 1 1 2 3 5 8
-  hask.func@main {
-    %lam = hask.lambda() {
+  hask.func@main () -> !hask.adt<@SimpleInt> {
       %number = hask.make_i64(6)
       %boxed_number = hask.construct(@SimpleInt, %number: !hask.value): !hask.adt<@SimpleInt> 
       %thunk_number = hask.thunkify(%boxed_number: !hask.adt<@SimpleInt>) : !hask.thunk<!hask.adt<@SimpleInt>>
@@ -168,10 +146,7 @@ module {
       %out_t = hask.ap(%fib : !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) ->  !hask.adt<@SimpleInt>>, %thunk_number)
       %out_v = hask.force(%out_t): !hask.adt<@SimpleInt>
       hask.return(%out_v) : !hask.adt<@SimpleInt>
-    }
-    hask.return (%lam) : !hask.fn<() -> !hask.adt<@SimpleInt>>
   }
-    
 }
 
 

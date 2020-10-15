@@ -24,6 +24,8 @@
 
 #include "mlir/Pass/Pass.h"
 
+#include "HaskDialect.h"
+
 namespace mlir {
 namespace standalone {
 
@@ -219,6 +221,7 @@ public:
                  &effects) {}
 };
 
+/*
 class LambdaOp : public Op<LambdaOp, OpTrait::OneResult, OpTrait::OneRegion> {
 public:
   using Op::Op;
@@ -239,6 +242,7 @@ public:
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
 };
+*/
 
 class HaskRefOp
     : public Op<HaskRefOp, OpTrait::OneResult, OpTrait::ZeroOperands,
@@ -269,13 +273,16 @@ public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.func"; };
   Region &getRegion() { return this->getOperation()->getRegion(0); };
+  Block *getBodyBB() { return &this->getRegion().getBlocks().front(); }
   void print(OpAsmPrinter &p);
   llvm::StringRef getFuncName();
-  LambdaOp getLambda();
+  Type getType();
+
   bool isRecursive();
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   static void getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context);
+  static const char *getReturnTypeAttributeKey() { return "retty"; }
 };
 
 // replace case x of name { default -> ... } with name = force(x);

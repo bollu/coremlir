@@ -4,24 +4,18 @@
 // CHECK: 42
 module {
   // k x y = x
-  hask.func @k {
-    %lambda = hask.lambda(%x: !hask.thunk<!hask.value>, %y: !hask.thunk<!hask.value>) {
+  hask.func @k (%x: !hask.thunk<!hask.value>, %y: !hask.thunk<!hask.value>) -> !hask.value {
       %x_v = hask.force(%x):!hask.value
       hask.return(%x_v) : !hask.value
     }
-    hask.return(%lambda) :!hask.fn<(!hask.thunk<!hask.value>, !hask.thunk<!hask.value>) -> !hask.value>
-  }
 
   // loop a = loop a
-  hask.func @loop {
-    %lambda = hask.lambda(%a: !hask.thunk<!hask.value>) {
+  hask.func @loop (%a: !hask.thunk<!hask.value>) -> !hask.value {
       %loop = hask.ref(@loop) : !hask.fn<(!hask.thunk<!hask.value>) ->  !hask.value>
       %out_t = hask.ap(%loop : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.value>, %a)
       %out_v = hask.force(%out_t) : !hask.value
       hask.return(%out_v) : !hask.value
     }
-    hask.return(%lambda) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.value>
-  }
 
   hask.adt @X [#hask.data_constructor<@MkX []>]
 
@@ -29,8 +23,7 @@ module {
   // main = 
   //     let y = loop x -- builds a closure.
   //     in (k x y)
-  hask.func @main {
-    %lambda = hask.lambda() {
+  hask.func @main ()  -> !hask.value {
       %lit_42 = hask.make_i64(42)
       // TODO: I need a think to transmute to different types.
       // Because we may want to "downcast" a ADT to a raw value
@@ -48,6 +41,4 @@ module {
       %out = hask.force(%out_t) : !hask.value
       hask.return(%out) : !hask.value
     }
-    hask.return(%lambda) :!hask.fn<() -> !hask.value>
-  }
 }

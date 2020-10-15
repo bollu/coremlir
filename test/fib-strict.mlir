@@ -7,8 +7,7 @@ module {
   // hask.make_data_constructor @"-#"
   // hask.make_data_constructor @"()"
 
-  hask.func @fibstrict {
-    %lambda = hask.lambda(%i: !hask.value) {
+  hask.func @fibstrict (%i: !hask.value) -> !hask.value {
       %retval = hask.caseint  %i
       [@default -> { ^entry: // todo: remove this defult
         %fib_rec = hask.ref (@fibstrict):!hask.fn<(!hask.value) -> !hask.value>
@@ -32,13 +31,10 @@ module {
 
       hask.return(%retval) : !hask.value
     }
-    hask.return(%lambda) : !hask.fn<(!hask.value) -> !hask.value>
-  }
 
   // i:      0 1 2 3 4 5 6
   // fib(i): 0 1 1 2 3 5 8
-  hask.func @main {
-    %lambda = hask.lambda() {
+  hask.func @main () -> !hask.adt<@X> {
       %lit_6 = hask.make_i64(6)
       %fib = hask.ref(@fibstrict)  : !hask.fn<(!hask.value) -> !hask.value>
       %out_v = hask.ap(%fib : !hask.fn<(!hask.value) -> !hask.value>, %lit_6)
@@ -46,7 +42,5 @@ module {
       %x = hask.construct(@X, %out_v_forced: !hask.value): !hask.adt<@X>
       hask.return(%x) : !hask.adt<@X>
     }
-    hask.return(%lambda) :!hask.fn<() -> !hask.adt<@X>>
-  }
 
 }

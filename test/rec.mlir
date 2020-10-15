@@ -9,8 +9,7 @@
 module {
   hask.adt @SimpleInt [#hask.data_constructor<@SimpleInt [@"Int#"]>]
 
-  hask.func @f{
-    %lam = hask.lambda(%i: !hask.thunk<!hask.adt<@SimpleInt>>) {
+  hask.func @f(%i: !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt> {
         %icons = hask.force(%i):!hask.adt<@SimpleInt>
         %ihash = hask.defaultcase(@SimpleInt, %icons) : !hask.value
         %ret = hask.caseint %ihash 
@@ -32,12 +31,9 @@ module {
             }]
         hask.return (%ret):!hask.adt<@SimpleInt>
     }
-    hask.return (%lam): !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
-  }
 
 
-  hask.func@main {
-    %lam = hask.lambda() {
+  hask.func@main() -> !hask.adt<@SimpleInt> {
       %n = hask.make_i64(6)
       %box_n_v = hask.construct(@SimpleInt, %n: !hask.value): !hask.adt<@SimpleInt> 
       %box_n_t = hask.thunkify(%box_n_v: !hask.adt<@SimpleInt>) : !hask.thunk<!hask.adt<@SimpleInt>>
@@ -46,7 +42,5 @@ module {
       %out_v = hask.force(%out_t): !hask.adt<@SimpleInt>
       hask.return(%out_v) : !hask.adt<@SimpleInt>
     }
-    hask.return (%lam) : !hask.fn<() -> !hask.adt<@SimpleInt>>
-  }
     
 }
