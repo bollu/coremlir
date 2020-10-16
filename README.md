@@ -17,6 +17,57 @@ Convert GHC Core to MLIR.
 
 
 # Log:  [newest] to [oldest]
+# Friday, Oct 16th
+
+- Can we do demand analysis by phrasing it as a dependence analysis problem (RAW?)
+- The workhorse was SCEV, which allows us to recover loops
+- The workhorse of that was definition of a natural loop, which told us what
+  types of programs we can analyze
+- What is the functional equivalent of a natural loop?
+- The naive guess is "tail calls". I'm not so sure. Consider the loop:
+
+```cpp
+sum = 0; for(int i = n; i > 0; i--) { sum += i*i ; }
+```
+- versus the haskell program:
+
+```hs
+f 0 = 0; f n = n*n + f (n - 1)
+```
+
+- The above is 'clearly' a natural loop, while the program below is not. What gives?
+- We can transform the above into accumulator style:
+
+```hs
+f 0 k = k; f n k = f (n-1) (k + n*n)
+```
+
+- When can we convert something into accumulator style? How do we know how to
+  convert something into accumulator style?
+
+- Naively, I feel that this involves something about 'destination passing style'.
+  We first go from:
+
+```hs
+f 0 = 0; f n = n*n + f(n-1)
+```
+
+- into destination passing style:
+
+```hs
+f 0 slot = write slot 0;
+f n slot = do f (n - 1) slot; out <- read slot; write (n*n + out) slot
+```
+
+- which is then purified into:
+
+```
+f 0 slot = 0
+f n slot = f (n - 1) (slot + n*n)
+```
+
+- Of course, this is all incohate rambling.
+
 # Thursday, Oct 15th
 
 - Wow, another amazing nit:
