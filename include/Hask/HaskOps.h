@@ -280,8 +280,6 @@ public:
 
   bool isRecursive();
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
-  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                          MLIRContext *context);
   static const char *getReturnTypeAttributeKey() { return "retty"; }
 };
 
@@ -297,8 +295,6 @@ public:
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     Value scrutinee);
 
-  static void getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                          MLIRContext *context);
   void
   getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
                  &effects) {}
@@ -421,6 +417,9 @@ public:
 std::unique_ptr<mlir::Pass> createLowerHaskToStandardPass();
 // lower hask+standard to LLVM by eliminating all the junk.
 std::unique_ptr<mlir::Pass> createLowerHaskStandardToLLVMPass();
+// canonicalize, eliminating all intermediate waste.
+std::unique_ptr<mlir::Pass> createWorkerWrapperPass();
+
 } // namespace standalone
 } // namespace mlir
 

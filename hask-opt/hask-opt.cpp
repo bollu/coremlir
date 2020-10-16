@@ -59,6 +59,10 @@ static llvm::cl::opt<bool>
     lowerToLLVM("lower-llvm", llvm::cl::desc("Enable lowering to LLVM"));
 static llvm::cl::opt<bool> jit("jit",
                                llvm::cl::desc("Enable lowering to LLVM"));
+
+static llvm::cl::opt<bool> optWorkerWrapper("worker-wrapper",
+                                        llvm::cl::desc("Enable woker-wrapper passes in the IR"));
+
 static llvm::cl::opt<bool> optInterpret("interpret",
                                      llvm::cl::desc("Enable interpreting IR"));
 
@@ -140,17 +144,18 @@ int main(int argc, char **argv) {
 
   llvm::errs() << "=====Module: simplification =====\n";
 
-  {
+
+  if (optWorkerWrapper) {
     mlir::PassManager pm(&context);
     // Apply any generic pass manager command line options and run the pipeline.
     applyPassManagerCLOptions(pm);
 
     // Add a run of the canonicalizer to optimize the mlir module.
     // pm.addNestedPass<mlir::FuncOp>(mlir::createCanonicalizerPass());
-    pm.addPass(mlir::createCanonicalizerPass());
-    llvm::errs() << "===Module: running canonicalization...===\n";
+    pm.addPass(mlir::standalone::createWorkerWrapperPass());
+    llvm::errs() << "===Module: running worker/wrapper...===\n";
     if (mlir::failed(pm.run(*module))) {
-      llvm::errs() << "===Run of canonicalizer failed.===\n";
+      llvm::errs() << "===Run of worker/wrapper failed.===\n";
       return 4;
     }
     llvm::errs() << "==canonicalization succeeded!===\n";
