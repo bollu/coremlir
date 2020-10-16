@@ -15,12 +15,12 @@ enum class InterpValueType {
 struct InterpValue {
   InterpValueType type;
 
-  int i() {
+  int i() const {
     assert(type == InterpValueType::I64);
     return i_;
   }
 
-  std::string ref() {
+  std::string ref() const {
     assert(type == InterpValueType::Ref);
     return s_;
   }
@@ -113,7 +113,7 @@ struct InterpValue {
     return vs_.end();
   }
 
-  std::string constructorTag() {
+  std::string constructorTag() const {
     assert(type == InterpValueType::Constructor);
     return s_;
   }
@@ -131,7 +131,19 @@ private:
   InterpValue(InterpValueType type) : type(type){};
 };
 
-llvm::raw_ostream &operator << (llvm::raw_ostream &o, InterpValue v);
+
+struct InterpStats {
+  // number of times a thunk has been created
+  int num_thunkify_calls = 0;
+  // number of times a thunk has been forced
+  int num_force_calls = 0;
+  // number of times stuff has been constructed
+  int num_construct_calls = 0;
+};
+
+
+llvm::raw_ostream &operator << (llvm::raw_ostream &o, const InterpStats &s);
+llvm::raw_ostream &operator << (llvm::raw_ostream &o, const InterpValue &v);
 
 // interpret a module, and interpret the result as an integer. print it out.
-InterpValue interpretModule(mlir::ModuleOp module);
+std::pair<InterpValue, InterpStats> interpretModule(mlir::ModuleOp module);

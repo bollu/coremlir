@@ -5,8 +5,14 @@
 
 using namespace mlir;
 using namespace standalone;
+llvm::raw_ostream &operator<<(llvm::raw_ostream &o, const InterpStats &s) {
+  o << "num_thunkify_calls(" << s.num_thunkify_calls <<  ")\n";
+  o << "num_force_calls(" << s.num_force_calls << ")\n";
+  o << "num_construct_calls(" << s.num_construct_calls << ")\n";
+  return o;
+}
 
-llvm::raw_ostream &operator<<(llvm::raw_ostream &o, InterpValue v) {
+llvm::raw_ostream &operator<<(llvm::raw_ostream &o, const InterpValue &v) {
   switch (v.type) {
   case InterpValueType::Closure: {
     o << "closure(";
@@ -143,6 +149,7 @@ struct Interpreter {
     if (MakeI64Op mi64 = dyn_cast<MakeI64Op>(op)) {
       env.addNew(mi64.getResult(), InterpValue::i(mi64.getValue().getInt()));
     } else if (HaskConstructOp cons = dyn_cast<HaskConstructOp>(op)) {
+      stats.num_construct_calls++;
       std::vector<InterpValue> vs;
       for (int i = 0; i < cons.getNumOperands(); ++i) {
         vs.push_back(env.lookup(cons.getLoc(), cons.getOperand(i)));
@@ -154,6 +161,7 @@ struct Interpreter {
       env.addNew(transmute.getResult(),
                  env.lookup(transmute.getLoc(), transmute.getOperand()));
     } else if (ThunkifyOp thunkify = dyn_cast<ThunkifyOp>(op)) {
+      stats.num_thunkify_calls++;
       env.addNew(thunkify.getResult(),
                  InterpValue::thunkifiedValue(
                      env.lookup(thunkify.getLoc(), thunkify.getOperand())));
@@ -167,6 +175,7 @@ struct Interpreter {
       }
       env.addNew(ap.getResult(), InterpValue::closure(fn, args));
     } else if (ForceOp force = dyn_cast<ForceOp>(op)) {
+      stats.num_force_calls++;
       InterpValue scrutinee = env.lookup(force.getLoc(), force.getScrutinee());
       assert(scrutinee.type == InterpValueType::ThunkifiedValue ||
              scrutinee.type == InterpValueType::Closure);
@@ -186,26 +195,18 @@ struct Interpreter {
       InterpValue scrutinee = env.lookup(case_.getLoc(), case_.getScrutinee());
       assert(scrutinee.type == InterpValueType::Constructor);
 
-      llvm::errs() << "numAlts: |" << case_.getNumAlts() << "| \n";
-      llvm::errs() << "default: |" << case_.getDefaultAltIndex() << "| \n";
-
       for (int i = 0; i < case_.getNumAlts(); ++i) {
+        // no match
         if (case_.getAltLHS(i).getValue().str() != scrutinee.constructorTag()) {
-          llvm::errs() << "lhs:|" << case_.getAltLHS(i).getValue().str() << "| "
-                       << "constructor tag: |" << scrutinee.constructorTag()
-                       << "|\n";
           continue;
         }
 
         // skip default case
         if (case_.getDefaultAltIndex().getValueOr(-1) == i) {
-          llvm::errs() << "default!";
           continue;
         }
 
-        // no match
         // matched!
-
         env.addNew(case_.getResult(),
                    interpretRegion(case_.getAltRHS(i),
                                    scrutinee.constructorArgs(), env));
@@ -317,24 +318,26 @@ struct Interpreter {
   }
 
   InterpValue interpretFunction(HaskFuncOp func, ArrayRef<InterpValue> args) {
-    llvm::errs() << "interpreting function |" << func.getName() << "|\n";
     // functions are isolated from above; create a fresh environment.
     return interpretRegion(func.getRegion(), args, Env());
   }
 
   Interpreter(ModuleOp module) : module(module){};
 
+  InterpStats getStats() const { return stats; }
 private:
   ModuleOp module;
+  InterpStats stats;
 };
 
+
 // interpret a module, and interpret the result as an integer. print it out.
-InterpValue interpretModule(ModuleOp module) {
+std::pair<InterpValue, InterpStats> interpretModule(ModuleOp module) {
   standalone::HaskFuncOp main =
       module.lookupSymbol<standalone::HaskFuncOp>("main");
   assert(main && "unable to find main!");
   Interpreter I(module);
   InterpValue val = I.interpretFunction(main, {});
-  return val;
+  return { val, I.getStats() };
 };
 

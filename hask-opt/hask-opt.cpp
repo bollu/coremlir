@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
   llvm::errs() << "\n===Module: input===\n";
   module->print(llvm::errs());
   llvm::errs() << "\n------\n";
-  llvm::errs() << "interpreted value: " << interpretModule(module.get());
+  llvm::errs() << "interpreted value: " << interpretModule(module.get()).first;
   llvm::errs() << "\n=====\n";
 
   llvm::errs() << "=====Module: simplification =====\n";
@@ -163,8 +163,7 @@ int main(int argc, char **argv) {
 
   module->print(llvm::errs());
   llvm::errs() << "\n------\n";
-  llvm::errs() << "interpreted value: " << interpretModule(module.get());
-  llvm::errs() << "\n===\n";
+  llvm::errs() << "interpreted value: " << interpretModule(module.get()).first << "\n";
 
   {
 
@@ -182,12 +181,14 @@ int main(int argc, char **argv) {
     llvm::errs() << "===Module===\n";
     module->print(llvm::errs());
     llvm::errs() << "\n------\n";
-    llvm::errs() << "interpreted value: " << interpretModule(module.get());
+    llvm::errs() << "interpreted value: " << interpretModule(module.get()).first;
     llvm::errs() << "\n===\n";
   }
 
   if (optInterpret) {
-      llvm::outs() << interpretModule(module.get())  << "\n";
+      std::pair<InterpValue, InterpStats> interpretOut =
+        interpretModule(module.get());
+      llvm::outs() << interpretOut.first  << "\n" << interpretOut.second << "\n";
       llvm::outs().flush();
       return 0;
   }
