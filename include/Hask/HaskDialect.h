@@ -17,7 +17,6 @@
 namespace mlir {
 namespace standalone {
 
-
 class HaskDialect : public mlir::Dialect {
 public:
   explicit HaskDialect(mlir::MLIRContext *ctx);
@@ -156,10 +155,10 @@ public:
   }
 
   ArrayRef<Type> getInputTypes() { return this->getImpl()->getInputs(); }
-  Type getInputType(int i) { 
-      assert( i >= 0);
-      assert(i < getInputTypes().size());
-      return this->getImpl()->getInputs()[i];
+  Type getInputType(int i) {
+    assert(i >= 0);
+    assert(i < getInputTypes().size());
+    return this->getImpl()->getInputs()[i];
   }
   Type getResultType() { return this->getImpl()->getResult()[0]; }
 };
@@ -225,7 +224,21 @@ struct HaskInlinerInterface : public DialectInlinerInterface {
   /// operations are inlinable.
   bool isLegalToInline(Operation *, Region *,
                        BlockAndValueMapping &) const final {
-    assert(false && "being asked if legal to inline");
+    // assert(false && "being asked if legal to inline");
+    return true;
+  }
+
+  virtual bool isLegalToInline(Region *dest, Region *src,
+                               BlockAndValueMapping &valueMapping) const {
+    // assert(false && "being asked if legal to inline");
+    return true;
+  }
+  /// This hook is invoked on an operation that contains regions. It should
+  /// return true if the analyzer should recurse within the regions of this
+  /// operation when computing legality and cost, false otherwise. The default
+  /// implementation returns true.
+  virtual bool shouldAnalyzeRecursively(Operation *op) const {
+    //    assert(false && "being asked if recursively analyze2");
     return true;
   }
 
@@ -236,8 +249,13 @@ struct HaskInlinerInterface : public DialectInlinerInterface {
   /// return.
   void handleTerminator(Operation *op,
                         ArrayRef<Value> valuesToRepl) const final;
-};
 
+  Operation *materializeCallConversion(OpBuilder &builder, Value input,
+                                       Type resultType,
+                                       Location conversionLoc) const final {
+    assert(false && "being asked to materialize call conversion");
+  }
+};
 
 } // namespace standalone
 } // namespace mlir

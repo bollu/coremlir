@@ -230,12 +230,12 @@ Attribute standalone::parseDataConstructorAttribute(DialectAsmParser &parser,
 
 void HaskInlinerInterface::handleTerminator(Operation *op,
                       ArrayRef<Value> valuesToRepl) const {
-  assert(false && "handling terminator...");
+//    assert(false && "handling terminator in HaskInliner...");
     // Only "toy.return" needs to be handled here.
     auto returnOp = cast<HaskReturnOp>(op);
 
     // Replace the values directly with the return operands.
-    assert(1 == valuesToRepl.size());
+//    assert(1 == valuesToRepl.size());
     valuesToRepl[0].replaceAllUsesWith(returnOp.getOperand());
     // https://github.com/llvm/llvm-project/blob/1b012a9146b85d30083a47d4929e86f843a5938d/mlir/docs/Tutorials/Toy/Ch-4.md
 }

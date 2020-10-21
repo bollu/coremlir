@@ -98,7 +98,7 @@ struct ForceOfThunkifyPattern : public mlir::OpRewritePattern<ForceOp> {
     if (!thunkify) {
       return failure();
     }
-    assert(false && "force of thunkify");
+//    assert(false && "force of thunkify");
     rewriter.replaceOp(force, thunkify.getOperand());
     return success();
   }

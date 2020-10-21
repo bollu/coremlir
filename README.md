@@ -25,6 +25,7 @@ Convert GHC Core to MLIR.
   thing, though.
 - [Seems I need to talk to `DialectInlinerInterface`](https://github.com/llvm/llvm-project/blob/22219cfc6a2a752c53238df4ceea342672392818/mlir/include/mlir/Transforms/InliningUtils.h)
 - [Toy Ch4](https://github.com/llvm/llvm-project/blob/1b012a9146b85d30083a47d4929e86f843a5938d/mlir/docs/Tutorials/Toy/Ch-4.md)
+- [LEAN header file for runtime](https://github.com/leanprover/lean4/blob/master/src/include/lean/lean.h)
 
 # Friday, Oct 16th
 
