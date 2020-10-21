@@ -107,8 +107,9 @@ public:
   void print(OpAsmPrinter &p);
 };
 
+// https://mlir.llvm.org/docs/Interfaces/
 class ApEagerOp
-    : public Op<ApEagerOp, OpTrait::OneResult, MemoryEffectOpInterface::Trait> {
+    : public Op<ApEagerOp, OpTrait::OneResult, MemoryEffectOpInterface::Trait, CallOpInterface::Trait> {
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.apEager"; };
@@ -135,6 +136,11 @@ public:
                     Value fn, SmallVectorImpl<Value> &params);
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
+
+  CallInterfaceCallable getCallableForCallee() {assert(false && "unimplement getCallableForCallee"); };
+  Operation::operand_range getArgOperands() { assert(false && "unimplemented getArgOperands"); };
+  Operation *resolveCallable() { assert(false &&  "unimplemented resolveCallable"); }
+
 };
 
 class CaseOp
@@ -268,7 +274,7 @@ public:
 class HaskFuncOp : public Op<HaskFuncOp, OpTrait::ZeroOperands,
                              OpTrait::ZeroResult, OpTrait::OneRegion,
                              // OpTrait::AffineScope,
-                             // CallableOpInterface::Trait,
+                             CallableOpInterface::Trait,
                              SymbolOpInterface::Trait> {
 public:
   using Op::Op;
@@ -277,11 +283,15 @@ public:
 //  Block *getBodyBB() { return &this->getRegion().getBlocks().front(); }
   void print(OpAsmPrinter &p);
   llvm::StringRef getFuncName();
-  Type getType();
+  Type getFunctionType();
+  Type getReturnType();
 
   bool isRecursive();
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   static const char *getReturnTypeAttributeKey() { return "retty"; }
+  Region *getCallableRegion() { return &this->getRegion(); };
+  ArrayRef<Type> getCallableResults() { return this->getReturnType(); };
+
 };
 
 // replace case x of name { default -> ... } with name = force(x);

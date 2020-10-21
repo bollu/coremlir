@@ -562,14 +562,14 @@ LogicalResult HaskRefOp::verify() {
   HaskGlobalOp global = mod.lookupSymbol<HaskGlobalOp>(this->getRef());
   if (fn) {
     // how do I attach an error message?
-    if (fn.getType() == this->getResult().getType()) {
+    if (fn.getFunctionType() == this->getResult().getType()) {
       return success();
     }
     llvm::errs() << "ERROR at HaskRefOp type verification:"
                  << "\n-mismatch of types at ref."
                  << "\n-Found from function"
                  << " " << fn.getLoc() << " "
-                 << "name:" << this->getRef() << " [" << fn.getType()
+                 << "name:" << this->getRef() << " [" << fn.getFunctionType()
                  << "]\n"
                     "-Declared at ref as ["
                  << this->getLoc() << " " << *this << "]\n";
@@ -699,10 +699,14 @@ ParseResult HaskFuncOp::parse(OpAsmParser &parser, OperationState &result) {
   return success();
 };
 
-Type HaskFuncOp::getType() {
+Type HaskFuncOp::getReturnType() {
+    return this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey()).getValue();
+}
+
+Type HaskFuncOp::getFunctionType() {
     SmallVector<Type, 4> argTys(this->getRegion().getArgumentTypes());
     llvm::errs() << "attr: |" << this->getAttr(getReturnTypeAttributeKey()) << "|\n";
-    Type retty = this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey()).getValue();
+    Type retty = this->getReturnType();
     assert(this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey()) &&
          "found return type attribute!");
     assert(retty && "found return type!");
