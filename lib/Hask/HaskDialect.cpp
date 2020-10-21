@@ -52,6 +52,8 @@ HaskDialect::HaskDialect(mlir::MLIRContext *context)
                 TransmuteOp>();
   addTypes<ThunkType, ValueType, HaskFnType, ADTType>();
   addAttributes<DataConstructorAttr>();
+  addInterfaces<HaskInlinerInterface>();
+
 }
 
 mlir::Type HaskDialect::parseType(mlir::DialectAsmParser &parser) const {
@@ -225,6 +227,19 @@ Attribute standalone::parseDataConstructorAttribute(DialectAsmParser &parser,
   llvm::errs() << "===\n";
   return a;
 };
+
+void HaskInlinerInterface::handleTerminator(Operation *op,
+                      ArrayRef<Value> valuesToRepl) const {
+  assert(false && "handling terminator...");
+    // Only "toy.return" needs to be handled here.
+    auto returnOp = cast<HaskReturnOp>(op);
+
+    // Replace the values directly with the return operands.
+    assert(1 == valuesToRepl.size());
+    valuesToRepl[0].replaceAllUsesWith(returnOp.getOperand());
+    // https://github.com/llvm/llvm-project/blob/1b012a9146b85d30083a47d4929e86f843a5938d/mlir/docs/Tutorials/Toy/Ch-4.md
+}
+
 
 // === LOWERING ===
 

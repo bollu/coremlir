@@ -17,6 +17,15 @@ Convert GHC Core to MLIR.
 
 
 # Log:  [newest] to [oldest]
+# Wednesday, Oct 21st
+
+- Power stable again, yay!
+- [It seems like MLIR's inlining infrastructure isn't "up" yet?](https://github.com/joker-eph/mlir/pull/3#issuecomment-538687366)
+- The commut is a year old. We seem to have a `CallInterface` now. It's unclear what the correct way to call the
+  thing, though.
+- [Seems I need to talk to `DialectInlinerInterface`](https://github.com/llvm/llvm-project/blob/22219cfc6a2a752c53238df4ceea342672392818/mlir/include/mlir/Transforms/InliningUtils.h)
+- [Toy Ch4](https://github.com/llvm/llvm-project/blob/1b012a9146b85d30083a47d4929e86f843a5938d/mlir/docs/Tutorials/Toy/Ch-4.md)
+
 # Friday, Oct 16th
 
 - Can we do demand analysis by phrasing it as a dependence analysis problem (RAW?)
@@ -2809,8 +2818,7 @@ module {
 
 
 - Good reference to learn how to deal with symbols, the inliner: https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/lib/Transforms/Inliner.cpp
-- InliningUtils that contains the actually useful function `inlineCall`:
-  https://github.com/llvm/llvm-project/blob/22219cfc6a2a752c53238df4ceea342672392818/mlir/lib/Transforms/Utils/InliningUtils.cpp
+- [InliningUtils that contains the actually useful function `inlineCall`](https://github.com/llvm/llvm-project/blob/22219cfc6a2a752c53238df4ceea342672392818/mlir/lib/Transforms/Utils/InliningUtils.cpp)
 - List of passes in MLIR: https://github.com/llvm/llvm-project/blob/80d7ac3bc7c04975fd444e9f2806e4db224f2416/mlir/include/mlir/Transforms/Passes.h 
 
 - After CSE, we get the code:

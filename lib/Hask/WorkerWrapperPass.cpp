@@ -10,6 +10,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
+#include "mlir/Transforms/InliningUtils.h"
 #include <mlir/Parser.h>
 #include <sstream>
 
@@ -40,8 +41,8 @@
 namespace mlir {
 namespace standalone {
 
-struct ForceOfKnownApPattern
-    : public mlir::OpRewritePattern<ForceOp> {
+
+struct ForceOfKnownApPattern : public mlir::OpRewritePattern<ForceOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
   /// them in order of profitability.
@@ -51,7 +52,6 @@ struct ForceOfKnownApPattern
   mlir::LogicalResult
   matchAndRewrite(ForceOp force,
                   mlir::PatternRewriter &rewriter) const override {
-
 
     ModuleOp mod = force.getParentOfType<ModuleOp>();
     HaskFuncOp fn = force.getParentOfType<HaskFuncOp>();
@@ -83,8 +83,7 @@ struct ForceOfKnownApPattern
   }
 };
 
-struct ForceOfThunkifyPattern
-    : public mlir::OpRewritePattern<ForceOp> {
+struct ForceOfThunkifyPattern : public mlir::OpRewritePattern<ForceOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
   /// them in order of profitability.
@@ -105,9 +104,7 @@ struct ForceOfThunkifyPattern
   }
 };
 
-
-struct InlineApEagerPattern
-    : public mlir::OpRewritePattern<ApEagerOp> {
+struct InlineApEagerPattern : public mlir::OpRewritePattern<ApEagerOp> {
   InlineApEagerPattern(mlir::MLIRContext *context)
       : OpRewritePattern<ApEagerOp>(context, /*benefit=*/1) {}
   mlir::LogicalResult
@@ -118,18 +115,32 @@ struct InlineApEagerPattern
     ModuleOp mod = ap.getParentOfType<ModuleOp>();
 
     auto ref = ap.getFn().getDefiningOp<HaskRefOp>();
-    if (!ref) { return failure(); }
+    if (!ref) {
+      return failure();
+    }
     llvm::errs() << "ap(" << ref.getRef() << ") ";
 
     if (parent.getName() == ref.getRef()) {
-      llvm::errs() << " RECURSIVE.\n"; return failure();
+      llvm::errs() << " RECURSIVE.\n";
+      return failure();
     }
 
     HaskFuncOp called = mod.lookupSymbol<HaskFuncOp>(ref.getRef());
     assert(called && "unable to find called function.");
-    
-    assert(false);
 
+    BlockAndValueMapping mapper;
+    assert(called.getBody().getNumArguments() == ap.getNumFnArguments() &&
+           "argument arity mismatch");
+    for(int i = 0; i < ap.getNumFnArguments(); ++i ) {
+      mapper.map(called.getBody().getArgument(i), ap.getFnArgument(i));
+    }
+
+    // TODO: setup mapping for arguments in mapper
+    InlinerInterface inliner(rewriter.getContext());
+    LogicalResult isInlined = inlineRegion(inliner, &called.getBody(), ap, mapper,
+                 ap.getResult(), ap.getResult().getType());
+    assert(succeeded(isInlined) && "unable to inline");
+    return success();
   }
 };
 struct WorkerWrapperPass : public Pass {
@@ -149,7 +160,7 @@ struct WorkerWrapperPass : public Pass {
     patterns.insert<ForceOfThunkifyPattern>(&getContext());
     patterns.insert<InlineApEagerPattern>(&getContext());
 
-    if (failed(mlir::applyPatternsAndFoldGreedily (getOperation(), patterns))) {
+    if (failed(mlir::applyPatternsAndFoldGreedily(getOperation(), patterns))) {
       llvm::errs() << "===Worker wrapper failed===\n";
       getOperation()->print(llvm::errs());
       llvm::errs() << "\n===\n";
@@ -157,7 +168,6 @@ struct WorkerWrapperPass : public Pass {
     };
   };
 };
-
 
 std::unique_ptr<mlir::Pass> createWorkerWrapperPass() {
   return std::make_unique<WorkerWrapperPass>();
