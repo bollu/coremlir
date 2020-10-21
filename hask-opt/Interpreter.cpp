@@ -148,7 +148,10 @@ struct Interpreter {
   void interpretOperation(Operation &op, Env &env) {
     if (MakeI64Op mi64 = dyn_cast<MakeI64Op>(op)) {
       env.addNew(mi64.getResult(), InterpValue::i(mi64.getValue().getInt()));
-    } else if (HaskConstructOp cons = dyn_cast<HaskConstructOp>(op)) {
+      return;
+    }
+
+    if (HaskConstructOp cons = dyn_cast<HaskConstructOp>(op)) {
       stats.num_construct_calls++;
       std::vector<InterpValue> vs;
       for (int i = 0; i < cons.getNumOperands(); ++i) {
@@ -157,24 +160,36 @@ struct Interpreter {
       env.addNew(
           cons.getResult(),
           InterpValue::constructor(cons.getDataConstructorName().str(), vs));
-    } else if (TransmuteOp transmute = dyn_cast<TransmuteOp>(op)) {
+      return;
+    }
+
+    if (TransmuteOp transmute = dyn_cast<TransmuteOp>(op)) {
       env.addNew(transmute.getResult(),
                  env.lookup(transmute.getLoc(), transmute.getOperand()));
-    } else if (ThunkifyOp thunkify = dyn_cast<ThunkifyOp>(op)) {
+      return;
+    }
+    if (ThunkifyOp thunkify = dyn_cast<ThunkifyOp>(op)) {
       stats.num_thunkify_calls++;
       env.addNew(thunkify.getResult(),
                  InterpValue::thunkifiedValue(
                      env.lookup(thunkify.getLoc(), thunkify.getOperand())));
-    } else if (HaskRefOp ref = dyn_cast<HaskRefOp>(op)) {
+      return;
+    }
+
+    if (HaskRefOp ref = dyn_cast<HaskRefOp>(op)) {
       env.addNew(ref.getResult(), InterpValue::ref(ref.getRef().str()));
-    } else if (ApOp ap = dyn_cast<ApOp>(op)) {
+      return;
+    }
+    if (ApOp ap = dyn_cast<ApOp>(op)) {
       InterpValue fn = env.lookup(ap.getLoc(), ap.getFn());
       std::vector<InterpValue> args;
       for (int i = 0; i < ap.getNumFnArguments(); ++i) {
         args.push_back(env.lookup(ap.getLoc(), ap.getFnArgument(i)));
       }
       env.addNew(ap.getResult(), InterpValue::closure(fn, args));
-    } else if (ForceOp force = dyn_cast<ForceOp>(op)) {
+      return;
+    }
+    if (ForceOp force = dyn_cast<ForceOp>(op)) {
       stats.num_force_calls++;
       InterpValue scrutinee = env.lookup(force.getLoc(), force.getScrutinee());
       assert(scrutinee.type == InterpValueType::ThunkifiedValue ||
@@ -191,7 +206,9 @@ struct Interpreter {
                                       scrutinee.closureArgEnd());
         env.addNew(force.getResult(), interpretFunction(func, args));
       }
-    } else if (CaseOp case_ = dyn_cast<CaseOp>(op)) {
+      return;
+    }
+    if (CaseOp case_ = dyn_cast<CaseOp>(op)) {
       InterpValue scrutinee = env.lookup(case_.getLoc(), case_.getScrutinee());
       assert(scrutinee.type == InterpValueType::Constructor);
 
@@ -219,8 +236,10 @@ struct Interpreter {
       env.addNew(case_,
                  interpretRegion(case_.getAltRHS(*case_.getDefaultAltIndex()),
                                  {}, env));
+      return;
+    }
 
-    } else if (CaseIntOp caseInt = dyn_cast<CaseIntOp>(op)) {
+    if (CaseIntOp caseInt = dyn_cast<CaseIntOp>(op)) {
       InterpValue scrutinee =
           env.lookup(caseInt.getLoc(), caseInt.getScrutinee());
       assert(scrutinee.type == InterpValueType::I64);
@@ -243,30 +262,55 @@ struct Interpreter {
 
       assert(caseInt.getDefaultAltIndex() && "neither match, nor default");
       env.addNew(caseInt, interpretRegion(caseInt.getDefaultRHS(), {}, env));
+      return;
     }
-    else if (DefaultCaseOp default_ = dyn_cast<DefaultCaseOp>(op)) {
+
+    if (DefaultCaseOp default_ = dyn_cast<DefaultCaseOp>(op)) {
       // TODO: check that this has only 1 constructor!
       InterpValue scrutinee = env.lookup(default_.getLoc(), default_.getScrutinee());
       assert(scrutinee.type == InterpValueType::Constructor);
       assert(scrutinee.constructorTag() == default_.getConstructorTag());
       assert(scrutinee.constructorNumArgs() == 1);
       env.addNew(default_.getResult(), scrutinee.constructorArg(0));
-    } else if (HaskPrimopSubOp sub = dyn_cast<HaskPrimopSubOp>(op)) {
+      return;
+    }
+
+    if (HaskPrimopSubOp sub = dyn_cast<HaskPrimopSubOp>(op)) {
       InterpValue a = env.lookup(sub.getLoc(), sub.getOperand(0));
       InterpValue b = env.lookup(sub.getLoc(), sub.getOperand(1));
       assert(a.type == InterpValueType::I64);
       assert(b.type == InterpValueType::I64);
       env.addNew(sub.getResult(), InterpValue::i(a.i() - b.i()));
-    } else if (HaskPrimopAddOp add = dyn_cast<HaskPrimopAddOp>(op)) {
+      return;
+    }
+
+    if (HaskPrimopAddOp add = dyn_cast<HaskPrimopAddOp>(op)) {
       InterpValue a = env.lookup(add.getLoc(), add.getOperand(0));
       InterpValue b = env.lookup(add.getLoc(), add.getOperand(1));
       assert(a.type == InterpValueType::I64);
       assert(b.type == InterpValueType::I64);
       env.addNew(add.getResult(), InterpValue::i(a.i() + b.i()));
-    } else {
-      InterpreterError err(op.getLoc());
-      err << "unknown operation: |" << op << "|\n";
+      return;
     }
+
+    if (ApEagerOp ap = dyn_cast<ApEagerOp>(op)) {
+      InterpValue fnval = env.lookup(ap.getLoc(), ap.getFn());
+      assert(fnval.type == InterpValueType::Ref);
+      HaskFuncOp func = module.lookupSymbol<HaskFuncOp>(fnval.ref());
+      assert(func && "unable to find function");
+
+      std::vector<InterpValue> args;
+      for (int i = 0; i < ap.getNumFnArguments(); ++i) {
+        args.push_back(env.lookup(ap.getLoc(), ap.getFnArgument(i)));
+      }
+      env.addNew(ap.getResult(), interpretFunction(func, args));
+      return;
+    }
+
+
+    InterpreterError err(op.getLoc());
+    err << "INTERPRETER ERROR: unknown operation: |" << op << "|\n";
+
   };
 
   TerminatorResult interpretTerminator(Operation &op, Env &env) {

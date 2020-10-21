@@ -708,7 +708,421 @@ This finally gives us the output:
   at =forcing: #6= and =forcing: #7=
 
 
+
+
+
 * Odds and ends: the =main= function
+
+#+BEGIN_SRC cpp c++ :tangle repeated-incr-maybe-recursive.cpp
+// cleanup force(thunk(...))
+namespace f10 {
+
+MaybeInt incrmN(int i, Thunk<MaybeInt> mt);
+MaybeInt incrmN_2(int i, MaybeInt mv);
+MaybeInt incrmN_3(int i, MaybeIntUnlifted mv);
+
+MaybeInt incrmN_3(int i, MaybeIntUnlifted mv) {
+    if (i == 0) {
+        return mv.toMaybeInt();
+    } else {
+        if (mv.isJust()) {
+            int si = mv.just();
+            int i2 = si + 1;
+            MaybeIntUnlifted ret = MaybeIntUnlifted(i2);
+            // return incrmN_2(i - 1, ret);
+            return incrmN_3(i - 1, ret);
+        } else {
+            MaybeInt ret = MaybeInt();
+            return incrmN_2(i - 1, ret);
+        }
+    }
+}
+
+MaybeInt incrmN_2(int i, MaybeInt mv) {
+    if (i == 0) {
+        return mv;
+    } else {
+        if (mv.isJust()) {
+            Thunk<int> sit = mv.just();
+            int si = sit.force();
+            int i2 = si + 1;
+            int si2 = int(i2);
+            // Thunk<int> si2t = Thunk<int>::thunkify(si2);
+            // MaybeInt ret = MaybeInt(si2t);
+            MaybeIntUnlifted ret = MaybeIntUnlifted(si2);
+            // return incrmN_2(i - 1, ret);
+            return incrmN_3(i - 1, ret);
+        } else {
+            MaybeInt ret = MaybeInt();
+            return incrmN_2(i - 1, ret);
+        }
+    }
+}
+MaybeInt incrmN(int i, Thunk<MaybeInt> mt) {
+    MaybeInt mv = mt.force();
+    return incrmN_2(i, mv);
+}
+
+void main() {
+    g_count = 0;
+    printf("===%s===\n", __PRETTY_FUNCTION__);
+    Thunk<int> tsi = Thunk<int>::thunkify(int(10));
+    Thunk<MaybeInt> input = Thunk<MaybeInt>::thunkify(MaybeInt(tsi));
+    printf("--invoking--\n");
+    MaybeInt output = incrmN(4, input);
+    printf("%d\n", output.just().force());
+    assert(14 == output.just().force());
+}
+}  // namespace f10
+
+// Specialize the content of `incrmN_3 to the Just case
+namespace f11 {
+
+MaybeInt incrmN(int i, Thunk<MaybeInt> mt);
+MaybeInt incrmN_2(int i, MaybeInt mv);
+MaybeInt incrmN_3(int i, MaybeIntUnlifted mv);
+
+MaybeInt incrmN_4(int i, int mv) {
+    if (i == 0) {
+        return MaybeInt(Thunk<int>::thunkify(mv));
+    } else {
+        // if (mv.isJust()) {
+        if (true) {
+            // int si = mv.just();
+            int si = mv;
+            int i2 = si + 1;
+            MaybeIntUnlifted ret = MaybeIntUnlifted(i2);
+            // return incrmN_2(i - 1, ret);
+            return incrmN_3(i - 1, ret);
+        } else {
+            // MaybeInt ret = MaybeInt();
+            // return incrmN_2(i - 1, ret);
+            assert(false);
+        }
+    }
+}
+
+MaybeInt incrmN_3(int i, MaybeIntUnlifted mv) {
+    if (i == 0) {
+        return mv.toMaybeInt();
+    } else {
+        if (mv.isJust()) {
+            int si = mv.just();
+            int i2 = si + 1;
+            MaybeIntUnlifted ret = MaybeIntUnlifted(i2);
+            // return incrmN_2(i - 1, ret);
+            return incrmN_3(i - 1, ret);
+        } else {
+            MaybeInt ret = MaybeInt();
+            return incrmN_2(i - 1, ret);
+        }
+    }
+}
+
+MaybeInt incrmN_2(int i, MaybeInt mv) {
+    if (i == 0) {
+        return mv;
+    } else {
+        if (mv.isJust()) {
+            Thunk<int> sit = mv.just();
+            int si = sit.force();
+            int i2 = si + 1;
+            int si2 = int(i2);
+            // Thunk<int> si2t = Thunk<int>::thunkify(si2);
+            // MaybeInt ret = MaybeInt(si2t);
+            MaybeIntUnlifted ret = MaybeIntUnlifted(si2);
+            // return incrmN_2(i - 1, ret);
+            return incrmN_3(i - 1, ret);
+        } else {
+            MaybeInt ret = MaybeInt();
+            return incrmN_2(i - 1, ret);
+        }
+    }
+}
+MaybeInt incrmN(int i, Thunk<MaybeInt> mt) {
+    MaybeInt mv = mt.force();
+    return incrmN_2(i, mv);
+}
+
+void main() {
+    g_count = 0;
+    printf("===%s===\n", __PRETTY_FUNCTION__);
+    Thunk<int> tsi = Thunk<int>::thunkify(int(10));
+    Thunk<MaybeInt> input = Thunk<MaybeInt>::thunkify(MaybeInt(tsi));
+    printf("--invoking--\n");
+    MaybeInt output = incrmN(4, input);
+    printf("%d\n", output.just().force());
+    assert(14 == output.just().force());
+}
+}  // namespace f11
+
+// use incrmN_4
+namespace f12 {
+
+MaybeInt incrmN(int i, Thunk<MaybeInt> mt);
+MaybeInt incrmN_2(int i, MaybeInt mv);
+MaybeInt incrmN_3(int i, MaybeIntUnlifted mv);
+MaybeInt incrmN_4(int i, int mv);
+
+MaybeInt incrmN_4(int i, int mv) {
+    if (i == 0) {
+        return MaybeInt(Thunk<int>::thunkify(mv));
+    } else {
+        // if (mv.isJust()) {
+        if (true) {
+            // int si = mv.just();
+            int si = mv;
+            int i2 = si + 1;
+            // MaybeIntUnlifted ret = MaybeIntUnlifted(i2);
+            // return incrmN_2(i - 1, ret);
+            return incrmN_4(i - 1, i2);
+        } else {
+            // MaybeInt ret = MaybeInt();
+            // return incrmN_2(i - 1, ret);
+            assert(false);
+        }
+    }
+}
+
+MaybeInt incrmN_3(int i, MaybeIntUnlifted mv) {
+    if (i == 0) {
+        return mv.toMaybeInt();
+    } else {
+        if (mv.isJust()) {
+            int si = mv.just();
+            int i2 = si + 1;
+            // MaybeIntUnlifted ret = MaybeIntUnlifted(i2);
+            // return incrmN_2(i - 1, ret);
+            // return incrmN_3(i - 1, ret);
+            return incrmN_4(i - 1, i2);
+        } else {
+            MaybeInt ret = MaybeInt();
+            return incrmN_2(i - 1, ret);
+        }
+    }
+}
+
+MaybeInt incrmN_2(int i, MaybeInt mv) {
+    if (i == 0) {
+        return mv;
+    } else {
+        if (mv.isJust()) {
+            Thunk<int> sit = mv.just();
+            int si = sit.force();
+            int i2 = si + 1;
+            int si2 = int(i2);
+            // Thunk<int> si2t = Thunk<int>::thunkify(si2);
+            // MaybeInt ret = MaybeInt(si2t);
+            MaybeIntUnlifted ret = MaybeIntUnlifted(si2);
+            // return incrmN_2(i - 1, ret);
+            return incrmN_3(i - 1, ret);
+        } else {
+            MaybeInt ret = MaybeInt();
+            return incrmN_2(i - 1, ret);
+        }
+    }
+}
+MaybeInt incrmN(int i, Thunk<MaybeInt> mt) {
+    MaybeInt mv = mt.force();
+    return incrmN_2(i, mv);
+}
+
+void main() {
+    g_count = 0;
+    printf("===%s===\n", __PRETTY_FUNCTION__);
+    Thunk<int> tsi = Thunk<int>::thunkify(int(10));
+    Thunk<MaybeInt> input = Thunk<MaybeInt>::thunkify(MaybeInt(tsi));
+    printf("--invoking--\n");
+    MaybeInt output = incrmN(4, input);
+    printf("%d\n", output.just().force());
+    assert(14 == output.just().force());
+}
+}  // namespace f12
+
+// inline incrmN_3 into incrmN_2 since it doesn't have a recursive call.
+namespace f13 {
+
+MaybeInt incrmN(int i, Thunk<MaybeInt> mt);
+MaybeInt incrmN_2(int i, MaybeInt mv);
+MaybeInt incrmN_3(int i, MaybeIntUnlifted mv);
+MaybeInt incrmN_4(int i, int mv);
+
+MaybeInt incrmN_4(int i, int mv) {
+    if (i == 0) {
+        return MaybeInt(Thunk<int>::thunkify(mv));
+    } else {
+        // if (mv.isJust()) {
+        if (true) {
+            // int si = mv.just();
+            int si = mv;
+            int i2 = si + 1;
+            // MaybeIntUnlifted ret = MaybeIntUnlifted(i2);
+            // return incrmN_2(i - 1, ret);
+            return incrmN_4(i - 1, i2);
+        } else {
+            // MaybeInt ret = MaybeInt();
+            // return incrmN_2(i - 1, ret);
+            assert(false);
+        }
+    }
+}
+
+MaybeInt incrmN_3(int i, MaybeIntUnlifted mv) {
+    if (i == 0) {
+        return mv.toMaybeInt();
+    } else {
+        if (mv.isJust()) {
+            int si = mv.just();
+            int i2 = si + 1;
+            // MaybeIntUnlifted ret = MaybeIntUnlifted(i2);
+            // return incrmN_2(i - 1, ret);
+            // return incrmN_3(i - 1, ret);
+            return incrmN_4(i - 1, i2);
+        } else {
+            MaybeInt ret = MaybeInt();
+            return incrmN_2(i - 1, ret);
+        }
+    }
+}
+
+MaybeInt incrmN_2(int i, MaybeInt mv) {
+    if (i == 0) {
+        return mv;
+    } else {
+        if (mv.isJust()) {
+            Thunk<int> sit = mv.just();
+            int si = sit.force();
+            int i2 = si + 1;
+            int si2 = int(i2);
+            // Thunk<int> si2t = Thunk<int>::thunkify(si2);
+            // MaybeInt ret = MaybeInt(si2t);
+            MaybeIntUnlifted ret = MaybeIntUnlifted(si2);
+            // return incrmN_2(i - 1, ret);
+            // return incrmN_3(i - 1, ret);
+            {
+                i = i - 1;
+                if (i == 0) {
+                    return ret.toMaybeInt();
+                } else {
+                    if (mv.isJust()) {
+                        int si = ret.just();
+                        int i2 = si + 1;
+                        // MaybeIntUnlifted ret = MaybeIntUnlifted(i2);
+                        // return incrmN_2(i - 1, ret);
+                        // return incrmN_3(i - 1, ret);
+                        return incrmN_4(i - 1, i2);
+                    } else {
+                        MaybeInt ret = MaybeInt();
+                        return incrmN_2(i - 1, ret);
+                    }
+                }
+            }
+        } else {
+            MaybeInt ret = MaybeInt();
+            return incrmN_2(i - 1, ret);
+        }
+    }
+}
+MaybeInt incrmN(int i, Thunk<MaybeInt> mt) {
+    MaybeInt mv = mt.force();
+    return incrmN_2(i, mv);
+}
+
+void main() {
+    g_count = 0;
+    printf("===%s===\n", __PRETTY_FUNCTION__);
+    Thunk<int> tsi = Thunk<int>::thunkify(int(10));
+    Thunk<MaybeInt> input = Thunk<MaybeInt>::thunkify(MaybeInt(tsi));
+    printf("--invoking--\n");
+    MaybeInt output = incrmN(4, input);
+    printf("%d\n", output.just().force());
+    assert(14 == output.just().force());
+}
+}  // namespace f13
+
+// simplify incrmN_2
+namespace f14 {
+
+MaybeInt incrmN(int i, Thunk<MaybeInt> mt);
+MaybeInt incrmN_2(int i, MaybeInt mv);
+MaybeInt incrmN_3(int i, MaybeIntUnlifted mv);
+MaybeInt incrmN_4(int i, int mv);
+
+MaybeInt incrmN_4(int i, int mv) {
+    if (i == 0) {
+        return MaybeInt(Thunk<int>::thunkify(mv));
+    } else {
+        // if (mv.isJust()) {
+        if (true) {
+            // int si = mv.just();
+            int si = mv;
+            int i2 = si + 1;
+            // MaybeIntUnlifted ret = MaybeIntUnlifted(i2);
+            // return incrmN_2(i - 1, ret);
+            return incrmN_4(i - 1, i2);
+        } else {
+            // MaybeInt ret = MaybeInt();
+            // return incrmN_2(i - 1, ret);
+            assert(false);
+        }
+    }
+}
+
+MaybeInt incrmN_2(int i, MaybeInt mv) {
+    if (i == 0) {
+        return mv;
+    } else {
+        if (mv.isJust()) {
+            Thunk<int> sit = mv.just();
+            int si = sit.force();
+            int i2 = si + 1;
+            int si2 = int(i2);
+            // MaybeIntUnlifted ret = MaybeIntUnlifted(si2);
+            // return incrmN_2(i - 1, ret);
+            // return incrmN_3(i - 1, ret);
+            {
+                i = i - 1;
+                if (i == 0) {
+                    // ret.toMaybeInt();
+                    return MaybeInt(Thunk<int>::thunkify(si2));
+                } else {
+                    // if (mv.isJust()) {
+                    int si = si2;  // ret.just();
+                    int i2 = si + 1;
+                    // MaybeIntUnlifted ret = MaybeIntUnlifted(i2);
+                    // return incrmN_2(i - 1, ret);
+                    // return incrmN_3(i - 1, ret);
+                    return incrmN_4(i - 1, i2);
+                    // } else {
+                    //     MaybeInt ret = MaybeInt();
+                    //     return incrmN_2(i - 1, ret);
+                    // }
+                }
+            }
+        } else {
+            MaybeInt ret = MaybeInt();
+            return incrmN_2(i - 1, ret);
+        }
+    }
+}
+MaybeInt incrmN(int i, Thunk<MaybeInt> mt) {
+    MaybeInt mv = mt.force();
+    return incrmN_2(i, mv);
+}
+
+void main() {
+    g_count = 0;
+    printf("===%s===\n", __PRETTY_FUNCTION__);
+    Thunk<int> tsi = Thunk<int>::thunkify(int(10));
+    Thunk<MaybeInt> input = Thunk<MaybeInt>::thunkify(MaybeInt(tsi));
+    printf("--invoking--\n");
+    MaybeInt output = incrmN(4, input);
+    printf("%d\n", output.just().force());
+    assert(14 == output.just().force());
+}
+}  // namespace f14
+
+#+END_SRC
 
 
 #+BEGIN_SRC cpp c++ :tangle repeated-incr-maybe-recursive.cpp
@@ -726,3 +1140,4 @@ int main() {
     return 0;
 }
 #+END_SRC
+
