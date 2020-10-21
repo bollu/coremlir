@@ -40,12 +40,12 @@
 namespace mlir {
 namespace standalone {
 
-struct ForceOfKnownApCanonicalizationPattern
+struct ForceOfKnownApPattern
     : public mlir::OpRewritePattern<ForceOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
   /// them in order of profitability.
-  ForceOfKnownApCanonicalizationPattern(mlir::MLIRContext *context)
+  ForceOfKnownApPattern(mlir::MLIRContext *context)
       : OpRewritePattern<ForceOp>(context, /*benefit=*/1) {}
 
   mlir::LogicalResult
@@ -80,52 +80,15 @@ struct ForceOfKnownApCanonicalizationPattern
       rewriter.replaceOp(force, eager.getResult());
       return success();
     }
-
-    Block *forcedFnBB = forcedFn.getBodyBB();
-    // Block &forcedFnBB = forcedFn.getLambda().getBodyBB();
-
-    llvm::errs() << "\nforced fn body:\n-------\n";
-    forcedFnBB->dump();
-
-    llvm::errs() << "\nforce parent(original):\n----\n";
-    force.getParentOfType<HaskFuncOp>().dump();
-
-    //    Block *clonedBB = cloneBlock(*forcedFnBB);
-    Block *clonedBB = nullptr;
-    assert(false && "trying to manipulate BBs");
-    clonedBB->insertBefore(force.getOperation()->getBlock());
-    llvm::errs() << "\nforced called fn(cloned BB):\n----\n";
-    clonedBB->dump();
-    HaskReturnOp ret = dyn_cast<HaskReturnOp>(clonedBB->getTerminator());
-
-    llvm::errs() << "\nforce parent(inlined):\n-----------\n";
-    force.getParentOfType<HaskFuncOp>().dump();
-    llvm::errs() << "\n";
-
-    llvm::errs() << "\nforce parent(inlined+merged):\n-----------\n";
-    rewriter.mergeBlockBefore(clonedBB, force.getOperation(),
-                              ap.getFnArguments());
-    force.getParentOfType<HaskFuncOp>().dump();
-    llvm::errs() << "\n";
-
-    llvm::errs() << "\nreturnop:\n------\n" << ret << "\n";
-
-    llvm::errs()
-        << "\nforce parent(inlined+merged+force-replaced):\n-----------\n";
-    rewriter.replaceOp(force, ret.getOperand());
-    rewriter.eraseOp(ret);
-    fn.dump();
-    llvm::errs() << "\n";
-    return success();
   }
 };
 
-struct ForceOfThunkifyCanonicalizationPattern
+struct ForceOfThunkifyPattern
     : public mlir::OpRewritePattern<ForceOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
   /// them in order of profitability.
-  ForceOfThunkifyCanonicalizationPattern(mlir::MLIRContext *context)
+  ForceOfThunkifyPattern(mlir::MLIRContext *context)
       : OpRewritePattern<ForceOp>(context, /*benefit=*/1) {}
 
   mlir::LogicalResult
@@ -136,12 +99,39 @@ struct ForceOfThunkifyCanonicalizationPattern
     if (!thunkify) {
       return failure();
     }
+    assert(false && "force of thunkify");
     rewriter.replaceOp(force, thunkify.getOperand());
     return success();
   }
 };
 
 
+struct InlineApEagerPattern
+    : public mlir::OpRewritePattern<ApEagerOp> {
+  InlineApEagerPattern(mlir::MLIRContext *context)
+      : OpRewritePattern<ApEagerOp>(context, /*benefit=*/1) {}
+  mlir::LogicalResult
+  matchAndRewrite(ApEagerOp ap,
+                  mlir::PatternRewriter &rewriter) const override {
+
+    HaskFuncOp parent = ap.getParentOfType<HaskFuncOp>();
+    ModuleOp mod = ap.getParentOfType<ModuleOp>();
+
+    auto ref = ap.getFn().getDefiningOp<HaskRefOp>();
+    if (!ref) { return failure(); }
+    llvm::errs() << "ap(" << ref.getRef() << ") ";
+
+    if (parent.getName() == ref.getRef()) {
+      llvm::errs() << " RECURSIVE.\n"; return failure();
+    }
+
+    HaskFuncOp called = mod.lookupSymbol<HaskFuncOp>(ref.getRef());
+    assert(called && "unable to find called function.");
+    
+    assert(false);
+
+  }
+};
 struct WorkerWrapperPass : public Pass {
   WorkerWrapperPass() : Pass(mlir::TypeID::get<WorkerWrapperPass>()){};
   StringRef getName() const override { return "WorkerWrapperPass"; }
@@ -155,8 +145,10 @@ struct WorkerWrapperPass : public Pass {
 
   void runOnOperation() {
     mlir::OwningRewritePatternList patterns;
-    patterns.insert<ForceOfKnownApCanonicalizationPattern>(&getContext());
-    patterns.insert<ForceOfThunkifyCanonicalizationPattern>(&getContext());
+    patterns.insert<ForceOfKnownApPattern>(&getContext());
+    patterns.insert<ForceOfThunkifyPattern>(&getContext());
+    patterns.insert<InlineApEagerPattern>(&getContext());
+
     if (failed(mlir::applyPatternsAndFoldGreedily (getOperation(), patterns))) {
       llvm::errs() << "===Worker wrapper failed===\n";
       getOperation()->print(llvm::errs());

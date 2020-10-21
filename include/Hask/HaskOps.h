@@ -272,8 +272,8 @@ class HaskFuncOp : public Op<HaskFuncOp, OpTrait::ZeroOperands,
 public:
   using Op::Op;
   static StringRef getOperationName() { return "hask.func"; };
-  Region &getRegion() { return this->getOperation()->getRegion(0); };
-  Block *getBodyBB() { return &this->getRegion().getBlocks().front(); }
+  Region &getBody() { return this->getRegion(); }
+//  Block *getBodyBB() { return &this->getRegion().getBlocks().front(); }
   void print(OpAsmPrinter &p);
   llvm::StringRef getFuncName();
   Type getType();
