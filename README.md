@@ -102,6 +102,11 @@ LogicalResult matchAndRewrite(Operation *op,
 
 - I'm at MLIR commit [63c58c2](https://github.com/llvm/llvm-project/commit/63c58c2b934525c9863e624cf39ec542dd84ca78).
 
+- This maybe because of my assumption that `failure()` was supposed to undo *all* intermediate changes.
+  Maybe there's a bug in the bail-out infrastructure, because this bug happens when / after
+  a bail out in my pattern.
+
+
 
 # Wednesday, Oct 21st
 

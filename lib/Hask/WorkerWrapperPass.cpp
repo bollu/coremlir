@@ -174,13 +174,6 @@ struct InlineApEagerPattern : public mlir::OpRewritePattern<ApEagerOp> {
     HaskFuncOp called = mod.lookupSymbol<HaskFuncOp>(ref.getRef());
     assert(called && "unable to find called function.");
 
-    BlockAndValueMapping mapper;
-    assert(called.getBody().getNumArguments() == ap.getNumFnArguments() &&
-           "argument arity mismatch");
-    for (int i = 0; i < ap.getNumFnArguments(); ++i) {
-      mapper.map(called.getBody().getArgument(i), ap.getFnArgument(i));
-    }
-
     // TODO: setup mapping for arguments in mapper
     // This is not safe! Fuck me x(
     // consider f () { stmt; f(); } | g() { f (); }
@@ -221,32 +214,32 @@ struct OutlineRecursiveApEagerPattern
     HaskFuncOp called = mod.lookupSymbol<HaskFuncOp>(ref.getRef());
     assert(called && "unable to find called function.");
 
-    BlockAndValueMapping mapper;
-    assert(called.getBody().getNumArguments() == ap.getNumFnArguments() &&
-           "argument arity mismatch");
-    for (int i = 0; i < ap.getNumFnArguments(); ++i) {
-      mapper.map(called.getBody().getArgument(i), ap.getFnArgument(i));
+    // TODO: this is an over-approximation of course, we only need
+    // a single argument (really, the *same* argument to be reused).
+    // I've moved the code here to test that the crash isn't because of a
+    // bail-out.
+    for (int i = 0; i < called.getBody().getNumArguments(); ++i) {
+      Value arg = called.getBody().getArgument(i);
+      if (!arg.hasOneUse()) {
+        return failure();
+      }
+      ForceOp uniqueForceOfArg = dyn_cast<ForceOp>(arg.use_begin().getUser());
+      if (!uniqueForceOfArg) { return failure(); }
     }
 
-    // TODO: setup mapping for arguments in mapper
-    // This is not safe! Fuck me x(
-    // consider f () { stmt; f(); } | g() { f (); }
-    // this will expand into
-    //   g() { f(); } -> g() { stmt; f(); } -> g { stmt; stmt; f(); } -> ...
-    InlinerInterface inliner(rewriter.getContext());
 
-    std::string clonedFnName = called.getName().str() + "rec_force_outline";
+    std::string calledClonedName = called.getName().str() + "rec_force_outline";
 
     rewriter.setInsertionPoint(ap);
     HaskRefOp clonedFnRef = rewriter.create<HaskRefOp>(
-        ref.getLoc(), clonedFnName, ref.getResult().getType());
+        ref.getLoc(), calledClonedName, ref.getResult().getType());
     rewriter.replaceOpWithNewOp<ApEagerOp>(ap, clonedFnRef,
                                            ap.getFnArguments());
 
     // TODO: this disastrous house of cards depends on the order of cloning.
     // We first replace the reucrsive call, and *then* clone the function.
     HaskFuncOp clonedfn = parentfn.clone();
-    clonedfn.setName(clonedFnName);
+    clonedfn.setName(calledClonedName);
 
     // TODO: consider if going forward is more sensible or going back is
     // more sensible. Right now I am reaching forward, but perhaps
@@ -254,17 +247,23 @@ struct OutlineRecursiveApEagerPattern
     for (int i = 0; i < clonedfn.getBody().getNumArguments(); ++i) {
       Value arg = clonedfn.getBody().getArgument(i);
       if (!arg.hasOneUse()) {
-        return failure();
+        assert(false && "this precondition as already been checked!");
       }
       // This is of course crazy. We should handle the case if we have
       // multiple force()s.
 
-      llvm::errs() << "\n--- use: " << *arg.use_begin().getUser() << "\n";
+//      llvm::errs() << "\n--- use: " << *arg.use_begin().getUser() << "\n";
+      llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
       ForceOp uniqueForceOfArg = dyn_cast<ForceOp>(arg.use_begin().getUser());
+      llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
 
       if (!uniqueForceOfArg) {
+        assert(false && "this precondition has already been checked!");
         return failure();
       }
+
+      llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
 
       // we are safe to create a new function because we have a unique force
       // of an argument. We can change the type of the function and we can
@@ -274,13 +273,18 @@ struct OutlineRecursiveApEagerPattern
       uniqueForceOfArg.replaceAllUsesWith(arg);
       arg.setType(uniqueForceOfArg.getType());
       rewriter.eraseOp(uniqueForceOfArg);
+      llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
     }
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
 
     mod.push_back(clonedfn);
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
 
     llvm::errs() << "=======\n";
     llvm::errs() << mod;
     llvm::errs() << "\n=======\n";
+    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
 
     return success();
 
