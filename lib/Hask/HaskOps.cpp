@@ -307,11 +307,11 @@ void ApEagerOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
   assert(params.size() == fnty.getInputTypes().size());
 
   for (int i = 0; i < params.size(); ++i) {
-    assert(params[i].getType() == fnty.getInputType(i));
+    assert(params[i].getType() == fnty.getInputType(i) && "ApEagerOp argument type mismatch");
   }
 
   state.addOperands(params);
-  state.addTypes(builder.getType<ThunkType>(fnty.getResultType()));
+  state.addTypes(fnty.getResultType());
 };
 
 // === CASESSA OP ===

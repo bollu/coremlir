@@ -106,6 +106,11 @@ LogicalResult matchAndRewrite(Operation *op,
   Maybe there's a bug in the bail-out infrastructure, because this bug happens when / after
   a bail out in my pattern.
 
+- OK, so it's either me mis-understanding the invariant of `failure()`, or there's an MLIR bug where you can't
+  back out with a `failure()` in the middle of a transform.
+
+- I "fixed" the bug by [moving all my checking code to the beginning in commit 7c90bd](7c90bdc66ce8fad833d45061833150d4aa0dca72)
+
 
 
 # Wednesday, Oct 21st

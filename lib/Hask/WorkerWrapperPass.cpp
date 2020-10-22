@@ -191,6 +191,19 @@ struct InlineApEagerPattern : public mlir::OpRewritePattern<ApEagerOp> {
   }
 };
 
+
+// TODO: we need to know which argument was forced.
+HaskFnType mkForcedFnType(HaskFnType fty) {
+  SmallVector<Type, 4> forcedTys;
+  for(Type ty : fty.getInputTypes()) {
+    ThunkType thunkty = ty.dyn_cast<ThunkType>();
+    assert(thunkty);
+    forcedTys.push_back(thunkty.getElementType());
+  }
+  return HaskFnType::get(fty.getContext(), forcedTys, fty.getResultType());
+
+}
+
 struct OutlineRecursiveApEagerPattern
     : public mlir::OpRewritePattern<ApEagerOp> {
   OutlineRecursiveApEagerPattern(mlir::MLIRContext *context)
@@ -218,6 +231,8 @@ struct OutlineRecursiveApEagerPattern
     // a single argument (really, the *same* argument to be reused).
     // I've moved the code here to test that the crash isn't because of a
     // bail-out.
+
+    SmallVector<Value, 4> clonedFnCallArgs;
     for (int i = 0; i < called.getBody().getNumArguments(); ++i) {
       Value arg = called.getBody().getArgument(i);
       if (!arg.hasOneUse()) {
@@ -228,18 +243,21 @@ struct OutlineRecursiveApEagerPattern
     }
 
 
-    std::string calledClonedName = called.getName().str() + "rec_force_outline";
+    std::string clonedFnName = called.getName().str() + "rec_force_outline";
+
 
     rewriter.setInsertionPoint(ap);
     HaskRefOp clonedFnRef = rewriter.create<HaskRefOp>(
-        ref.getLoc(), calledClonedName, ref.getResult().getType());
+        ref.getLoc(), clonedFnName, mkForcedFnType(called.getFunctionType()));
+
+    llvm::errs() << "clonedFnRef: |" << clonedFnRef << "|\n";
     rewriter.replaceOpWithNewOp<ApEagerOp>(ap, clonedFnRef,
                                            ap.getFnArguments());
 
     // TODO: this disastrous house of cards depends on the order of cloning.
     // We first replace the reucrsive call, and *then* clone the function.
     HaskFuncOp clonedfn = parentfn.clone();
-    clonedfn.setName(calledClonedName);
+    clonedfn.setName(clonedFnName);
 
     // TODO: consider if going forward is more sensible or going back is
     // more sensible. Right now I am reaching forward, but perhaps

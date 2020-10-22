@@ -154,6 +154,7 @@ public:
     return Base::get(context, data);
   }
 
+  size_t getNumInputs() { return this->getImpl()->getInputs().size(); }
   ArrayRef<Type> getInputTypes() { return this->getImpl()->getInputs(); }
   Type getInputType(int i) {
     assert(i >= 0);
