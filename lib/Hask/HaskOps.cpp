@@ -703,7 +703,7 @@ Type HaskFuncOp::getReturnType() {
     return this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey()).getValue();
 }
 
-Type HaskFuncOp::getFunctionType() {
+HaskFnType HaskFuncOp::getFunctionType() {
     SmallVector<Type, 4> argTys(this->getRegion().getArgumentTypes());
     llvm::errs() << "attr: |" << this->getAttr(getReturnTypeAttributeKey()) << "|\n";
     Type retty = this->getReturnType();
@@ -755,6 +755,20 @@ bool HaskFuncOp::isRecursive() {
     return WalkResult::advance();
   });
   return isrec;
+}
+
+void HaskFuncOp::build(mlir::OpBuilder &builder,
+                       mlir::OperationState &state,
+                       std::string FuncName,
+                       HaskFnType fntype) {
+
+  Region *r = state.addRegion();
+  builder.createBlock(r, r->end(), fntype.getInputTypes());
+  state.addAttribute(::mlir::SymbolTable::getSymbolAttrName(),
+                     builder.getStringAttr(FuncName));
+  state.addAttribute(HaskFuncOp::getReturnTypeAttributeKey(),
+                      mlir::TypeAttr::get(fntype.getResultType()));
+
 }
 
 // === FORCE OP ===

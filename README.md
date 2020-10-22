@@ -17,6 +17,48 @@ Convert GHC Core to MLIR.
 
 
 # Log:  [newest] to [oldest]
+
+# Thursday, Oct 22nd
+
+- [GPU Outlining function](https://github.com/llvm/llvm-project/blob/366d8435b41dcc01013c507681523c65cdee2180/mlir/lib/Dialect/GPU/Transforms/KernelOutlining.cpp#L234)
+- I'm going to write an outlining pass so I can perform my outline rewrites.
+
+- Amazing, so MLIR hangs on trying to print my newly minted outlined function,
+and the backtrace is at:
+
+```
+0x00005555565c4854 in mlir::Block::getParentOp() ()
+(gdb) bt
+#0  0x00005555565c4854 in mlir::Block::getParentOp() ()
+#1  0x00005555565b5da6 in mlir::Operation::print(llvm::raw_ostream&, mlir::OpPrintingFlags) ()
+#2  0x0000555556437dd7 in mlir::OpState::print (this=0x7fffffffd728, os=..., flags=...) at /usr/local/include/mlir/IR/OpDefinition.h:127
+#3  0x0000555556437e34 in mlir::operator<< (os=..., op=...) at /usr/local/include/mlir/IR/OpDefinition.h:265
+#4  0x0000555556454911 in mlir::standalone::OutlineUknownForcePattern::matchAndRewrite (this=0x555558f95bd0, force=..., rewriter=...)
+    at /home/bollu/work/mlir/coremlir/lib/Hask/WorkerWrapperPass.cpp:127
+#5  0x00005555564597ec in mlir::OpRewritePattern<mlir::standalone::ForceOp>::matchAndRewrite (this=0x555558f95bd0, op=0x555558f918a0, rewriter=...)
+    at /usr/local/include/mlir/IR/PatternMatch.h:213
+#6  0x000055555662c27b in mlir::PatternApplicator::matchAndRewrite(mlir::Operation*, mlir::RewritePattern const&, mlir::PatternRewriter&, llvm::function_ref<bool (mlir::RewritePattern const&)>, llvm::function_ref<void (mlir::RewritePattern const&)>, llvm::function_ref<mlir::LogicalResult (mlir::RewritePattern const&)>) ()
+#7  0x000055555662c58f in mlir::PatternApplicator::matchAndRewrite(mlir::Operation*, mlir::PatternRewriter&, llvm::function_ref<bool (mlir::RewritePattern const&)>, llvm::function_ref<void (mlir::RewritePattern const&)>, llvm::function_ref<mlir::LogicalResult (mlir::RewritePattern const&)>) ()
+#8  0x0000555556785f6c in mlir::applyPatternsAndFoldGreedily(llvm::MutableArrayRef<mlir::Region>, mlir::OwningRewritePatternList const&) ()
+#9  0x000055555645532a in mlir::standalone::WorkerWrapperPass::runOnOperation (this=0x555558f189e0)
+    at /home/bollu/work/mlir/coremlir/lib/Hask/WorkerWrapperPass.cpp:223
+#10 0x000055555667f0a2 in mlir::Pass::run(mlir::Operation*, mlir::AnalysisManager) ()
+#11 0x000055555667f182 in mlir::OpPassManager::run(mlir::Operation*, mlir::AnalysisManager) ()
+#12 0x0000555556687a96 in mlir::PassManager::run(mlir::ModuleOp) ()
+#13 0x0000555555881eae in main (argc=4, argv=0x7fffffffe4e8) at /home/bollu/work/mlir/coremlir/hask-opt/hask-opt.cpp:157
+(gdb) Quit
+```
+
+- (1) I'm not even sure anymore that I should be doing this in a `RewritePattern`, because I'm not
+  actually going to be deleting the `force`. Rather, I'm going to be replacing stuff
+  that follows the `force` with other stuff. So I should really be using an
+  MLIR pass
+- (2) Alternatively, I should in fact rewrite at the `ApEagerOp` by noticing that
+  it is a function call, and then checking if the argument is being forced etc.
+- I'm going to try the (2) option, since it seems more local-rewrite-y,
+  and it seems too painful to attempt to write a `Pass`.
+
+
 # Wednesday, Oct 21st
 
 - Power stable again, yay!

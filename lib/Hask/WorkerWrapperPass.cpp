@@ -41,7 +41,6 @@
 namespace mlir {
 namespace standalone {
 
-
 struct ForceOfKnownApPattern : public mlir::OpRewritePattern<ForceOp> {
   /// We register this pattern to match every toy.transpose in the IR.
   /// The "benefit" is used by the framework to order the patterns and process
@@ -73,13 +72,62 @@ struct ForceOfKnownApPattern : public mlir::OpRewritePattern<ForceOp> {
 
     // cannot inline a recursive function. Can replace with
     // an apEager
-    if (forcedFn.isRecursive()) {
-      rewriter.setInsertionPoint(ap);
-      ApEagerOp eager =
-          rewriter.create<ApEagerOp>(ap.getLoc(), ref, ap.getFnArguments());
-      rewriter.replaceOp(force, eager.getResult());
-      return success();
+    rewriter.setInsertionPoint(ap);
+    ApEagerOp eager =
+        rewriter.create<ApEagerOp>(ap.getLoc(), ref, ap.getFnArguments());
+    rewriter.replaceOp(force, eager.getResult());
+    return success();
+  };
+};
+
+// outline stuff that occurs after the force of a constructor at the
+// top-level of a function.
+struct OutlineUknownForcePattern : public mlir::OpRewritePattern<ForceOp> {
+  OutlineUknownForcePattern(mlir::MLIRContext *context)
+      : OpRewritePattern<ForceOp>(context, /*benefit=*/1) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(ForceOp force,
+                  mlir::PatternRewriter &rewriter) const override {
+
+    // we should not have a force of thunkify, or force of known ap
+    if (force.getOperand().getDefiningOp<ThunkifyOp>()) {
+      return failure();
     }
+
+    // TODO: think about what to do.
+    if (ApOp ap = force.getOperand().getDefiningOp<ApOp>()) {
+      if (HaskRefOp ref = ap.getFn().getDefiningOp<HaskRefOp>()) {
+        return failure();
+      }
+    }
+
+    // how to get dominance information? I should outline everything in the
+    // region that is dominated by the BB that `force` lives in.
+    // For now, approximate.
+    if (force.getOperation()->getBlock() != &force.getParentRegion()->front()) {
+      assert(false && "force not in entry BB");
+      return failure();
+    }
+    llvm::errs() << "- UNK FORCE: " << force << "\n";
+
+    // is this going to break *completely*? or only partially?
+    std::unique_ptr<Region> r = std::make_unique<Region>();
+    // create a hask func op.
+    HaskFuncOp parentfn = force.getParentOfType<HaskFuncOp>();
+
+    ModuleOp module = parentfn.getParentOfType<ModuleOp>();
+    rewriter.setInsertionPointToEnd(&module.getBodyRegion().front());
+
+    HaskFuncOp outlinedFn =
+        rewriter.create<HaskFuncOp>(force.getLoc(),
+                                    parentfn.getName().str() + "_outline",
+                                    parentfn.getFunctionType());
+
+
+    rewriter.eraseOp(force);
+    //    assert(false);
+    return success();
   }
 };
 
@@ -98,7 +146,7 @@ struct ForceOfThunkifyPattern : public mlir::OpRewritePattern<ForceOp> {
     if (!thunkify) {
       return failure();
     }
-//    assert(false && "force of thunkify");
+    //    assert(false && "force of thunkify");
     rewriter.replaceOp(force, thunkify.getOperand());
     return success();
   }
@@ -131,7 +179,7 @@ struct InlineApEagerPattern : public mlir::OpRewritePattern<ApEagerOp> {
     BlockAndValueMapping mapper;
     assert(called.getBody().getNumArguments() == ap.getNumFnArguments() &&
            "argument arity mismatch");
-    for(int i = 0; i < ap.getNumFnArguments(); ++i ) {
+    for (int i = 0; i < ap.getNumFnArguments(); ++i) {
       mapper.map(called.getBody().getArgument(i), ap.getFnArgument(i));
     }
 
@@ -141,16 +189,17 @@ struct InlineApEagerPattern : public mlir::OpRewritePattern<ApEagerOp> {
     // this will expand into
     //   g() { f(); } -> g() { stmt; f(); } -> g { stmt; stmt; f(); } -> ...
     InlinerInterface inliner(rewriter.getContext());
-    if (true) {
-      LogicalResult isInlined =
-          inlineRegion(inliner, &called.getBody(), ap, ap.getFnArguments(), ap.getResult());
+    if (!called.isRecursive()) {
+      LogicalResult isInlined = inlineRegion(
+          inliner, &called.getBody(), ap, ap.getFnArguments(), ap.getResult());
       assert(succeeded(isInlined) && "unable to inline");
+      return success();
+    } else {
+      return failure();
     }
-
-//    rewriter.eraseOp(ap);
-    return success();
   }
 };
+
 struct WorkerWrapperPass : public Pass {
   WorkerWrapperPass() : Pass(mlir::TypeID::get<WorkerWrapperPass>()){};
   StringRef getName() const override { return "WorkerWrapperPass"; }
@@ -165,12 +214,12 @@ struct WorkerWrapperPass : public Pass {
   void runOnOperation() {
     mlir::OwningRewritePatternList patterns;
     patterns.insert<ForceOfKnownApPattern>(&getContext());
-//    patterns.insert<ForceOfThunkifyPattern>(&getContext());
+    patterns.insert<ForceOfThunkifyPattern>(&getContext());
+    patterns.insert<OutlineUknownForcePattern>(&getContext());
     patterns.insert<InlineApEagerPattern>(&getContext());
 
     llvm::errs() << "===Enabling Debugging...===\n";
     ::llvm::DebugFlag = true;
-
 
     if (failed(mlir::applyPatternsAndFoldGreedily(getOperation(), patterns))) {
       llvm::errs() << "===Worker wrapper failed===\n";
@@ -181,7 +230,6 @@ struct WorkerWrapperPass : public Pass {
 
     llvm::errs() << "===Disabling Debugging...===\n";
     ::llvm::DebugFlag = false;
-
   };
 };
 
@@ -191,4 +239,3 @@ std::unique_ptr<mlir::Pass> createWorkerWrapperPass() {
 
 } // namespace standalone
 } // namespace mlir
-

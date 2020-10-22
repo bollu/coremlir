@@ -283,7 +283,7 @@ public:
 //  Block *getBodyBB() { return &this->getRegion().getBlocks().front(); }
   void print(OpAsmPrinter &p);
   llvm::StringRef getFuncName();
-  Type getFunctionType();
+  HaskFnType getFunctionType();
   Type getReturnType();
 
   bool isRecursive();
@@ -292,6 +292,10 @@ public:
   Region *getCallableRegion() { return &this->getRegion(); };
   ArrayRef<Type> getCallableResults() { return this->getReturnType(); };
 
+  static void build(mlir::OpBuilder &builder,
+                    mlir::OperationState &state,
+                    std::string FuncName,
+                    HaskFnType fnty);
 };
 
 // replace case x of name { default -> ... } with name = force(x);
