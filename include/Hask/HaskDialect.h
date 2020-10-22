@@ -230,7 +230,7 @@ struct HaskInlinerInterface : public DialectInlinerInterface {
 
   virtual bool isLegalToInline(Region *dest, Region *src,
                                BlockAndValueMapping &valueMapping) const {
-    // assert(false && "being asked if legal to inline");
+//     assert(false && "being asked if legal to inline");
     return true;
   }
   /// This hook is invoked on an operation that contains regions. It should
@@ -238,7 +238,7 @@ struct HaskInlinerInterface : public DialectInlinerInterface {
   /// operation when computing legality and cost, false otherwise. The default
   /// implementation returns true.
   virtual bool shouldAnalyzeRecursively(Operation *op) const {
-    //    assert(false && "being asked if recursively analyze2");
+//    assert(false && "being asked if recursively analyze2");
     return true;
   }
 

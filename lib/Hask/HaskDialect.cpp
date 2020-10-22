@@ -230,10 +230,11 @@ Attribute standalone::parseDataConstructorAttribute(DialectAsmParser &parser,
 
 void HaskInlinerInterface::handleTerminator(Operation *op,
                       ArrayRef<Value> valuesToRepl) const {
+    llvm::errs() << "handleTerminator(" << *op << ", " << valuesToRepl[0] << ")\n";
+//    assert(false);
 //    assert(false && "handling terminator in HaskInliner...");
     // Only "toy.return" needs to be handled here.
     auto returnOp = cast<HaskReturnOp>(op);
-
     // Replace the values directly with the return operands.
 //    assert(1 == valuesToRepl.size());
     valuesToRepl[0].replaceAllUsesWith(returnOp.getOperand());

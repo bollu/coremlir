@@ -136,15 +136,18 @@ struct InlineApEagerPattern : public mlir::OpRewritePattern<ApEagerOp> {
     }
 
     // TODO: setup mapping for arguments in mapper
+    // This is not safe! Fuck me x(
+    // consider f () { stmt; f(); } | g() { f (); }
+    // this will expand into
+    //   g() { f(); } -> g() { stmt; f(); } -> g { stmt; stmt; f(); } -> ...
     InlinerInterface inliner(rewriter.getContext());
     if (true) {
       LogicalResult isInlined =
-          inlineRegion(inliner, &called.getBody(), ap, mapper, ap.getResult(),
-                       ap.getResult().getType());
+          inlineRegion(inliner, &called.getBody(), ap, ap.getFnArguments(), ap.getResult());
       assert(succeeded(isInlined) && "unable to inline");
     }
 
-    rewriter.eraseOp(ap);
+//    rewriter.eraseOp(ap);
     return success();
   }
 };
