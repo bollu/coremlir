@@ -118,10 +118,10 @@ struct InlineApEagerPattern : public mlir::OpRewritePattern<ApEagerOp> {
     if (!ref) {
       return failure();
     }
-    llvm::errs() << "ap(" << ref.getRef() << ") ";
-
+    llvm::errs() << ap << "\n";
     if (parent.getName() == ref.getRef()) {
-      llvm::errs() << " RECURSIVE.\n";
+
+      llvm::errs() << "  - RECURSIVE: |" << ap << "|\n";
       return failure();
     }
 
@@ -137,9 +137,14 @@ struct InlineApEagerPattern : public mlir::OpRewritePattern<ApEagerOp> {
 
     // TODO: setup mapping for arguments in mapper
     InlinerInterface inliner(rewriter.getContext());
-    LogicalResult isInlined = inlineRegion(inliner, &called.getBody(), ap, mapper,
-                 ap.getResult(), ap.getResult().getType());
-    assert(succeeded(isInlined) && "unable to inline");
+    if (true) {
+      LogicalResult isInlined =
+          inlineRegion(inliner, &called.getBody(), ap, mapper, ap.getResult(),
+                       ap.getResult().getType());
+      assert(succeeded(isInlined) && "unable to inline");
+    }
+
+    rewriter.eraseOp(ap);
     return success();
   }
 };
@@ -157,8 +162,12 @@ struct WorkerWrapperPass : public Pass {
   void runOnOperation() {
     mlir::OwningRewritePatternList patterns;
     patterns.insert<ForceOfKnownApPattern>(&getContext());
-    patterns.insert<ForceOfThunkifyPattern>(&getContext());
+//    patterns.insert<ForceOfThunkifyPattern>(&getContext());
     patterns.insert<InlineApEagerPattern>(&getContext());
+
+    llvm::errs() << "===Enabling Debugging...===\n";
+    ::llvm::DebugFlag = true;
+
 
     if (failed(mlir::applyPatternsAndFoldGreedily(getOperation(), patterns))) {
       llvm::errs() << "===Worker wrapper failed===\n";
@@ -166,6 +175,10 @@ struct WorkerWrapperPass : public Pass {
       llvm::errs() << "\n===\n";
       signalPassFailure();
     };
+
+    llvm::errs() << "===Disabling Debugging...===\n";
+    ::llvm::DebugFlag = false;
+
   };
 };
 
