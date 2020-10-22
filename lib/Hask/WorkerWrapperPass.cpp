@@ -119,11 +119,9 @@ struct OutlineUknownForcePattern : public mlir::OpRewritePattern<ForceOp> {
     ModuleOp module = parentfn.getParentOfType<ModuleOp>();
     rewriter.setInsertionPointToEnd(&module.getBodyRegion().front());
 
-    HaskFuncOp outlinedFn =
-        rewriter.create<HaskFuncOp>(force.getLoc(),
-                                    parentfn.getName().str() + "_outline",
-                                    parentfn.getFunctionType());
-
+    HaskFuncOp outlinedFn = rewriter.create<HaskFuncOp>(
+        force.getLoc(), parentfn.getName().str() + "_outline",
+        parentfn.getFunctionType());
 
     rewriter.eraseOp(force);
     //    assert(false);
@@ -200,6 +198,89 @@ struct InlineApEagerPattern : public mlir::OpRewritePattern<ApEagerOp> {
   }
 };
 
+struct OutlineRecursiveApEagerPattern
+    : public mlir::OpRewritePattern<ApEagerOp> {
+  OutlineRecursiveApEagerPattern(mlir::MLIRContext *context)
+      : OpRewritePattern<ApEagerOp>(context, /*benefit=*/1) {}
+  mlir::LogicalResult
+  matchAndRewrite(ApEagerOp ap,
+                  mlir::PatternRewriter &rewriter) const override {
+
+    HaskFuncOp parentfn = ap.getParentOfType<HaskFuncOp>();
+    ModuleOp mod = ap.getParentOfType<ModuleOp>();
+
+    auto ref = ap.getFn().getDefiningOp<HaskRefOp>();
+    if (!ref) {
+      return failure();
+    }
+
+    if (parentfn.getName() != ref.getRef()) {
+      return failure();
+    }
+
+    HaskFuncOp called = mod.lookupSymbol<HaskFuncOp>(ref.getRef());
+    assert(called && "unable to find called function.");
+
+    BlockAndValueMapping mapper;
+    assert(called.getBody().getNumArguments() == ap.getNumFnArguments() &&
+           "argument arity mismatch");
+    for (int i = 0; i < ap.getNumFnArguments(); ++i) {
+      mapper.map(called.getBody().getArgument(i), ap.getFnArgument(i));
+    }
+
+    // TODO: setup mapping for arguments in mapper
+    // This is not safe! Fuck me x(
+    // consider f () { stmt; f(); } | g() { f (); }
+    // this will expand into
+    //   g() { f(); } -> g() { stmt; f(); } -> g { stmt; stmt; f(); } -> ...
+    InlinerInterface inliner(rewriter.getContext());
+    HaskFuncOp clonedfn = parentfn.clone();
+
+    // TODO: consider if going forward is more sensible or going back is
+    // more sensible. Right now I am reaching forward, but perhaps
+    // it makes sense to reach back.
+    for (int i = 0; i < clonedfn.getBody().getNumArguments(); ++i) {
+      Value arg = clonedfn.getBody().getArgument(i);
+      if (!arg.hasOneUse()) {
+        return failure();
+      }
+      // This is of course crazy. We should handle the case if we have
+      // multiple force()s.
+
+      llvm::errs() << "\n--- use: " << *arg.use_begin().getUser() << "\n";
+      ForceOp uniqueForceOfArg = dyn_cast<ForceOp>(arg.use_begin().getUser());
+
+      if (!uniqueForceOfArg) {
+        return failure();
+      }
+
+      // we are safe to create a new function because we have a unique force
+      // of an argument. We can change the type of the function and we can
+      // change the argument.
+
+      // replace argument.
+      uniqueForceOfArg.replaceAllUsesWith(arg);
+      arg.setType(uniqueForceOfArg.getType());
+      rewriter.eraseOp(uniqueForceOfArg);
+    }
+
+    mod.push_back(clonedfn);
+
+    rewriter.setInsertionPoint(ap);
+    HaskRefOp clonedFnRef = rewriter.create<HaskRefOp>(
+        ref.getLoc(), clonedfn.getName().str(), ref.getResult().getType());
+    rewriter.replaceOpWithNewOp<ApEagerOp>(ap, clonedFnRef,
+                                           ap.getFnArguments());
+    // llvm::errs() << "\nvvv\ncloned:\n" << clonedfn << "\n^^^\n";
+    return success();
+
+    // LogicalResult isInlined = inlineRegion(
+    //     inliner, &called.getBody(), ap, ap.getFnArguments(), ap.getResult());
+    // assert(succeeded(isInlined) && "unable to inline");
+    // return success();
+  }
+};
+
 struct WorkerWrapperPass : public Pass {
   WorkerWrapperPass() : Pass(mlir::TypeID::get<WorkerWrapperPass>()){};
   StringRef getName() const override { return "WorkerWrapperPass"; }
@@ -215,7 +296,8 @@ struct WorkerWrapperPass : public Pass {
     mlir::OwningRewritePatternList patterns;
     patterns.insert<ForceOfKnownApPattern>(&getContext());
     patterns.insert<ForceOfThunkifyPattern>(&getContext());
-    patterns.insert<OutlineUknownForcePattern>(&getContext());
+    // patterns.insert<OutlineUknownForcePattern>(&getContext());
+    patterns.insert<OutlineRecursiveApEagerPattern>(&getContext());
     patterns.insert<InlineApEagerPattern>(&getContext());
 
     llvm::errs() << "===Enabling Debugging...===\n";

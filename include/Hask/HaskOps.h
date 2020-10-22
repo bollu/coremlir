@@ -261,8 +261,12 @@ public:
     return getAttrOfType<StringAttr>(::mlir::SymbolTable::getSymbolAttrName())
         .getValue();
   }
-  static void build(OpBuilder &odsBuilder, OperationState &odsState,
-                    Type resultTy);
+
+  static void build(mlir::OpBuilder &builder,
+                    mlir::OperationState &state,
+                    std::string refname,
+                    Type retty);
+
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
   LogicalResult verify();

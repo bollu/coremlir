@@ -596,6 +596,15 @@ LogicalResult HaskRefOp::verify() {
   }
 }
 
+void HaskRefOp::build(mlir::OpBuilder &builder,
+                  mlir::OperationState &state,
+                  std::string refname,
+                  Type retty) {
+  state.addAttribute(::mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(refname));
+  state.addTypes(retty);
+}
+
+
 // === MakeString OP ===
 // === MakeString OP ===
 // === MakeString OP ===
