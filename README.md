@@ -58,6 +58,50 @@ and the backtrace is at:
 - I'm going to try the (2) option, since it seems more local-rewrite-y,
   and it seems too painful to attempt to write a `Pass`.
 
+- Amazing, so I now have outlining that works, but it now crashes inside `PatternRewriter.h`:
+
+```
+hask-opt: /usr/local/include/llvm/Support/Casting.h:269: typename llvm::cast_retty<X, Y*>::ret_type llvm::cast(Y*) [with X = mlir::standalone::ApEagerOp; Y = mlir::Operation; typename llvm::cast_retty<X,
+) argument of incompatible type!"' failed.
+
+Program received signal SIGABRT, Aborted.
+__GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:51
+51	../sysdeps/unix/sysv/linux/raise.c: No such file or directory.
+(gdb) bt
+#0  __GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:51
+#1  0x00007ffff661a8b1 in __GI_abort () at abort.c:79
+#2  0x00007ffff660a42a in __assert_fail_base (fmt=0x7ffff6791a38 "%s%s%s:%u: %s%sAssertion `%s' failed.\n%n", assertion=assertion@entry=0x555557fd6198 "isa<X>(Val) && \"cast<Ty>() argument of incompatible
+    file=file@entry=0x555557fd6168 "/usr/local/include/llvm/Support/Casting.h", line=line@entry=269,
+    function=function@entry=0x555557fd85e0 <llvm::cast_retty<mlir::standalone::ApEagerOp, mlir::Operation*>::ret_type llvm::cast<mlir::standalone::ApEagerOp, mlir::Operation>(mlir::Operation*)::__PRETTY_F
+ir::standalone::ApEagerOp; Y = mlir::Operation; typename llvm::cast_retty<X, Y*>::ret_type = mlir::standalone::ApEagerOp]") at assert.c:92
+#3  0x00007ffff660a4a2 in __GI___assert_fail (assertion=0x555557fd6198 "isa<X>(Val) && \"cast<Ty>() argument of incompatible type!\"", file=0x555557fd6168 "/usr/local/include/llvm/Support/Casting.h", line
+    function=0x555557fd85e0 <llvm::cast_retty<mlir::standalone::ApEagerOp, mlir::Operation*>::ret_type llvm::cast<mlir::standalone::ApEagerOp, mlir::Operation>(mlir::Operation*)::__PRETTY_FUNCTION__> "typ
+:ApEagerOp; Y = mlir::Operation; typename llvm::cast_retty<X, Y*>::ret_type = mlir::standalone::ApEagerOp]") at assert.c:101
+#4  0x0000555556418afd in llvm::cast<mlir::standalone::ApEagerOp, mlir::Operation> (Val=0x555558f1adf0) at /usr/local/include/llvm/Support/Casting.h:269
+#5  0x0000555556459e0d in mlir::OpRewritePattern<mlir::standalone::ApEagerOp>::matchAndRewrite (this=0x555558f98a50, op=0x555558f1adf0, rewriter=...) at /usr/local/include/mlir/IR/PatternMatch.h:213
+#6  0x000055555662ca4b in mlir::PatternApplicator::matchAndRewrite(mlir::Operation*, mlir::RewritePattern const&, mlir::PatternRewriter&, llvm::function_ref<bool (mlir::RewritePattern const&)>, llvm::func
+lt (mlir::RewritePattern const&)>) ()
+#7  0x000055555662cd5f in mlir::PatternApplicator::matchAndRewrite(mlir::Operation*, mlir::PatternRewriter&, llvm::function_ref<bool (mlir::RewritePattern const&)>, llvm::function_ref<void (mlir::RewriteP
+t&)>) ()
+#8  0x000055555678673c in mlir::applyPatternsAndFoldGreedily(llvm::MutableArrayRef<mlir::Region>, mlir::OwningRewritePatternList const&) ()
+#9  0x00005555564558aa in mlir::standalone::WorkerWrapperPass::runOnOperation (this=0x555558f189e0) at /home/bollu/work/mlir/coremlir/lib/Hask/WorkerWrapperPass.cpp:316
+#10 0x000055555667f872 in mlir::Pass::run(mlir::Operation*, mlir::AnalysisManager) ()
+#11 0x000055555667f952 in mlir::OpPassManager::run(mlir::Operation*, mlir::AnalysisManager) ()
+#12 0x0000555556688266 in mlir::PassManager::run(mlir::ModuleOp) ()
+#13 0x0000555555881eae in main (argc=4, argv=0x7fffffffe4e8) at /home/bollu/work/mlir/coremlir/hask-opt/hask-opt.cpp:157
+```
+
+- [The suspect code is `mlir/IR/PatternMatch.h:213`](https://github.com/llvm/llvm-project/blob/63c58c2b934525c9863e624cf39ec542dd84ca78/mlir/include/mlir/IR/PatternMatch.h#L212):
+
+```
+LogicalResult matchAndRewrite(Operation *op,
+                              PatternRewriter &rewriter) const final {
+  return matchAndRewrite(cast<SourceOp>(op), rewriter);
+}
+```
+
+- I'm at MLIR commit [63c58c2](https://github.com/llvm/llvm-project/commit/63c58c2b934525c9863e624cf39ec542dd84ca78).
+
 
 # Wednesday, Oct 21st
 

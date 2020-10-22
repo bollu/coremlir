@@ -730,7 +730,7 @@ void HaskFuncOp::print(OpAsmPrinter &p) {
   // Print the body if this is not an external function.
   Region &body = this->getRegion();
   assert(!body.empty());
-  p.printRegion(body, /*printEntryBlockArgs=*/false,
+  p.printRegion(body, /*printEntryBlockArgs=*/true,
                 /*printBlockTerminators=*/true);
 }
 
