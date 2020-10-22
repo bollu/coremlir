@@ -234,7 +234,19 @@ struct OutlineRecursiveApEagerPattern
     // this will expand into
     //   g() { f(); } -> g() { stmt; f(); } -> g { stmt; stmt; f(); } -> ...
     InlinerInterface inliner(rewriter.getContext());
+
+    std::string clonedFnName = called.getName().str() + "rec_force_outline";
+
+    rewriter.setInsertionPoint(ap);
+    HaskRefOp clonedFnRef = rewriter.create<HaskRefOp>(
+        ref.getLoc(), clonedFnName, ref.getResult().getType());
+    rewriter.replaceOpWithNewOp<ApEagerOp>(ap, clonedFnRef,
+                                           ap.getFnArguments());
+
+    // TODO: this disastrous house of cards depends on the order of cloning.
+    // We first replace the reucrsive call, and *then* clone the function.
     HaskFuncOp clonedfn = parentfn.clone();
+    clonedfn.setName(clonedFnName);
 
     // TODO: consider if going forward is more sensible or going back is
     // more sensible. Right now I am reaching forward, but perhaps
@@ -266,12 +278,10 @@ struct OutlineRecursiveApEagerPattern
 
     mod.push_back(clonedfn);
 
-    rewriter.setInsertionPoint(ap);
-    HaskRefOp clonedFnRef = rewriter.create<HaskRefOp>(
-        ref.getLoc(), clonedfn.getName().str(), ref.getResult().getType());
-    rewriter.replaceOpWithNewOp<ApEagerOp>(ap, clonedFnRef,
-                                           ap.getFnArguments());
-    // llvm::errs() << "\nvvv\ncloned:\n" << clonedfn << "\n^^^\n";
+    llvm::errs() << "=======\n";
+    llvm::errs() << mod;
+    llvm::errs() << "\n=======\n";
+
     return success();
 
     // LogicalResult isInlined = inlineRegion(
