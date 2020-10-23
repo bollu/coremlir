@@ -18,6 +18,14 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Friday, Oct 23rd
+
+- It looks like the dinky pass I wrote, with bugs fixed, can actually eliminate
+  all laziness in the toy examples I have.
+- Next, I'm going to implement elimnating boxing. So I can 'unwrap' a function
+  that uses `SimpleInt int#` (with no laziness, mind you, not `thunk<SimpleInt>`
+  into a function that uses only a `int#`. Let's see how well this does.
+
 # Thursday, Oct 22nd
 
 - [GPU Outlining function](https://github.com/llvm/llvm-project/blob/366d8435b41dcc01013c507681523c65cdee2180/mlir/lib/Dialect/GPU/Transforms/KernelOutlining.cpp#L234)
