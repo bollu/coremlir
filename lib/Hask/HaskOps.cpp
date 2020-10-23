@@ -273,8 +273,7 @@ ParseResult ApEagerOp::parse(OpAsmParser &parser, OperationState &result) {
     //)
     if (parser.parseRParen())
       return failure();
-    result.addTypes(
-        parser.getBuilder().getType<ThunkType>(fnty.getResultType()));
+    result.addTypes(fnty.getResultType());
   } else {
     InFlightDiagnostic err =
         parser.emitError(parser.getCurrentLocation(),

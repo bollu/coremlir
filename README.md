@@ -29,6 +29,53 @@ Convert GHC Core to MLIR.
 - MLIR TODO: Add `getNumArguments()` and `getArgument(int i)` API to any `callable`.
 - Consider making `case` a terminator of a block? Seems to make a lot of rewrites
   way easier. Not sure.
+
+
+
+- I think I have a good reason to make a `hask.case` instruction a terminator. I can be sure
+  that I can transform :
+
+```
+====
+hask.func @f {
+^bb0(%arg0: !hask.thunk<!hask.adt<@SimpleInt>>):  // no predecessors
+  %0 = hask.force(%arg0):!hask.adt<@SimpleInt>
+  %1 = hask.case @SimpleInt %0 [@SimpleInt ->  {
+  ^bb0(%arg1: !hask.value):  // no predecessors
+    %2 = hask.caseint %arg1 [0 : i64 ->  {
+      %3 = hask.make_i64(5 : i64)
+      %4 = hask.construct(@SimpleInt, %3 : !hask.value) : !hask.adt<@SimpleInt>
+      hask.return(%4) : !hask.adt<@SimpleInt>
+    }]
+ [@default ->  {
+      %3 = hask.make_i64(1 : i64)
+      %4 = hask.primop_sub(%arg1,%3)
+      %5 = hask.construct(@SimpleInt, %4 : !hask.value) : !hask.adt<@SimpleInt>
+      %6 = hask.thunkify(%5 :!hask.adt<@SimpleInt>):!hask.thunk<!hask.adt<@SimpleInt>>
+      %7 = hask.ref(@f) : !hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>
+      %8 = hask.apEager(%7 :!hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>, %6)
+      %9 = hask.ap(%7 :!hask.fn<(!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>>, %6)
+      %10 = hask.case @SimpleInt %8 [@SimpleInt ->  {
+      ^bb0(%arg2: !hask.value):  // no predecessors
+        %11 = hask.make_i64(1 : i64)
+        %12 = hask.primop_add(%arg2,%11)
+        %13 = hask.construct(@SimpleInt, %12 : !hask.value) : !hask.adt<@SimpleInt>
+        hask.return(%13) : !hask.adt<@SimpleInt>
+      }]
+
+      hask.return(%10) : !hask.adt<@SimpleInt>
+    }]
+
+    hask.return(%2) : !hask.adt<@SimpleInt>
+  }]
+
+  hask.return(%1) : !hask.adt<@SimpleInt>
+}
+```
+
+easily. If `hask.case` is a terminator, then I can be sure that my transform
+
+
 # Thursday, Oct 22nd
 
 - [GPU Outlining function](https://github.com/llvm/llvm-project/blob/366d8435b41dcc01013c507681523c65cdee2180/mlir/lib/Dialect/GPU/Transforms/KernelOutlining.cpp#L234)
@@ -121,6 +168,7 @@ LogicalResult matchAndRewrite(Operation *op,
   back out with a `failure()` in the middle of a transform.
 
 - I "fixed" the bug by [moving all my checking code to the beginning in commit 7c90bd](7c90bdc66ce8fad833d45061833150d4aa0dca72)
+
 
 
 

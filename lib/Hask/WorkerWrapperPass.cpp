@@ -460,18 +460,58 @@ struct CaseOfKnownConstructorPattern : public mlir::OpRewritePattern<CaseOp> {
   };
 };
 
-struct CaseOfBoxedApEager : public mlir::OpRewritePattern<CaseOp> {
-  CaseOfBoxedApEager(mlir::MLIRContext *context)
+struct CaseOfBoxedRecursiveApEager : public mlir::OpRewritePattern<CaseOp> {
+  CaseOfBoxedRecursiveApEager(mlir::MLIRContext *context)
   : OpRewritePattern<CaseOp>(context, /*benefit=*/1) {}
 
 
   mlir::LogicalResult
   matchAndRewrite(CaseOp caseop,
                   mlir::PatternRewriter &rewriter) const override {
-    return failure();
-    assert(false && "case of boxed ap eager");
+
+    HaskFuncOp fn = caseop.getParentOfType<HaskFuncOp>();
+
+    // case(ap(..., ))
+    ApEagerOp apeager = caseop.getScrutinee().getDefiningOp<ApEagerOp>();
+    if (!apeager) { return failure(); }
+
+    HaskRefOp ref = apeager.getFn().getDefiningOp<HaskRefOp>();
+    if (!ref) { return failure(); }
+
+    if (ref.getRef() != fn.getName()) { return failure(); }
+
+    // figure out if the return value is always a `hask.construct(...)`
+    llvm::errs() << "====\n";
+    llvm::errs() << fn << "\n";
+    assert(false && "case of boxed recursive ap eager");
   }
 };
+
+struct PeelCommonConstructorsInCase : public mlir::OpRewritePattern<CaseOp> {
+  PeelCommonConstructorsInCase(mlir::MLIRContext *context)
+      : OpRewritePattern<CaseOp>(context, /*benefit=*/1) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(CaseOp caseop,
+                  mlir::PatternRewriter &rewriter) const override {
+
+    HaskFuncOp fn = caseop.getParentOfType<HaskFuncOp>();
+
+    // case(ap(..., ))
+    ApEagerOp apeager = caseop.getScrutinee().getDefiningOp<ApEagerOp>();
+    if (!apeager) { return failure(); }
+
+    HaskRefOp ref = apeager.getFn().getDefiningOp<HaskRefOp>();
+    if (!ref) { return failure(); }
+
+    // figure out if the return value is always a `hask.construct(...)`
+    llvm::errs() << "====\n";
+    llvm::errs() << fn << "\n";
+    assert(false && "case of boxed recursive ap eager");
+  }
+};
+
+
 
 struct WorkerWrapperPass : public Pass {
   WorkerWrapperPass() : Pass(mlir::TypeID::get<WorkerWrapperPass>()){};
@@ -492,7 +532,13 @@ struct WorkerWrapperPass : public Pass {
     patterns.insert<OutlineRecursiveApEagerOfThunkPattern>(&getContext());
     patterns.insert<OutlineRecursiveApEagerOfConstructorPattern>(&getContext());
     patterns.insert<CaseOfKnownConstructorPattern>(&getContext());
-    patterns.insert<CaseOfBoxedApEager>(&getContext());
+    patterns.insert<CaseOfBoxedRecursiveApEager>(&getContext());
+    // change:
+    //   retval = case x of L1 -> { ...; return Foo(x1); } L2 -> { ...; return Foo(x2); }
+    // into:
+    //  v = case x of L1 -> { ...; return x1; } L2 -> { ...; return x2; };
+    //  retval = Foo(v)
+    patterns.insert<PeelCommonConstructorsInCase>(&getContext());
 
     patterns.insert<InlineApEagerPattern>(&getContext());
 
