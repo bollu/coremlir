@@ -4,6 +4,11 @@
 // RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
 // Check that @plus works with SimpleInt works.
 // CHECK: constructor(SimpleInt 42)
+// CHECK: num_thunkify_calls(38)
+// CHECK: num_force_calls(76)
+// CHECK: num_construct_calls(76)
+
+// CHECK-WW: constructor(SimpleInt 42)
 // CHECK-WW: num_thunkify_calls(0)
 // CHECK-WW: num_force_calls(0)
 // CHECK-WW: num_construct_calls(76)
