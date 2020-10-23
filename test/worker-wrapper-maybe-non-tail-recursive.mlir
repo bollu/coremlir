@@ -1,8 +1,18 @@
 // RUN: ../build/bin/hask-opt %s  -interpret | FileCheck %s
+// RUN: ../build/bin/hask-opt %s  -interpret -worker-wrapper | FileCheck %s -check-prefix='CHECK-WW'
 // RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s || true
 // RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
 // Check that @plus works with Maybe works.
 // CHECK: constructor(Just 42)
+// CHECK: num_thunkify_calls(38)
+// CHECK: num_force_calls(76)
+// CHECK: num_construct_calls(76)
+
+// CHECK-WW: constructor(Just 42)
+// CHECK-WW: num_thunkify_calls(0)
+// CHECK-WW: num_force_calls(0)
+// CHECK-WW: num_construct_calls(76)
+
 module {
   // should it be Attr Attr, with the "list" embedded as an attribute,
   // or should it be Attr [Attr]? Who really knows :(
