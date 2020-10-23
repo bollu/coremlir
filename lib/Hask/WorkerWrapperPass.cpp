@@ -204,6 +204,9 @@ HaskFnType mkForcedFnType(HaskFnType fty) {
 
 }
 
+//
+// convert ap(thunkify(...)) of a recursive call that is force(...) d
+// into an "immediate" function call.
 struct OutlineRecursiveApEagerPattern
     : public mlir::OpRewritePattern<ApEagerOp> {
   OutlineRecursiveApEagerPattern(mlir::MLIRContext *context)
@@ -220,6 +223,7 @@ struct OutlineRecursiveApEagerPattern
       return failure();
     }
 
+    // if the call is not recursive, bail
     if (parentfn.getName() != ref.getRef()) {
       return failure();
     }
@@ -227,12 +231,23 @@ struct OutlineRecursiveApEagerPattern
     HaskFuncOp called = mod.lookupSymbol<HaskFuncOp>(ref.getRef());
     assert(called && "unable to find called function.");
 
+    if (ap.getNumFnArguments() != 1) {
+      assert(false && "cannot handle functions with multiple args just yet");
+    }
+
+    SmallVector<Value, 4> clonedFnCallArgs;
+    ThunkifyOp thunkifiedArgument = ap.getFnArgument(0).getDefiningOp<ThunkifyOp>();
+    if (!thunkifiedArgument) { return failure(); }
+    clonedFnCallArgs.push_back(thunkifiedArgument.getOperand());
+
+
+    llvm::errs() << "found thunkified argument: |" << thunkifiedArgument << "|\n";
+
     // TODO: this is an over-approximation of course, we only need
     // a single argument (really, the *same* argument to be reused).
     // I've moved the code here to test that the crash isn't because of a
     // bail-out.
 
-    SmallVector<Value, 4> clonedFnCallArgs;
     for (int i = 0; i < called.getBody().getNumArguments(); ++i) {
       Value arg = called.getBody().getArgument(i);
       if (!arg.hasOneUse()) {
@@ -243,20 +258,25 @@ struct OutlineRecursiveApEagerPattern
     }
 
 
-    std::string clonedFnName = called.getName().str() + "rec_force_outline";
 
+    std::string clonedFnName = called.getName().str() + "rec_force_outline";
 
     rewriter.setInsertionPoint(ap);
     HaskRefOp clonedFnRef = rewriter.create<HaskRefOp>(
         ref.getLoc(), clonedFnName, mkForcedFnType(called.getFunctionType()));
 
+
     llvm::errs() << "clonedFnRef: |" << clonedFnRef << "|\n";
+
     rewriter.replaceOpWithNewOp<ApEagerOp>(ap, clonedFnRef,
-                                           ap.getFnArguments());
+                                           clonedFnCallArgs);
+
 
     // TODO: this disastrous house of cards depends on the order of cloning.
     // We first replace the reucrsive call, and *then* clone the function.
     HaskFuncOp clonedfn = parentfn.clone();
+
+
     clonedfn.setName(clonedFnName);
 
     // TODO: consider if going forward is more sensible or going back is
@@ -270,7 +290,6 @@ struct OutlineRecursiveApEagerPattern
       // This is of course crazy. We should handle the case if we have
       // multiple force()s.
 
-//      llvm::errs() << "\n--- use: " << *arg.use_begin().getUser() << "\n";
       llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
       ForceOp uniqueForceOfArg = dyn_cast<ForceOp>(arg.use_begin().getUser());
       llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
@@ -292,24 +311,22 @@ struct OutlineRecursiveApEagerPattern
       arg.setType(uniqueForceOfArg.getType());
       rewriter.eraseOp(uniqueForceOfArg);
       llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
-
     }
-    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+
+    llvm::errs() << "clonedFn:\n";
+    llvm::errs() << clonedfn << "\n";
+    llvm::errs() << "------\n";
+
 
     mod.push_back(clonedfn);
-    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
 
-    llvm::errs() << "=======\n";
-    llvm::errs() << mod;
-    llvm::errs() << "\n=======\n";
-    llvm::errs() << __FUNCTION__ << ":" << __LINE__ << "\n";
+    llvm::errs() << "mod:\n";
+    llvm::errs() << mod << "\n";
+    llvm::errs() << "------\n";
 
-    return success();
+  //    assert(false);
+  return success();
 
-    // LogicalResult isInlined = inlineRegion(
-    //     inliner, &called.getBody(), ap, ap.getFnArguments(), ap.getResult());
-    // assert(succeeded(isInlined) && "unable to inline");
-    // return success();
   }
 };
 

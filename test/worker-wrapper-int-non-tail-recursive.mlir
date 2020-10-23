@@ -1,8 +1,13 @@
 // RUN: ../build/bin/hask-opt %s  -interpret | FileCheck %s
+// RUN: ../build/bin/hask-opt %s  -worker-wrapper -interpret | FileCheck %s --check-prefix=CHECK-WW 
 // RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s || true
 // RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
 // Check that @plus works with SimpleInt works.
 // CHECK: constructor(SimpleInt 42)
+// CHECK-WW: num_thunkify_calls(0)
+// CHECK-WW: num_force_calls(0)
+// CHECK-WW: num_construct_calls(76)
+
 module {
   // should it be Attr Attr, with the "list" embedded as an attribute,
   // or should it be Attr [Attr]? Who really knows :(
