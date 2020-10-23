@@ -380,6 +380,7 @@ public:
 
   int getNumOperands() { this->getOperation()->getNumOperands(); }
   Value getOperand(int i) { return this->getOperation()->getOperand(i); }
+  Operation::operand_range getOperands() { return this->getOperation()->getOperands(); }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
   void

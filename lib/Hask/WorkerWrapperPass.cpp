@@ -424,6 +424,55 @@ struct OutlineRecursiveApEagerOfConstructorPattern
                     "construct(...); } ");
   }
 };
+
+struct CaseOfKnownConstructorPattern : public mlir::OpRewritePattern<CaseOp> {
+  /// We register this pattern to match every toy.transpose in the IR.
+  /// The "benefit" is used by the framework to order the patterns and process
+  /// them in order of profitability.
+  CaseOfKnownConstructorPattern(mlir::MLIRContext *context)
+      : OpRewritePattern<CaseOp>(context, /*benefit=*/1) {}
+
+  mlir::LogicalResult
+  matchAndRewrite(CaseOp caseop,
+                  mlir::PatternRewriter &rewriter) const override {
+
+    ModuleOp mod = caseop.getParentOfType<ModuleOp>();
+    HaskFuncOp fn = caseop.getParentOfType<HaskFuncOp>();
+
+    HaskConstructOp constructor =
+        caseop.getScrutinee().getDefiningOp<HaskConstructOp>();
+    if (!constructor) {
+      return failure();
+    }
+
+    rewriter.setInsertionPoint(caseop);
+    int altIx =
+        *caseop.getAltIndexForConstructor(constructor.getDataConstructorName());
+
+    InlinerInterface inliner(rewriter.getContext());
+    LogicalResult isInlined =
+        inlineRegion(inliner, &caseop.getAltRHS(altIx), caseop,
+                     constructor.getOperands(), caseop.getResult());
+    assert(succeeded(isInlined) &&
+           "unable to inline case of known constructor");
+
+    return success();
+  };
+};
+
+struct CaseOfBoxedApEager : public mlir::OpRewritePattern<CaseOp> {
+  CaseOfBoxedApEager(mlir::MLIRContext *context)
+  : OpRewritePattern<CaseOp>(context, /*benefit=*/1) {}
+
+
+  mlir::LogicalResult
+  matchAndRewrite(CaseOp caseop,
+                  mlir::PatternRewriter &rewriter) const override {
+    return failure();
+    assert(false && "case of boxed ap eager");
+  }
+};
+
 struct WorkerWrapperPass : public Pass {
   WorkerWrapperPass() : Pass(mlir::TypeID::get<WorkerWrapperPass>()){};
   StringRef getName() const override { return "WorkerWrapperPass"; }
@@ -442,6 +491,8 @@ struct WorkerWrapperPass : public Pass {
     // patterns.insert<OutlineUknownForcePattern>(&getContext());
     patterns.insert<OutlineRecursiveApEagerOfThunkPattern>(&getContext());
     patterns.insert<OutlineRecursiveApEagerOfConstructorPattern>(&getContext());
+    patterns.insert<CaseOfKnownConstructorPattern>(&getContext());
+    patterns.insert<CaseOfBoxedApEager>(&getContext());
 
     patterns.insert<InlineApEagerPattern>(&getContext());
 
