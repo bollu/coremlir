@@ -151,6 +151,7 @@ public:
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   Value getScrutinee() { this->getOperation()->getOperand(0); }
   int getNumAlts() { return this->getOperation()->getNumRegions(); }
+
   Region &getAltRHS(int i) { return this->getOperation()->getRegion(i); }
   Region &getDefaultRHS() {
     assert(this->getDefaultAltIndex().hasValue());
@@ -164,6 +165,14 @@ public:
         .get("alt" + std::to_string(i))
         .cast<FlatSymbolRefAttr>();
   }
+
+  Optional<int> getAltIndexForConstructor(llvm::StringRef constructorName) {
+      for(int i = 0; i < this->getNumAlts(); ++i) {
+        if(this->getAltLHS(i).getValue() == constructorName) { return i; }
+      }
+      return {};
+  };
+
 
   static const char *getCaseTypeKey() { return "constructorName"; }
   void print(OpAsmPrinter &p);
@@ -286,6 +295,8 @@ public:
   Region &getBody() { return this->getRegion(); }
 //  Block *getBodyBB() { return &this->getRegion().getBlocks().front(); }
   void print(OpAsmPrinter &p);
+  // MLIR TODO: expose this as part of the Callable interface.
+  int getNumArguments() { return this->getBody().getNumArguments(); }
   llvm::StringRef getFuncName();
   HaskFnType getFunctionType();
   Type getReturnType();
@@ -363,7 +374,8 @@ public:
   }
 
   StringRef getDataTypeName() {
-    return getAttrOfType<FlatSymbolRefAttr>(getDataTypeAttrName()).getValue();
+    ADTType adtty = this->getResult().getType().cast<ADTType>();
+    return adtty.getName().getValue();
   }
 
   int getNumOperands() { this->getOperation()->getNumOperands(); }

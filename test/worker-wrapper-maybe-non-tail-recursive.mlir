@@ -11,7 +11,7 @@
 // CHECK-WW: constructor(Just 42)
 // CHECK-WW: num_thunkify_calls(0)
 // CHECK-WW: num_force_calls(0)
-// CHECK-WW: num_construct_calls(76)
+// CHECK-WW: num_construct_calls(40)
 
 module {
   // should it be Attr Attr, with the "list" embedded as an attribute,

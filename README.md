@@ -25,7 +25,10 @@ Convert GHC Core to MLIR.
 - Next, I'm going to implement elimnating boxing. So I can 'unwrap' a function
   that uses `SimpleInt int#` (with no laziness, mind you, not `thunk<SimpleInt>`
   into a function that uses only a `int#`. Let's see how well this does.
-
+- MLIR TODO: Add `arg.getSingleUse()` API
+- MLIR TODO: Add `getNumArguments()` and `getArgument(int i)` API to any `callable`.
+- Consider making `case` a terminator of a block? Seems to make a lot of rewrites
+  way easier. Not sure.
 # Thursday, Oct 22nd
 
 - [GPU Outlining function](https://github.com/llvm/llvm-project/blob/366d8435b41dcc01013c507681523c65cdee2180/mlir/lib/Dialect/GPU/Transforms/KernelOutlining.cpp#L234)

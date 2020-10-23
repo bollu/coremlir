@@ -12,7 +12,7 @@
 // CHECK-WW: constructor(SimpleInt 42)
 // CHECK-WW: num_thunkify_calls(0)
 // CHECK-WW: num_force_calls(0)
-// CHECK-WW: num_construct_calls(7)
+// CHECK-WW: num_construct_calls(3)
 module {
   // should it be Attr Attr, with the "list" embedded as an attribute,
   // or should it be Attr [Attr]? Who really knows :(
