@@ -462,33 +462,6 @@ struct CaseOfKnownConstructorPattern : public mlir::OpRewritePattern<CaseOp> {
 
 struct CaseOfBoxedRecursiveApEager : public mlir::OpRewritePattern<CaseOp> {
   CaseOfBoxedRecursiveApEager(mlir::MLIRContext *context)
-  : OpRewritePattern<CaseOp>(context, /*benefit=*/1) {}
-
-
-  mlir::LogicalResult
-  matchAndRewrite(CaseOp caseop,
-                  mlir::PatternRewriter &rewriter) const override {
-
-    HaskFuncOp fn = caseop.getParentOfType<HaskFuncOp>();
-
-    // case(ap(..., ))
-    ApEagerOp apeager = caseop.getScrutinee().getDefiningOp<ApEagerOp>();
-    if (!apeager) { return failure(); }
-
-    HaskRefOp ref = apeager.getFn().getDefiningOp<HaskRefOp>();
-    if (!ref) { return failure(); }
-
-    if (ref.getRef() != fn.getName()) { return failure(); }
-
-    // figure out if the return value is always a `hask.construct(...)`
-    llvm::errs() << "====\n";
-    llvm::errs() << fn << "\n";
-    assert(false && "case of boxed recursive ap eager");
-  }
-};
-
-struct PeelCommonConstructorsInCase : public mlir::OpRewritePattern<CaseOp> {
-  PeelCommonConstructorsInCase(mlir::MLIRContext *context)
       : OpRewritePattern<CaseOp>(context, /*benefit=*/1) {}
 
   mlir::LogicalResult
@@ -499,10 +472,18 @@ struct PeelCommonConstructorsInCase : public mlir::OpRewritePattern<CaseOp> {
 
     // case(ap(..., ))
     ApEagerOp apeager = caseop.getScrutinee().getDefiningOp<ApEagerOp>();
-    if (!apeager) { return failure(); }
+    if (!apeager) {
+      return failure();
+    }
 
     HaskRefOp ref = apeager.getFn().getDefiningOp<HaskRefOp>();
-    if (!ref) { return failure(); }
+    if (!ref) {
+      return failure();
+    }
+
+    if (ref.getRef() != fn.getName()) {
+      return failure();
+    }
 
     // figure out if the return value is always a `hask.construct(...)`
     llvm::errs() << "====\n";
@@ -511,7 +492,71 @@ struct PeelCommonConstructorsInCase : public mlir::OpRewritePattern<CaseOp> {
   }
 };
 
+// Can be generalized?
+struct PeelCommonConstructorsInCase : public mlir::OpRewritePattern<CaseOp> {
+  PeelCommonConstructorsInCase(mlir::MLIRContext *context)
+      : OpRewritePattern<CaseOp>(context, /*benefit=*/1) {}
 
+  mlir::LogicalResult
+  matchAndRewrite(CaseOp caseop,
+                  mlir::PatternRewriter &rewriter) const override {
+
+    SmallVector<HaskReturnOp, 4> rets;
+    for (int i = 0; i < caseop.getNumAlts(); ++i) {
+      Region &r = caseop.getAltRHS(i);
+      r.walk([&](HaskReturnOp ret) { rets.push_back(ret); });
+    }
+    assert(rets.size() && "expected at least one return value");
+
+    SmallVector<HaskConstructOp, 4> retConstructs;
+
+    for (HaskReturnOp ret : rets) {
+      HaskConstructOp construct =
+          ret.getOperand().getDefiningOp<HaskConstructOp>();
+      if (!construct) {
+        return failure();
+      }
+      retConstructs.push_back(construct);
+    }
+
+    // TODO: this is too restrictive and will not work for Maybe! Need to
+    // encode things differently
+    for (int i = 0; i < retConstructs.size() - 1; ++i) {
+      if (retConstructs[i].getDataConstructorName() !=
+          retConstructs[i + 1].getDataConstructorName()) {
+        return failure();
+      }
+    }
+
+    // OK, we know everything we need to know.
+
+    // 1. Fix the returns by directly returning the thing the constructor is
+    //    wrapping..
+    for (int i = 0; i < rets.size(); ++i) {
+      assert(retConstructs[i].getNumOperands() == 1);
+      rets[i].setOperand(retConstructs[i].getOperand(0));
+      rewriter.eraseOp(rets[i]);
+    }
+
+    // 2. Create the peeled constructor
+    SmallVector<Location, 4> constructorLocs;
+    for (HaskConstructOp cons : retConstructs) {
+      constructorLocs.push_back(cons.getLoc());
+    }
+
+    rewriter.setInsertionPoint(caseop);
+
+    HaskConstructOp peeledConstructor = rewriter.create<HaskConstructOp>(
+        FusedLoc::get(constructorLocs, caseop.getContext()),
+        retConstructs[0].getDataConstructorName(),
+        retConstructs[0].getDataTypeName(),
+        caseop.getResult());
+
+    caseop.replaceAllUsesWith(peeledConstructor.getResult());
+
+    return success();
+  }
+};
 
 struct WorkerWrapperPass : public Pass {
   WorkerWrapperPass() : Pass(mlir::TypeID::get<WorkerWrapperPass>()){};
@@ -534,7 +579,8 @@ struct WorkerWrapperPass : public Pass {
     patterns.insert<CaseOfKnownConstructorPattern>(&getContext());
     patterns.insert<CaseOfBoxedRecursiveApEager>(&getContext());
     // change:
-    //   retval = case x of L1 -> { ...; return Foo(x1); } L2 -> { ...; return Foo(x2); }
+    //   retval = case x of L1 -> { ...; return Foo(x1); } L2 -> { ...; return
+    //   Foo(x2); }
     // into:
     //  v = case x of L1 -> { ...; return x1; } L2 -> { ...; return x2; };
     //  retval = Foo(v)

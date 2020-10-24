@@ -42,6 +42,9 @@ public:
   Value getInput() { return this->getOperation()->getOperand(0); }
   Type getType() { return this->getInput().getType(); }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                    Value v);
+
   void print(OpAsmPrinter &p);
 };
 
@@ -383,6 +386,12 @@ public:
   Operation::operand_range getOperands() { return this->getOperation()->getOperands(); }
   static ParseResult parse(OpAsmParser &parser, OperationState &result);
   void print(OpAsmPrinter &p);
+  static void build(mlir::OpBuilder &builder,
+                    mlir::OperationState &state,
+                    StringRef constructorName,
+                    StringRef ADTTypeName,
+                    ValueRange args);
+
   void
   getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
                  &effects) {}

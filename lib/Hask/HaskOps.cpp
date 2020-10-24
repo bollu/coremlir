@@ -68,6 +68,12 @@ ParseResult HaskReturnOp::parse(OpAsmParser &parser, OperationState &result) {
   return success();
 };
 
+void HaskReturnOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                  Value v) {
+    state.addOperands(v);
+    state.addTypes(v.getType());
+};
+
 void HaskReturnOp::print(OpAsmPrinter &p) {
   p << getOperationName() << "(" << getInput() << ")"
     << " : " << getInput().getType();
@@ -306,7 +312,8 @@ void ApEagerOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
   assert(params.size() == fnty.getInputTypes().size());
 
   for (int i = 0; i < params.size(); ++i) {
-    assert(params[i].getType() == fnty.getInputType(i) && "ApEagerOp argument type mismatch");
+    assert(params[i].getType() == fnty.getInputType(i) &&
+           "ApEagerOp argument type mismatch");
   }
 
   state.addOperands(params);
@@ -595,14 +602,12 @@ LogicalResult HaskRefOp::verify() {
   }
 }
 
-void HaskRefOp::build(mlir::OpBuilder &builder,
-                  mlir::OperationState &state,
-                  std::string refname,
-                  Type retty) {
-  state.addAttribute(::mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(refname));
+void HaskRefOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                      std::string refname, Type retty) {
+  state.addAttribute(::mlir::SymbolTable::getSymbolAttrName(),
+                     builder.getStringAttr(refname));
   state.addTypes(retty);
 }
-
 
 // === MakeString OP ===
 // === MakeString OP ===
@@ -650,7 +655,9 @@ ParseResult HaskFuncOp::parse(OpAsmParser &parser, OperationState &result) {
   SmallVector<Type, 4> argTys;
   Type retty;
 
-  if (parser.parseLParen()) { return failure(); }
+  if (parser.parseLParen()) {
+    return failure();
+  }
 
   if (succeeded(parser.parseOptionalRParen())) {
     // we have no params.
@@ -687,8 +694,8 @@ ParseResult HaskFuncOp::parse(OpAsmParser &parser, OperationState &result) {
   }
 
   // -> retty
-  if(parser.parseArrow() || parser.parseType(retty)) {
-      return failure();
+  if (parser.parseArrow() || parser.parseType(retty)) {
+    return failure();
   }
 
   //  result.add
@@ -701,26 +708,27 @@ ParseResult HaskFuncOp::parse(OpAsmParser &parser, OperationState &result) {
     return failure();
   }
 
-
-
   // result.addTypes(parser.getBuilder().getType<HaskFnType>(argTys, retty));
   return success();
 };
 
 Type HaskFuncOp::getReturnType() {
-    return this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey()).getValue();
+  return this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey())
+      .getValue();
 }
 
 HaskFnType HaskFuncOp::getFunctionType() {
-    SmallVector<Type, 4> argTys(this->getRegion().getArgumentTypes());
-    llvm::errs() << "attr: |" << this->getAttr(getReturnTypeAttributeKey()) << "|\n";
-    Type retty = this->getReturnType();
-    assert(this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey()) &&
-         "found return type attribute!");
-    assert(retty && "found return type!");
+  SmallVector<Type, 4> argTys(this->getRegion().getArgumentTypes());
+  llvm::errs() << "attr: |" << this->getAttr(getReturnTypeAttributeKey())
+               << "|\n";
+  Type retty = this->getReturnType();
+  assert(
+      this->getAttrOfType<TypeAttr>(HaskFuncOp::getReturnTypeAttributeKey()) &&
+      "found return type attribute!");
+  assert(retty && "found return type!");
 
-    llvm::errs() << "retty: |" << retty << "|\n";
-    return HaskFnType::get(this->getContext(), argTys, retty);
+  llvm::errs() << "retty: |" << retty << "|\n";
+  return HaskFnType::get(this->getContext(), argTys, retty);
 }
 
 void HaskFuncOp::print(OpAsmPrinter &p) {
@@ -765,18 +773,15 @@ bool HaskFuncOp::isRecursive() {
   return isrec;
 }
 
-void HaskFuncOp::build(mlir::OpBuilder &builder,
-                       mlir::OperationState &state,
-                       std::string FuncName,
-                       HaskFnType fntype) {
+void HaskFuncOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+                       std::string FuncName, HaskFnType fntype) {
 
   Region *r = state.addRegion();
   builder.createBlock(r, r->end(), fntype.getInputTypes());
   state.addAttribute(::mlir::SymbolTable::getSymbolAttrName(),
                      builder.getStringAttr(FuncName));
   state.addAttribute(HaskFuncOp::getReturnTypeAttributeKey(),
-                      mlir::TypeAttr::get(fntype.getResultType()));
-
+                     mlir::TypeAttr::get(fntype.getResultType()));
 }
 
 // === FORCE OP ===
@@ -961,6 +966,19 @@ void HaskConstructOp::print(OpAsmPrinter &p) {
   }
   p << ") : " << this->getOperation()->getResult(0).getType();
 }
+
+void HaskConstructOp::build(mlir::OpBuilder &builder,
+                            mlir::OperationState &state,
+                            StringRef constructorName,
+                            StringRef ADTTypeName,
+                            ValueRange args) {
+  state.addAttribute(HaskConstructOp::getDataConstructorAttrName(),
+                     FlatSymbolRefAttr::get(constructorName, builder.getContext()));
+  state.addOperands(args);
+  state.addTypes(ADTType::get(builder.getContext(),
+                              FlatSymbolRefAttr::get(ADTTypeName, builder.getContext())));
+
+};
 
 // === PRIMOP ADD OP ===
 // === PRIMOP ADD OP ===
@@ -1209,8 +1227,6 @@ Block *cloneBlockBefore(mlir::PatternRewriter &rewriter,
   return newbb;
 }
 
-
-
 // === LOWERING ===
 // === LOWERING ===
 // === LOWERING ===
@@ -1379,8 +1395,8 @@ public:
     // with synthetic names.
     assert(false);
     // 1 llvm::errs() << "running HaskFuncOpConversionPattern on: " <<
-    // op->getName() 1              << " | " << op->getLoc() << "\n"; 1 auto fn =
-    // cast<HaskFuncOp>(op); 1 LambdaOp lam = fn.getLambda();
+    // op->getName() 1              << " | " << op->getLoc() << "\n"; 1 auto fn
+    // = cast<HaskFuncOp>(op); 1 LambdaOp lam = fn.getLambda();
 
     // 1 SmallVector<LLVM::LLVMType, 4> fnArgTys;
     // 1 auto I8PtrTy = LLVMType::getInt8PtrTy(rewriter.getContext());
