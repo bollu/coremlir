@@ -535,7 +535,7 @@ struct PeelCommonConstructorsInCase : public mlir::OpRewritePattern<CaseOp> {
     for (int i = 0; i < rets.size(); ++i) {
       assert(retConstructs[i].getNumOperands() == 1);
       rets[i].setOperand(retConstructs[i].getOperand(0));
-      rewriter.eraseOp(rets[i]);
+      rewriter.eraseOp(retConstructs[i]);
     }
 
     // 2. Create the peeled constructor
@@ -544,7 +544,7 @@ struct PeelCommonConstructorsInCase : public mlir::OpRewritePattern<CaseOp> {
       constructorLocs.push_back(cons.getLoc());
     }
 
-    rewriter.setInsertionPoint(caseop);
+    rewriter.setInsertionPointAfter(caseop);
 
     HaskConstructOp peeledConstructor = rewriter.create<HaskConstructOp>(
         FusedLoc::get(constructorLocs, caseop.getContext()),
@@ -552,7 +552,18 @@ struct PeelCommonConstructorsInCase : public mlir::OpRewritePattern<CaseOp> {
         retConstructs[0].getDataTypeName(),
         caseop.getResult());
 
-    caseop.replaceAllUsesWith(peeledConstructor.getResult());
+    // Now walk all the uses of case other than the peeledConstructor
+    // and replace it with peeledConstructor
+    for (OpOperand &u : caseop.getResult().getUses()) {
+      if (u.getOwner() == peeledConstructor.getOperation()) {
+        continue;
+      }
+      u.getOwner()->replaceUsesOfWith(caseop.getResult(), peeledConstructor.getResult());
+    }
+
+    ModuleOp mod = caseop.getParentOfType<ModuleOp>();
+    llvm::errs() << mod << "\n";
+//    assert(false && "peled common constructor");
 
     return success();
   }
