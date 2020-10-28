@@ -1,6 +1,5 @@
 // RUN: ../build/bin/hask-opt %s  -interpret | FileCheck %s
-// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s || true
-// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
+// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -interpret |  FileCheck %s
 // CHECK: constructor(X 8)
 module {
   // hask.make_data_constructor @"+#"

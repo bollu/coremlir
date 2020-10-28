@@ -593,6 +593,12 @@ struct PeelCommonConstructorsInCase : public mlir::OpRewritePattern<CaseOp> {
         retConstructs[0].getDataTypeName(),
         caseop.getResult());
 
+
+    llvm::errs() << caseop << "\n";
+    llvm::errs() << caseop.getType() << "\n";
+    llvm::errs() << caseop.getResult().getType() << "\n";
+    llvm::errs() << peeledConstructor << "\n";
+    
     // Now walk all the uses of case other than the peeledConstructor
     // and replace it with peeledConstructor
     for (OpOperand &u : caseop.getResult().getUses()) {
@@ -604,7 +610,7 @@ struct PeelCommonConstructorsInCase : public mlir::OpRewritePattern<CaseOp> {
 
     ModuleOp mod = caseop.getParentOfType<ModuleOp>();
     llvm::errs() << mod << "\n";
-//    assert(false && "peled common constructor");
+    assert(false && "peled common constructor");
 
     return success();
   }
@@ -629,6 +635,7 @@ struct WorkerWrapperPass : public Pass {
     patterns.insert<OutlineRecursiveApEagerOfConstructorPattern>(&getContext());
     patterns.insert<CaseOfKnownConstructorPattern>(&getContext());
     patterns.insert<CaseOfBoxedRecursiveApWithFinalConstruct>(&getContext());
+
     // change:
     //   retval = case x of L1 -> { ...; return Foo(x1); } L2 -> { ...; return
     //   Foo(x2); }
@@ -636,7 +643,6 @@ struct WorkerWrapperPass : public Pass {
     //  v = case x of L1 -> { ...; return x1; } L2 -> { ...; return x2; };
     //  retval = Foo(v)
     patterns.insert<PeelCommonConstructorsInCase>(&getContext());
-
     patterns.insert<InlineApEagerPattern>(&getContext());
 
     llvm::errs() << "===Enabling Debugging...===\n";

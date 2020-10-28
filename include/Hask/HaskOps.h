@@ -356,6 +356,8 @@ public:
     HaskReturnOp ret =
         dyn_cast<HaskReturnOp>(r.getBlocks().front().getTerminator());
     assert(ret && "global does not have a return value");
+    llvm::errs() << "ret: " << ret << "\n";
+    assert(false && "case op's ret");
     return ret.getType();
   }
   llvm::StringRef getGlobalName();

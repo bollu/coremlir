@@ -2,6 +2,7 @@
 
 module {
   hask.func @prec {
+  ^bb0(%arg0: !hask.value):  // no predecessors
     %0 = hask.caseint %arg0 [0 : i64 ->  {
     ^bb0(%arg1: !hask.value):  // no predecessors
       hask.return(%arg1) : !hask.value

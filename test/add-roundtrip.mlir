@@ -3,6 +3,7 @@
 module {
   hask.adt @SimpleInt [#hask.data_constructor<@MkSimpleInt [@"Int#"]>]
   hask.func @plus {
+  ^bb0(%arg0: !hask.thunk<!hask.adt<@SimpleInt>>, %arg1: !hask.thunk<!hask.adt<@SimpleInt>>):  // no predecessors
     %0 = hask.force(%arg0):!hask.adt<@SimpleInt>
     %1 = hask.case @SimpleInt %0 [@SimpleInt ->  {
     ^bb0(%arg2: !hask.value):  // no predecessors

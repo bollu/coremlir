@@ -4,6 +4,7 @@ module {
   hask.adt @EitherBox [#hask.data_constructor<@Left [@Box]>, #hask.data_constructor<@Right [@Box]>]
   hask.adt @SimpleInt [#hask.data_constructor<@MkSimpleInt [@"Int#"]>]
   hask.func @extract {
+  ^bb0(%arg0: !hask.thunk<!hask.adt<@Either>>):  // no predecessors
     %0 = hask.force(%arg0):!hask.adt<@Either>
     %1 = hask.case @Either %0 [@Right ->  {
     ^bb0(%arg1: !hask.thunk<!hask.adt<@Either>>):  // no predecessors

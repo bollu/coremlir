@@ -2,10 +2,12 @@
 
 module {
   hask.func @k {
+  ^bb0(%arg0: !hask.thunk<!hask.value>, %arg1: !hask.thunk<!hask.value>):  // no predecessors
     %0 = hask.force(%arg0):!hask.value
     hask.return(%0) : !hask.value
   }
   hask.func @loop {
+  ^bb0(%arg0: !hask.thunk<!hask.value>):  // no predecessors
     %0 = hask.ref(@loop) : !hask.fn<(!hask.thunk<!hask.value>) -> !hask.value>
     %1 = hask.ap(%0 :!hask.fn<(!hask.thunk<!hask.value>) -> !hask.value>, %arg0)
     %2 = hask.force(%1):!hask.value

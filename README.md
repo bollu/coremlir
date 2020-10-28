@@ -25,6 +25,37 @@ Convert GHC Core to MLIR.
 # Log:  [newest] to [oldest]
 
 # Wednesday, Oct 28th
+- `PeelCommonConstructorsInCase` miscompiles `:(`
+
+- OK I am more and more sure that this is an MLIR bug. When I rewrite the IR,
+  the type of the result does not change?!
+- **Old**:
+
+- **New**: [It thinks the type is still `hask.adt`!]
+
+```
+%1 = hask.case @Maybe %0 [@Nothing ->  {
+  %3 = hask.make_i64(0 : i64)
+  hask.return(%3) : !hask.value
+}]
+ [@Just ->  {
+^bb0(%arg1: !hask.value):  // no predecessors
+  %3 = hask.make_i64(1 : i64)
+  hask.return(%3) : !hask.value
+}]
+
+!hask.adt<@Maybe>
+```
+
+- So it seems that `getType()` returns whatever the type was *at construction*.
+  So my semantics of the 'return type' of a `case` is actually based on what
+  the branches return. MLIR has no notion of this, though. So if you ever have
+  anything that returns, you should make the return type some kind of attribute,
+  and not *infer* it.
+- In fact, I'm not even sure that that suffices. I might have to build an entirely
+  new instruction just to fix the result type of the `case`?
+- This is beyond fucked. 
+
 
 # Friday, Oct 23rd
 

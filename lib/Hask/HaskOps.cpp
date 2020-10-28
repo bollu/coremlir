@@ -735,8 +735,17 @@ void HaskFuncOp::print(OpAsmPrinter &p) {
   p.printSymbolName(getFuncName());
   // Print the body if this is not an external function.
   Region &body = this->getRegion();
-  assert(!body.empty());
-  p.printRegion(body, /*printEntryBlockArgs=*/true,
+  p << "(";
+  for (int i = 0; i < body.getNumArguments(); ++i) {
+    p << body.getArgument(i) << " : " << body.getArgument(i).getType();
+    if (i + 1 < body.getNumArguments()) { p << ", "; }
+  }
+
+  p << ") -> ";
+  p << this->getReturnType();
+
+    assert(!body.empty());
+  p.printRegion(body, /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/true);
 }
 

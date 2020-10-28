@@ -2,6 +2,7 @@
 
 module {
   hask.func @fibstrict {
+  ^bb0(%arg0: !hask.value):  // no predecessors
     %0 = hask.caseint %arg0 [@default ->  {
       %1 = hask.ref(@fibstrict) : !hask.fn<(!hask.value) -> !hask.value>
       %2 = hask.make_i64(1 : i64)
