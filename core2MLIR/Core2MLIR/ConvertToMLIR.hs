@@ -11,11 +11,12 @@ import qualified BasicTypes as OccInfo (OccInfo(..), isStrongLoopBreaker)
 import qualified CoreSyn
 import CoreSyn (Expr(..), CoreExpr, Bind(..), CoreAlt, CoreBind, AltCon(..),)
 import TyCoRep as Type (Type(..))
-import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
-                   ($+$), hang, (<>), ($$), blankLine, lparen, rparen,
-                   lbrack, rbrack, pprWithCommas, empty, comma, renderWithStyle,
-                   defaultDumpStyle, punctuate, hsep, reallyAlwaysQualify,
-                   showSDocDump, showSDocDebug, initSDocContext, mkDumpStyle)
+import Outputable
+-- import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
+--                    ($+$), hang, (<>), ($$), blankLine, lparen, rparen,
+--                    lbrack, rbrack, pprWithCommas, empty, comma, renderWithStyle,
+--                    defaultDumpStyle, punctuate, hsep, reallyAlwaysQualify,
+--                    showSDocDump, showSDocDebug, initSDocContext, mkDumpStyle)
 import PprCore (pprCoreBindingsWithSize)
 import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
@@ -340,10 +341,10 @@ cvtLit l =
     case l of
 #if MIN_VERSION_ghc(8,8,0)
       Literal.LitChar x ->  ppr x
-      Literal.LitString x -> ppr x
+      Literal.LitString x -> pprHsBytes x
       Literal.LitNullAddr -> error $ "unknown: how to handle null addr cvtLit(Literal.LitNullAddr)?"
-      Literal.LitFloat x -> ppr x
-      Literal.LitDouble x -> ppr x
+      Literal.LitFloat x -> error "x" -- ppr x
+      Literal.LitDouble x -> rational x
       Literal.LitLabel x _ _ -> ppr $ unpackFS  x
       Literal.LitRubbish ->  error $ "unknown: how to handle null addr cvtLit(Literal.LitRubbish)?"
 #else
@@ -384,10 +385,10 @@ cvtAltLHSLit l =
     case l of
 #if MIN_VERSION_ghc(8,8,0)
       Literal.LitChar x ->  ppr x
-      Literal.LitString x -> ppr x
+      Literal.LitString x -> error "x" -- ppr x
       Literal.LitNullAddr -> error $ "unknown: how to handle null addr cvtLit(Literal.LitNullAddr)?"
-      Literal.LitFloat x -> ppr x
-      Literal.LitDouble x -> ppr x
+      Literal.LitFloat x -> error "x" -- ppr x
+      Literal.LitDouble x -> error "x" -- ppr x
       Literal.LitLabel x _ _ -> ppr $ unpackFS  x
       Literal.LitRubbish ->  error $ "unknown: how to handle null addr cvtLit(Literal.LitRubbish)?"
 #else
@@ -418,7 +419,6 @@ cvtAltLhs :: CoreSyn.AltCon -> SDoc
 cvtAltLhs (DataAlt altcon) = text "@" >< docDoubleQuote >< ppr (dataConName altcon) >< docDoubleQuote
 cvtAltLhs (LitAlt l)       = cvtAltLHSLit l
 cvtAltLhs DEFAULT          = text "\"default\""
-
 
 arrow :: SDoc; arrow = text "->"
 
@@ -462,7 +462,7 @@ cvtAltRHS wild bnds rhs = do
 -- TODO: add combinators to make this prettier. Something like 'builderSurround...'
 cvtAlt :: Wild -> CoreAlt -> Builder ()
 cvtAlt wild (lhs, bs, e) = do
- builderAppend $ lbrack >< cvtAltLhs lhs <+> arrow
+ builderAppend $ lbrack >< cvtAltLhs lhs <+> Outputable.arrow
  cvtAltRHS wild bs e
  builderAppend $ rbrack
  return ()
@@ -475,109 +475,109 @@ isCaseAltsOnlyDefault _ = Nothing
 
 
 flattenExpr :: CoreExpr -> Builder SSAName
-flattenExpr expr =
-  case expr of
-    Var x -> (cvtVar x)--return ((text"%") >< ppr x)
-    Lam param body -> do
-        i <- builderMakeUnique
-        let name_lambda = text $ "%lambda_" ++ show i
-        doc_param <- cvtVar param
-        builderAppend $ name_lambda <+> (text "=")  <+> text "hask.lambdaSSA(" >< doc_param >< (text ")") <+> (text "{")
-        return_body <- builderNest 2 $ flattenExpr body
-        builderAppend $ nest 2 $ (text "hask.return(") >< return_body >< (text ")")
-        builderAppend $ (text "}")
-        return name_lambda
-        
-     -- Builder $ \i0 ->
-     --  let (i1, name_body, preamble_body) = runBuilder_ (flattenExpr body) i0
-     --      name_lambda = text ("%lambda_" ++ show i1)
-     --      fulldoc =  (name_lambda) <+> (text "=") $$
-     --                     (nest 2 $ ((text "hask.lambdaSSA(") >< (cvtVar param) >< (text ")") <+> (text "{")) $$ 
-     --                        (nest 2 (preamble_body $+$ ((text "hask.return(") >< name_body >< (text ")")))) $$
-     --                        text "}")
-     --      in (i1+1, name_lambda, fulldoc)
-    Case scrutinee wild _ as -> do
-        name_scrutinee <- flattenExpr scrutinee
-        i <- builderMakeUnique
-        let name_case = text $ "%case_" ++ show i
-        case isCaseAltsOnlyDefault as of
-          Nothing -> do
-              builderAppend $ name_case <+> text "=" <+> text "hask.caseSSA " <+> name_scrutinee
-              forM_ as (cvtAlt (Wild wild))
-              return name_case
-          Just defaultExpr -> do
-              doc_wild <- cvtWild (Wild wild)
-              builderAppend $ doc_wild <+> text "=" <+> text "hask.force (" >< name_scrutinee >< text ")"
-              -- builderAppend $ doc_wild <+> text "=" <+> text "hask.copy (" >< name_scrutinee >< text ")"
-              name_rhs <- flattenExpr defaultExpr
-              return name_rhs
-      -- Builder $ \i0 -> 
-      --           let (i1, name_scrutinee, preamble_scrutinee) = runBuilder_ (flattenExpr scrutinee) i0
-      --               name_case = text ("%case_" ++ show i1) 
-      --               (i2, _, alts_doc) = runBuilder_ (forM_ as (cvtAlt (Wild wild))) i1
-      --               fulldoc = preamble_scrutinee $+$ 
-      --                       hang ((name_case <+>  (text "=") $+$ (nest 2 $ (text "hask.caseSSA") <+> name_scrutinee)))
-      --                             2
-      --                             alts_doc
-      --           in (i2+1, name_case, fulldoc)
-
-    App f x -> do
-        name_f <- flattenExpr f
-        name_x <- flattenExpr x
-        i <- builderMakeUnique
-        let name_app = text ("%app_" ++ show i) 
-        builderAppend $  (name_app <+> (text "=") <+> (text "hask.apSSA(") >< name_f >< comma <+> name_x >< (text ")")) 
-        return name_app
-    -- Builder $ \i0 ->
-    --  let (i1, name_f, preamble_f) = runBuilder_ (flattenExpr f) i0
-    --      (i2, name_x, preamble_x) = runBuilder_ (flattenExpr x) i1
-    --      name_app = text ("%app_" ++ show i2)
-    --      fulldoc = preamble_f $+$ preamble_x $+$ (name_app <+> (text " = ") <+> (text "hask.apSSA(") >< name_f >< comma <+> name_x >< (text ")"))
-    --  in (i2+1, name_app, fulldoc)
-    Lit l -> do
-        i <- builderMakeUnique
-        let name_lit = text $ "%lit_" ++ show i
-        builderAppend $ name_lit <+> (text "=") <+> cvtLit l
-        return name_lit  
-      -- Builder $ \i0 ->
-      --       let  name_lit = text $ "%lit_" ++ show i0
-      --           fulldoc =  name_lit <+> (text "=") <+>  cvtLit l
-      --       in (i0+1, name_lit, fulldoc)
-      -- return (text ("LITERAL"))
-    Type t -> do
-      i <- builderMakeUnique
-      let type_lit = text $ "%type_" ++ show i
-      builderAppend $ type_lit <+> (text "=") <+> (text "hask.make_string(\"TYPEINFO_ERASED\")")
-      return type_lit
-    -- Builder $ \i0 ->
-    --  let type_lit = text $ "%type_" ++ show i0 -- text $ "hask.make_string(\"TYPEINFO_ERASED\")" 
-    --      fulldoc = type_lit <+> (text " = ") <+> (text "hask.make_string(\"TYPEINFO_ERASED\")")
-    --  in (i0+1, type_lit, fulldoc)
-    -- return $ text  "hask.make_string(\"TYPEINFO_ERASED\")" -- (text ("TYPE"))
-    Tick _ e -> return (text ("TICK"))
-    Cast _ e -> return (text ("CAST"))
-
-   Let (NonRec b e) body -> do
-        i <- builderMakeUnique 
-        let name_unimpl = text ("%unimpl_let_nonrec" ++ show i)
-        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
-        return name_unimpl
-      
-   Let (Rec bs) body -> do 
-        i <- builderMakeUnique 
-        let name_unimpl = text ("%unimpl_let_rec" ++ show i)
-        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
-        return name_unimpl
-
-    _ -> do
-        i <- builderMakeUnique 
-        let name_unimpl = text ("%unimpl_" ++ show i)
-        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
-        return name_unimpl
-      -- Builder $ \i0 -> let name_unimpl = text ("%unimpl_" ++ show i0)
-      --                         fulldoc = name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)") 
-      --                   in (i0+1, name_unimpl, fulldoc)
-
+flattenExpr expr = error "flattenExpr"
+-- !  case expr of
+-- !    Var x -> (cvtVar x)--return ((text"%") >< ppr x)
+-- !    Lam param body -> do
+-- !        i <- builderMakeUnique
+-- !        let name_lambda = text $ "%lambda_" ++ show i
+-- !        doc_param <- cvtVar param
+-- !        builderAppend $ name_lambda <+> (text "=")  <+> text "hask.lambdaSSA(" >< doc_param >< (text ")") <+> (text "{")
+-- !        return_body <- builderNest 2 $ flattenExpr body
+-- !        builderAppend $ nest 2 $ (text "hask.return(") >< return_body >< (text ")")
+-- !        builderAppend $ (text "}")
+-- !        return name_lambda
+-- !        
+-- !     -- Builder $ \i0 ->
+-- !     --  let (i1, name_body, preamble_body) = runBuilder_ (flattenExpr body) i0
+-- !     --      name_lambda = text ("%lambda_" ++ show i1)
+-- !     --      fulldoc =  (name_lambda) <+> (text "=") $$
+-- !     --                     (nest 2 $ ((text "hask.lambdaSSA(") >< (cvtVar param) >< (text ")") <+> (text "{")) $$ 
+-- !     --                        (nest 2 (preamble_body $+$ ((text "hask.return(") >< name_body >< (text ")")))) $$
+-- !     --                        text "}")
+-- !     --      in (i1+1, name_lambda, fulldoc)
+-- !    Case scrutinee wild _ as -> do
+-- !        name_scrutinee <- flattenExpr scrutinee
+-- !        i <- builderMakeUnique
+-- !        let name_case = text $ "%case_" ++ show i
+-- !        case isCaseAltsOnlyDefault as of
+-- !          Nothing -> do
+-- !              builderAppend $ name_case <+> text "=" <+> text "hask.caseSSA " <+> name_scrutinee
+-- !              forM_ as (cvtAlt (Wild wild))
+-- !              return name_case
+-- !          Just defaultExpr -> do
+-- !              doc_wild <- cvtWild (Wild wild)
+-- !              builderAppend $ doc_wild <+> text "=" <+> text "hask.force (" >< name_scrutinee >< text ")"
+-- !              -- builderAppend $ doc_wild <+> text "=" <+> text "hask.copy (" >< name_scrutinee >< text ")"
+-- !              name_rhs <- flattenExpr defaultExpr
+-- !              return name_rhs
+-- !      -- Builder $ \i0 -> 
+-- !      --           let (i1, name_scrutinee, preamble_scrutinee) = runBuilder_ (flattenExpr scrutinee) i0
+-- !      --               name_case = text ("%case_" ++ show i1) 
+-- !      --               (i2, _, alts_doc) = runBuilder_ (forM_ as (cvtAlt (Wild wild))) i1
+-- !      --               fulldoc = preamble_scrutinee $+$ 
+-- !      --                       hang ((name_case <+>  (text "=") $+$ (nest 2 $ (text "hask.caseSSA") <+> name_scrutinee)))
+-- !      --                             2
+-- !      --                             alts_doc
+-- !      --           in (i2+1, name_case, fulldoc)
+-- !
+-- !    App f x -> do
+-- !        name_f <- flattenExpr f
+-- !        name_x <- flattenExpr x
+-- !        i <- builderMakeUnique
+-- !        let name_app = text ("%app_" ++ show i) 
+-- !        builderAppend $  (name_app <+> (text "=") <+> (text "hask.apSSA(") >< name_f >< comma <+> name_x >< (text ")")) 
+-- !        return name_app
+-- !    -- Builder $ \i0 ->
+-- !    --  let (i1, name_f, preamble_f) = runBuilder_ (flattenExpr f) i0
+-- !    --      (i2, name_x, preamble_x) = runBuilder_ (flattenExpr x) i1
+-- !    --      name_app = text ("%app_" ++ show i2)
+-- !    --      fulldoc = preamble_f $+$ preamble_x $+$ (name_app <+> (text " = ") <+> (text "hask.apSSA(") >< name_f >< comma <+> name_x >< (text ")"))
+-- !    --  in (i2+1, name_app, fulldoc)
+-- !    Lit l -> do
+-- !        i <- builderMakeUnique
+-- !        let name_lit = text $ "%lit_" ++ show i
+-- !        builderAppend $ name_lit <+> (text "=") <+> cvtLit l
+-- !        return name_lit  
+-- !      -- Builder $ \i0 ->
+-- !      --       let  name_lit = text $ "%lit_" ++ show i0
+-- !      --           fulldoc =  name_lit <+> (text "=") <+>  cvtLit l
+-- !      --       in (i0+1, name_lit, fulldoc)
+-- !      -- return (text ("LITERAL"))
+-- !    Type t -> do
+-- !      i <- builderMakeUnique
+-- !      let type_lit = text $ "%type_" ++ show i
+-- !      builderAppend $ type_lit <+> (text "=") <+> (text "hask.make_string(\"TYPEINFO_ERASED\")")
+-- !      return type_lit
+-- !    -- Builder $ \i0 ->
+-- !    --  let type_lit = text $ "%type_" ++ show i0 -- text $ "hask.make_string(\"TYPEINFO_ERASED\")" 
+-- !    --      fulldoc = type_lit <+> (text " = ") <+> (text "hask.make_string(\"TYPEINFO_ERASED\")")
+-- !    --  in (i0+1, type_lit, fulldoc)
+-- !    -- return $ text  "hask.make_string(\"TYPEINFO_ERASED\")" -- (text ("TYPE"))
+-- !    Tick _ e -> return (text ("TICK"))
+-- !    Cast _ e -> return (text ("CAST"))
+-- !
+-- !   Let (NonRec b e) body -> do
+-- !        i <- builderMakeUnique 
+-- !        let name_unimpl = text ("%unimpl_let_nonrec" ++ show i)
+-- !        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
+-- !        return name_unimpl
+-- !      
+-- !   Let (Rec bs) body -> do 
+-- !        i <- builderMakeUnique 
+-- !        let name_unimpl = text ("%unimpl_let_rec" ++ show i)
+-- !        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
+-- !        return name_unimpl
+-- !
+-- !   _ -> do
+-- !        i <- builderMakeUnique 
+-- !        let name_unimpl = text ("%unimpl_" ++ show i)
+-- !        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
+-- !        return name_unimpl
+-- !      -- Builder $ \i0 -> let name_unimpl = text ("%unimpl_" ++ show i0)
+-- !      --                         fulldoc = name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)") 
+-- !      --                   in (i0+1, name_unimpl, fulldoc)
+-- !
 -- instantiates an expression, giving it a name and an SDoc that needs to be pasted above it.
 -- TODO: we need a monad here to allow us to build an AST while returning a variable name.
 
