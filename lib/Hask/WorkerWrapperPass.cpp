@@ -106,6 +106,10 @@ struct OutlineUknownForcePattern : public mlir::OpRewritePattern<ForceOp> {
     // region that is dominated by the BB that `force` lives in.
     // For now, approximate.
     if (force.getOperation()->getBlock() != &force.getParentRegion()->front()) {
+      ModuleOp mod = force.getParentOfType<ModuleOp>();
+      llvm::errs() << "\n=====\n";
+      llvm::errs() << mod;
+      llvm::errs() << "\n=====\n";
       assert(false && "force not in entry BB");
       return failure();
     }
@@ -460,8 +464,25 @@ struct CaseOfKnownConstructorPattern : public mlir::OpRewritePattern<CaseOp> {
   };
 };
 
-struct CaseOfBoxedRecursiveApEager : public mlir::OpRewritePattern<CaseOp> {
-  CaseOfBoxedRecursiveApEager(mlir::MLIRContext *context)
+// @f {
+//   x = ...
+//    ybox = apEager(@f, x);
+//    z = case ybox of { Box y -> g(y); };
+//    return construct(Box, z)
+// }
+// Convert to:
+// @funbox {
+//  ...
+//   return z
+// }
+// @f {
+//  y = apEager(@funbox, x)
+//  z = g(y)
+// return construct(Box, z)
+// }
+struct CaseOfBoxedRecursiveApWithFinalConstruct
+    : public mlir::OpRewritePattern<CaseOp> {
+  CaseOfBoxedRecursiveApWithFinalConstruct(mlir::MLIRContext *context)
       : OpRewritePattern<CaseOp>(context, /*benefit=*/1) {}
 
   mlir::LogicalResult
@@ -486,6 +507,26 @@ struct CaseOfBoxedRecursiveApEager : public mlir::OpRewritePattern<CaseOp> {
     }
 
     // figure out if the return value is always a `hask.construct(...)`
+    // TODO: generalize
+    if (fn.getBody().getBlocks().size() != 1)  { return failure(); }
+
+    // find the return operations
+    HaskReturnOp ret = dyn_cast<HaskReturnOp>(fn.getBody().getBlocks().front().getTerminator());
+    if (!ret) { return failure(); }
+
+    HaskConstructOp construct = ret.getOperand().getDefiningOp<HaskConstructOp>();
+    if (!construct) { return failure(); }
+
+
+
+    ModuleOp mod = fn.getParentOfType<ModuleOp>();
+    llvm::errs() << "\n=====\n";
+    llvm::errs() << mod;
+    llvm::errs() << "\n=====\n";
+
+
+    assert(false);
+
     llvm::errs() << "====\n";
     llvm::errs() << fn << "\n";
     assert(false && "case of boxed recursive ap eager");
@@ -584,11 +625,10 @@ struct WorkerWrapperPass : public Pass {
     mlir::OwningRewritePatternList patterns;
     patterns.insert<ForceOfKnownApPattern>(&getContext());
     patterns.insert<ForceOfThunkifyPattern>(&getContext());
-    // patterns.insert<OutlineUknownForcePattern>(&getContext());
     patterns.insert<OutlineRecursiveApEagerOfThunkPattern>(&getContext());
     patterns.insert<OutlineRecursiveApEagerOfConstructorPattern>(&getContext());
     patterns.insert<CaseOfKnownConstructorPattern>(&getContext());
-    patterns.insert<CaseOfBoxedRecursiveApEager>(&getContext());
+    patterns.insert<CaseOfBoxedRecursiveApWithFinalConstruct>(&getContext());
     // change:
     //   retval = case x of L1 -> { ...; return Foo(x1); } L2 -> { ...; return
     //   Foo(x2); }

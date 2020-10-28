@@ -677,12 +677,11 @@ ParseResult HaskFuncOp::parse(OpAsmParser &parser, OperationState &result) {
         return failure();
       }
       argTys.push_back(argType);
-
       if (!(argType.isa<ThunkType>() || argType.isa<ValueType>() ||
-            argType.isa<HaskFnType>())) {
+            argType.isa<HaskFnType>() || argType.isa<ADTType>())) {
         return parser.emitError(
             arg.location,
-            "argument must either ValueType, ThunkType, or HaskFnType");
+            "argument must either ValueType, ThunkType, ADTType, or HaskFnType");
       }
 
       if (succeeded(parser.parseOptionalRParen())) {

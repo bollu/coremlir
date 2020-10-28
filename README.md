@@ -15,8 +15,16 @@ Convert GHC Core to MLIR.
   file.
 - IORefs are bad.
 
+# TODO:
+- Fix MLIR bugs.
+- Refactor to make type annotations less annoying. In particular, `ap`
+  should not need type of function, only type of arguments and return type
+- Remove the `hask.primop_*`. It's useless. Just use native `int`s.
+
 
 # Log:  [newest] to [oldest]
+
+# Wednesday, Oct 28th
 
 # Friday, Oct 23rd
 
