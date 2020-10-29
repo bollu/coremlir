@@ -26,6 +26,42 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Thursday, Oct 29th
+
+- Email arnaud, we're talking Nov 10th, maybe? He's busy because of his
+  haskell exchange talk. Until then, I can shore up my code and implement
+  things properly.
+- Getting a generic MLIR printer infrastructure up in Haskell. Will use it for
+  my GHC plugin, as well as to optimize cherry picked examples from `Data.Vector.Unboxed`
+- I maybe able to perform [`freeJIT`](https://github.com/bollu/freejit) now that MLIR exists!
+
+```
+
+module {
+  hask.func @two() -> !hask.adt<@SimpleInt> {
+    %0 = "hask.make_i64"() {value = 2 : i64} : () -> !hask.value
+    %1 = "hask.construct"(%0) {dataconstructor = @SimpleInt} : (!hask.value) -> !hask.adt<@SimpleInt>
+    "hask.return"(%1) : (!hask.adt<@SimpleInt>) -> ()
+  }
+  hask.func @main(%arg0 : !hask.adt<@SimpleInt>, %arg1 : !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt> {
+    %0 = "hask.make_i64"() {value = 0 : i64} : () -> !hask.value
+    %1 = "hask.case"(%arg0) ( {
+    ^bb0(%arg2: !hask.value):  // no predecessors
+      %4 = "hask.force"(%arg1) : (!hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt>
+      %5 = "hask.make_i64"() {value = 43 : i64} : () -> !hask.value
+      "hask.return"(%5) : (!hask.value) -> ()
+    },  {
+      %4 = "hask.make_i64"() {value = 42 : i64} : () -> !hask.value
+      "hask.return"(%4) : (!hask.value) -> ()
+    }) {alt0 = @SimpleInt, alt1 = @default, constructorName = @SimpleInt} : (!hask.adt<@SimpleInt>) -> !hask.value
+    %2 = "hask.ref"() {sym_name = "two"} : () -> !hask.fn<() -> !hask.adt<@SimpleInt>>
+    %3 = "hask.ap"(%2) : (!hask.fn<() -> !hask.adt<@SimpleInt>>) -> !hask.thunk<!hask.adt<@SimpleInt>>
+    "hask.return"(%1) : (!hask.value) -> ()
+  }
+}
+```
+
+
 # Wednesday, Oct 28th
 - `PeelCommonConstructorsInCase` miscompiles `:(`
 
