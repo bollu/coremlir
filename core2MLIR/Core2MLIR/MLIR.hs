@@ -1,4 +1,6 @@
 -- | https://github.com/llvm/llvm-project/blob/master/mlir/docs/LangRef.md
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module Core2MLIR.MLIR where
 import qualified Data.List.NonEmpty as NE
 import Outputable as O
@@ -78,7 +80,9 @@ newtype SuffixId = SuffixId String
 -- dependent-attribute-name ::= ((letter|[_]) (letter|digit|[_$])*)
 --                            | string-literal
 type AttributeName = String
-data AttributeDict = AttributeDict [(AttributeName, AttributeValue)]
+data AttributeDict = AttributeDict [(AttributeName, AttributeValue)] 
+  deriving(Monoid, Semigroup)
+
 
 -- attribute-value ::= attribute-alias | dialect-attribute | standard-attribute
 -- standard-attribute ::=   affine-map-attribute
@@ -103,12 +107,16 @@ data AttributeValue = AttributeSymbolRef SymbolRefId | AttributeString String | 
 --                       (`(` region-list `)`)? attribute-dict? `:` function-type
 data Operation = 
   Operation { opname :: String, 
-                     opvals :: ValueUseList, 
-                     opsuccs :: SuccessorList, 
-                     opregions :: RegionList,
-                     opattrs :: AttributeDict,
-                     opty :: FunctionType
-                    }
+              opvals :: ValueUseList, 
+              opsuccs :: SuccessorList, 
+              opregions :: RegionList,
+              opattrs :: AttributeDict,
+              opty :: FunctionType
+            }
+-- | default operation.
+defaultop :: Operation
+defaultop = Operation "DEFAULTOP" (ValueUseList []) SuccessorList (RegionList [])  (AttributeDict []) defaultFunctionType
+
 
 
 -- // MLIR functions can return multiple values.
@@ -116,7 +124,11 @@ data Operation =
 --                        | non-function-type
 -- 
 -- function-type ::= type-list-parens `->` function-result-type
-type FunctionType = ([Type], Type)
+data FunctionType = FunctionType { paramtys :: [Type], rettys :: [Type] }
+
+-- | default function type
+defaultFunctionType :: FunctionType; defaultFunctionType = FunctionType [] []
+
 -- type ::= type-alias | dialect-type | standard-type
 -- standard-type ::=     complex-type
 --                     | float-type

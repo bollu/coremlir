@@ -2,8 +2,8 @@ module Core2MLIR.HaskMLIR where
 import Core2MLIR.MLIR
 import Outputable
 
-fn :: ([(SSAId, Type)], Type) -> Region -> Operation
-fn = undefined
+fn :: ([Type], [Type]) -> Region -> Operation
+fn (paramtys, retty) r = defaultop { opty = FunctionType paramtys retty, opregions = RegionList [r] }
 
 -- make fib
 ex1 :: SDoc

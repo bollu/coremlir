@@ -32,7 +32,8 @@ library
                        ghc,
                        directory,
                        serialise,
-                       containers
+                       containers,
+                       mtl
 
                        -- , ansi-wl-pprint
   default-language:    Haskell2010
