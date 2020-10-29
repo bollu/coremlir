@@ -9,7 +9,7 @@ import Outputable as O
 newtype BareId = BareId String
 
 instance Outputable BareId where
-  ppr (BareId x) = ppr x
+  ppr (BareId x) = text x
 
 -- bare-id-list ::= bare-id (`,` bare-id)*
 -- ssa-id ::= `%` suffix-id
@@ -17,13 +17,13 @@ instance Outputable BareId where
 data SSAId = SSAId String
 
 instance Outputable SSAId where
-  ppr (SSAId x) = ppr ('%':x)
+  ppr (SSAId x) = text ('%':x)
 
 -- symbol-ref-id ::= `@` (suffix-id | string-literal)
 data SymbolRefId = SymbolRefId String
 
 instance Outputable SymbolRefId where
-  ppr (SymbolRefId x) = ppr ('@':x)
+  ppr (SymbolRefId x) = text ('@':x)
 -- operation
 -- region ::= `{` block* `}`
 newtype Region = Region [Block]
@@ -56,7 +56,7 @@ type BlockArgList = [(SSAId, Type)]-- [(ValueId, Type)]
 -- caret-id        ::= `^` suffix-id
 newtype BlockId = BlockId String -- BlockId SuffixId 
 instance Outputable BlockId where
-  ppr (BlockId x) = ppr ('^':x)
+  ppr (BlockId x) = text ('^':x)
 -- suffix-id ::= (digit+ | ((letter|id-punct) (letter|id-punct|digit)*))
 newtype SuffixId = SuffixId String
 
@@ -162,7 +162,7 @@ newtype ValueUseList = ValueUseList [SSAId] -- [ValueId]
 -- dialect-namespace ::= bare-id
 newtype DialectNamespace = DialectNamespace String
 instance Outputable DialectNamespace where 
-  ppr (DialectNamespace x) = ppr x
+  ppr (DialectNamespace x) = text x
 -- opaque-dialect-item ::= dialect-namespace '<' string-literal '>'
 -- pretty-dialect-item ::= dialect-namespace '.' pretty-dialect-item-lead-ident
 --                                               pretty-dialect-item-body?
@@ -177,3 +177,6 @@ instance Outputable DialectNamespace where
 -- dialect-type ::= '!' opaque-dialect-item
 -- dialect-type ::= '!' pretty-dialect-item
 data DialectType = DialectType  DialectNamespace String
+
+-- showSDocUnsafe :: SDoc -> String
+
