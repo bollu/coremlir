@@ -2,6 +2,7 @@
 
 Core plugin to convert Core into MLIR.
 
+- [GHC 8.10](https://github.com/ghc/ghc/tree/ghc-8.10)
 - [ANF](https://gitlab.haskell.org/ghc/ghc/blob/master/compiler/GHC/CoreToStg/Prep.hs)
 
 

@@ -36,14 +36,15 @@ Convert GHC Core to MLIR.
 - I maybe able to perform [`freeJIT`](https://github.com/bollu/freejit) now that MLIR exists!
 
 ```
-
 module {
-  hask.func @two() -> !hask.adt<@SimpleInt> {
+  "hask.func"() ( {
     %0 = "hask.make_i64"() {value = 2 : i64} : () -> !hask.value
     %1 = "hask.construct"(%0) {dataconstructor = @SimpleInt} : (!hask.value) -> !hask.adt<@SimpleInt>
     "hask.return"(%1) : (!hask.adt<@SimpleInt>) -> ()
-  }
-  hask.func @main(%arg0 : !hask.adt<@SimpleInt>, %arg1 : !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt> {
+  }) {retty = !hask.adt<@SimpleInt>, sym_name = "two"} : () -> ()
+
+  "hask.func"() ( {
+  ^bb0(%arg0: !hask.adt<@SimpleInt>, %arg1: !hask.thunk<!hask.adt<@SimpleInt>>):  // no predecessors
     %0 = "hask.make_i64"() {value = 0 : i64} : () -> !hask.value
     %1 = "hask.case"(%arg0) ( {
     ^bb0(%arg2: !hask.value):  // no predecessors
@@ -57,7 +58,7 @@ module {
     %2 = "hask.ref"() {sym_name = "two"} : () -> !hask.fn<() -> !hask.adt<@SimpleInt>>
     %3 = "hask.ap"(%2) : (!hask.fn<() -> !hask.adt<@SimpleInt>>) -> !hask.thunk<!hask.adt<@SimpleInt>>
     "hask.return"(%1) : (!hask.value) -> ()
-  }
+  }) {retty = !hask.adt<@SimpleInt>, sym_name = "main"} : () -> ()
 }
 ```
 

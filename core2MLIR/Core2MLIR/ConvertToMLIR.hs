@@ -498,10 +498,63 @@ builderMakeUniqueSSAId = do
   put (i + 1)
   return (MLIR.SSAId (show i))
 
+codegenAltLHSLit :: Literal -> MLIR.AttributeValue
+codegenAltLHSLit l =
+    case l of
+      -- Literal.LitNumber numty n _ ->
+      --   case numty of
+      --     Literal.LitNumInt -> MLIR.AttributeInteger n
+      --     Literal.LitNumInt64 -> ppr n
+      --     Literal.LitNumWord -> ppr n
+      --     Literal.LitNumWord64 -> ppr n
+      --     Literal.LitNumInteger -> ppr n
+      --     Literal.LitNumNatural -> ppr n
+      Literal.LitString s    -> MLIR.AttributeString (BS.unpack s)
+      Literal.LitNumber _ i _ ->  MLIR.AttributeInteger i
+      -- Literal.LitChar x ->  ppr x
+      -- Literal.LitString x -> error "x" -- ppr x
+      -- Literal.LitNullAddr -> error $ "unknown: how to handle null addr cvtLit(Literal.LitNullAddr)?"
+      -- Literal.LitFloat x -> error "x" -- ppr x
+      -- Literal.LitDouble x -> error "x" -- ppr x
+      -- Literal.LitLabel x _ _ -> ppr $ unpackFS  x
+      -- Literal.LitRubbish ->  error $ "unknown: how to handle null addr cvtLit(Literal.LitRubbish)?"
+      -- Literal.LitInteger x _ -> ppr x
+
+codegenAltLhs :: CoreSyn.AltCon -> MLIR.AttributeValue
+codegenAltLhs (DataAlt altcon) =  MLIR.AttributeSymbolRef (MLIR.SymbolRefId (nameStableString (dataConName altcon)))
+codegenAltLhs (LitAlt l)       = codegenAltLHSLit l
+codegenAltLhs DEFAULT          = MLIR.AttributeSymbolRef (MLIR.SymbolRefId "default") -- text "\"default\""
+
+
+-- cvtAltRHS :: Wild -> [Var] -> CoreExpr -> Builder ()
+-- cvtAltRHS wild bnds rhs = do
+--     doc_wild <- cvtWild wild
+--     doc_binds <- traverse cvtVar bnds
+--     let params = hsep $ punctuate comma $ (doc_wild >< text ": !hask.untyped"):[b >< text ": !hask.untyped" | b <- doc_binds] 
+--     builderAppend $ text  "{"
+--     builderAppend $ text "^entry(" >< params >< text "):"
+--     -- | TODO: we need a way to nest stuff
+--     name_rhs <- builderNest 2 $ flattenExpr rhs
+--     builderAppend $ (text "hask.return(") >< name_rhs >< (text ")")
+--     builderAppend $ text "}"
+--     return ()
+
+-- type Alt b = (AltCon, [b], Expr b)
+-- |
+-- | data AltCon
+-- |   = DataAlt DataCon   --  ^ A plain data constructor: @case e of { Foo x -> ... }@.
+-- |                       -- Invariant: the 'DataCon' is always from a @data@ type, and never from a @newtype@
+-- |   | LitAlt  Literal   -- ^ A literal: @case e of { 1 -> ... }@
+-- |                       -- Invariant: always an *unlifted* literal
+-- |                       -- See Note [Literal alternatives]
+-- |   | DEFAULT           -- ^ Trivial alternative: @case e of { _ -> ... }@
+-- |    deriving (Eq, Data)
+
 -- | int is the index, Var is the variable
 -- return: attribute dict is LHS, region is RHS
 codegenAlt' :: Wild -> (Int, CoreAlt) -> State Int (MLIR.AttributeDict, MLIR.Region)
-codegenAlt' = undefined
+codegenAlt' (Wild w) (i, (lhs, binds, rhs)) =  pure 
+  (MLIR.AttributeDict [("alt" ++ show i, codegenAltLhs lhs)], error "foo")
 
 codegenExpr' :: CoreExpr -> State Int ([MLIR.Operation], MLIR.SSAId)
 codegenExpr' (Var x) = return ([], MLIR.SSAId (nameStableString . varName $ x))
