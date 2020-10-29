@@ -69,13 +69,14 @@ ParseResult HaskReturnOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void HaskReturnOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                  Value v) {
-    state.addOperands(v);
-    state.addTypes(v.getType());
+                         Value v) {
+  state.addOperands(v);
+  state.addTypes(v.getType());
 };
 
 void HaskReturnOp::print(OpAsmPrinter &p) {
-  p.printGenericOp(this->getOperation()); return;
+  p.printGenericOp(this->getOperation());
+  return;
   p << getOperationName() << "(" << getInput() << ")"
     << " : " << getInput().getType();
 };
@@ -106,7 +107,8 @@ ParseResult MakeI64Op::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void MakeI64Op::print(OpAsmPrinter &p) {
-  p.printGenericOp(this->getOperation()); return;
+  p.printGenericOp(this->getOperation());
+  return;
   p << getOperationName() << "(" << getValue() << ")";
 };
 
@@ -206,7 +208,8 @@ ParseResult ApOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void ApOp::print(OpAsmPrinter &p) {
-  p.printGenericOp(this->getOperation()); return;
+  p.printGenericOp(this->getOperation());
+  return;
 
   p << getOperationName() << "(";
   p << this->getFn() << " :" << this->getFn().getType();
@@ -382,7 +385,8 @@ ParseResult CaseOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void CaseOp::print(OpAsmPrinter &p) {
-  p.printGenericOp(this->getOperation()); return;
+  p.printGenericOp(this->getOperation());
+  return;
   p << getOperationName() << " ";
   // p << "[ " << this->getOperation()->getNumOperands() << " | " <<
   // this->getNumAlts() << "] "; p << this->getOperation()->getOperand(0);
@@ -561,7 +565,8 @@ ParseResult HaskRefOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void HaskRefOp::print(OpAsmPrinter &p) {
-  p.printGenericOp(this->getOperation()); return;
+  p.printGenericOp(this->getOperation());
+  return;
   p << getOperationName() << "(";
   p.printSymbolName(this->getRef());
   p << ")"
@@ -685,9 +690,9 @@ ParseResult HaskFuncOp::parse(OpAsmParser &parser, OperationState &result) {
       argTys.push_back(argType);
       if (!(argType.isa<ThunkType>() || argType.isa<ValueType>() ||
             argType.isa<HaskFnType>() || argType.isa<ADTType>())) {
-        return parser.emitError(
-            arg.location,
-            "argument must either ValueType, ThunkType, ADTType, or HaskFnType");
+        return parser.emitError(arg.location,
+                                "argument must either ValueType, ThunkType, "
+                                "ADTType, or HaskFnType");
       }
 
       if (succeeded(parser.parseOptionalRParen())) {
@@ -737,6 +742,8 @@ HaskFnType HaskFuncOp::getFunctionType() {
 }
 
 void HaskFuncOp::print(OpAsmPrinter &p) {
+  p.printGenericOp(this->getOperation());
+  return;
   p << "hask.func" << ' ';
   p.printSymbolName(getFuncName());
   // Print the body if this is not an external function.
@@ -744,13 +751,15 @@ void HaskFuncOp::print(OpAsmPrinter &p) {
   p << "(";
   for (int i = 0; i < body.getNumArguments(); ++i) {
     p << body.getArgument(i) << " : " << body.getArgument(i).getType();
-    if (i + 1 < body.getNumArguments()) { p << ", "; }
+    if (i + 1 < body.getNumArguments()) {
+      p << ", ";
+    }
   }
 
   p << ") -> ";
   p << this->getReturnType();
 
-    assert(!body.empty());
+  assert(!body.empty());
   p.printRegion(body, /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/true);
 }
@@ -823,7 +832,8 @@ ParseResult ForceOp::parse(OpAsmParser &parser, OperationState &result) {
 };
 
 void ForceOp::print(OpAsmPrinter &p) {
-  p.printGenericOp(this->getOperation()); return;
+  p.printGenericOp(this->getOperation());
+  return;
   p << "hask.force(" << this->getScrutinee() << ")"
     << ":" << this->getResult().getType();
 };
@@ -966,7 +976,8 @@ ParseResult HaskConstructOp::parse(OpAsmParser &parser,
 }
 
 void HaskConstructOp::print(OpAsmPrinter &p) {
-    p.printGenericOp(this->getOperation()); return;
+  p.printGenericOp(this->getOperation());
+  return;
 
   p << this->getOperationName();
   p << "(";
@@ -986,15 +997,15 @@ void HaskConstructOp::print(OpAsmPrinter &p) {
 
 void HaskConstructOp::build(mlir::OpBuilder &builder,
                             mlir::OperationState &state,
-                            StringRef constructorName,
-                            StringRef ADTTypeName,
+                            StringRef constructorName, StringRef ADTTypeName,
                             ValueRange args) {
-  state.addAttribute(HaskConstructOp::getDataConstructorAttrName(),
-                     FlatSymbolRefAttr::get(constructorName, builder.getContext()));
+  state.addAttribute(
+      HaskConstructOp::getDataConstructorAttrName(),
+      FlatSymbolRefAttr::get(constructorName, builder.getContext()));
   state.addOperands(args);
-  state.addTypes(ADTType::get(builder.getContext(),
-                              FlatSymbolRefAttr::get(ADTTypeName, builder.getContext())));
-
+  state.addTypes(
+      ADTType::get(builder.getContext(),
+                   FlatSymbolRefAttr::get(ADTTypeName, builder.getContext())));
 };
 
 // === PRIMOP ADD OP ===
