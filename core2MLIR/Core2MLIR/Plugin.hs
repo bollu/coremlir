@@ -18,7 +18,7 @@ import System.Directory
 import System.IO (withFile, IOMode(..))
 import System.Exit(exitSuccess)
 
-import Core2MLIR.Convert
+import Core2MLIR.ConvertToCoreReference
 import Core2MLIR.ConvertToMLIR
 
 plugin :: Plugin
@@ -73,7 +73,7 @@ dumpIntersperse dflags n phase guts = do
     showPass dflags $ "===GhcDump: Dumping core to "++fname++"==="
     let in_dump_dir = maybe id (</>) (dumpDir dflags)
     createDirectoryIfMissing True $ takeDirectory $ in_dump_dir fname
-    BSL.writeFile (in_dump_dir fname) $ Ser.serialise (cvtModule phase guts)
+    BSL.writeFile (in_dump_dir fname) $ Ser.serialise (cvtModuleToCore phase guts)
     return guts
 
 

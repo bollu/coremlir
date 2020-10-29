@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP #-}
-module Core2MLIR.Convert where
+module Core2MLIR.ConvertToCoreReference where
 
 import Data.Bifunctor
 import qualified Data.Text as T
@@ -234,8 +234,8 @@ cvtLit l =
       Literal.LitInteger x _ -> Ast.LitInteger x
 #endif
 
-cvtModule :: String -> ModGuts -> Ast.SModule
-cvtModule phase guts =
+cvtModuleToCore :: String -> ModGuts -> Ast.SModule
+cvtModuleToCore phase guts =
     Ast.Module name (T.pack phase) (map cvtTopBind $ mg_binds guts)
   where name = cvtModuleName $ Module.moduleName $ mg_module guts
 

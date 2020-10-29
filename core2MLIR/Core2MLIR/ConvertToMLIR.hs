@@ -44,9 +44,7 @@ type SSAName = SDoc
 type PossibleRecursiveVar = Var
 
 -- | monad instance
-data Builder a = Builder { 
-  runBuilder_ :: (Int, S.Set PossibleRecursiveVar) -> ((Int, S.Set PossibleRecursiveVar), a, SDoc)
- --, recnames :: S.Set String }
+data Builder a = Builder { runBuilder_ :: (Int, S.Set PossibleRecursiveVar) -> ((Int, S.Set PossibleRecursiveVar), a, SDoc) } -- , recnames :: S.Set String }
 
 runBuilder :: Builder () -> SDoc
 runBuilder b = let (_, _, doc) = runBuilder_ b (0, S.empty) in doc

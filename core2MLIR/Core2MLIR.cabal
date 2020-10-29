@@ -16,8 +16,11 @@ build-type:          Simple
 
 library
   exposed-modules:     Core2MLIR.MLIR, Core2MLIR.Plugin, 
-                       Core2MLIR.Ast, Core2MLIR.Convert,
-                       Core2MLIR.ConvertToMLIR, Core2MLIR.HaskMLIR
+                       Core2MLIR.Ast, 
+                       Core2MLIR.ConvertToCoreReference,
+                       -- Core2MLIR.Convert,
+                       Core2MLIR.ConvertToMLIR,
+                       Core2MLIR.HaskMLIR
   ghc-options:         -Wall
   other-extensions:    GeneralizedNewtypeDeriving
  -- base >=4.8 && <4.15,
