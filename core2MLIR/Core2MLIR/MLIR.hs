@@ -39,6 +39,9 @@ instance Outputable SymbolRefId where
 -- region ::= `{` block* `}`
 newtype Region = Region [Block]
 
+defaultRegion :: Region
+defaultRegion = Region []
+
 instance Outputable Region where
   ppr (Region bs) = lbrace <+> nest 4 (vcat (map ppr bs)) <+> rbrace
  

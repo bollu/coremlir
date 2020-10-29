@@ -180,7 +180,7 @@ cvtDataConToMLIR dc = builderAppend $ text"// ***NOT HASKELL 98!***"
 
 
 
-cvtTyConToMLIR :: TyCon -> Builder()
+cvtTyConToMLIR :: TyCon -> Builder ()
 cvtTyConToMLIR c = do
  builderAppend $ text"//==TYCON: " >< ppr (tyConName c) >< (text "==")
  builderAppend $ text "//unique:">< ppr (tyConUnique c)
@@ -190,6 +190,18 @@ cvtTyConToMLIR c = do
  builderAppend $ text"//ctype: " >< ppr (tyConCType_maybe c)
  builderAppend $ text"//arity: " >< ppr (tyConArity c)
  builderAppend $ text"//binders: " >< ppr (tyConBinders c)
+
+codegenTyCon :: TyCon -> State Int MLIR.Operation
+codegenTyCon c = error "codegenTyCon"
+
+
+-- | kill me now I'm using { ... }
+codegenModuleToMLIR :: DynFlags -> String -> ModGuts -> [MLIR.Operation]
+codegenModuleToMLIR dfags phase guts = _ $ do
+   tys <- forM (mg_tcs guts) codegenTyCon
+   topbindss <- forM (filter shouldKeepBind (mg_binds guts)) codegenTopBind
+   return (tys ++ concat topbindss)
+  
 
 cvtModuleToMLIR :: DynFlags -> String -> ModGuts -> SDoc
 cvtModuleToMLIR dfags phase guts = runBuilder $ do
@@ -210,8 +222,15 @@ cvtModuleToMLIR dfags phase guts = runBuilder $ do
 cvtBindRhs :: PossibleRecursiveVar -> CoreExpr -> Builder ()
 cvtBindRhs name rhs = do
   rhs_name <- flattenExpr rhs
-  builderAppend $ (text "hask.return(") >< rhs_name >< (text ")") 
+  builderAppend $ (text "hask.return(") >< rhs_name >< (text ")")
   return ()
+
+codegenBindRhs :: PossibleRecursiveVar -> CoreExpr -> State Int MLIR.Region
+codegenBindRhs name rhs = do
+  return MLIR.defaultRegion
+  -- rhs_name <- flattenExpr rhs
+  -- builderAppend $ (text "hask.return(") >< rhs_name >< (text ")") 
+  -- return ()
   -- let (_, rhs_name, rhs_preamble) = runBuilder_ (flattenExpr rhs) 0
   --     body = rhs_preamble $+$ ((text "hask.return(") >< rhs_name >< (text ")"))  
   -- in body
@@ -315,6 +334,8 @@ cvtVarORIGINAL_VERSION v =
 
 
 
+codegenTopBindImpl :: (Var, CoreExpr) -> State Int MLIR.Operation
+codegenTopBindImpl (b, e) = error "unimplement codegenTopBindImpl"
 
 cvtTopBindImpl :: (Var, CoreExpr) -> Builder ()
 cvtTopBindImpl (b, e) = do 
@@ -332,6 +353,19 @@ cvtTopBind (Rec bs) =
       forM_ bs cvtTopBindImpl
       -- (vcat $ [hsep [cvtVar b, text "=",
       --          braces_scoped (text "hask.toplevel_binding") (cvtBindRhs b e)] | (b, e) <- bs])
+      --
+
+codegenTopBind :: CoreBind -> State Int [MLIR.Operation]
+codegenTopBind (NonRec b e) = do 
+   bind <- codegenTopBindImpl (b, e)
+   return [bind] 
+
+    -- ((cvtVar b) <+> (text "=")) $$ 
+    -- (nest 2 $ (text "hask.toplevel_binding") <+> (text "{") $$ (nest 2 $  (cvtBindRhs b e)) $$ (text "}"))
+codegenTopBind (Rec bs) = forM bs codegenTopBindImpl
+      -- (vcat $ [hsep [cvtVar b, text "=",
+      --          braces_scoped (text "hask.toplevel_binding") (cvtBindRhs b e)] | (b, e) <- bs])
+
 
 
 parenthesize :: SDoc -> SDoc
@@ -498,8 +532,8 @@ builderMakeUniqueSSAId = do
   put (i + 1)
   return (MLIR.SSAId (show i))
 
-codegenAltLHSLit :: Literal -> MLIR.AttributeValue
-codegenAltLHSLit l =
+codegenAltLHSLit' :: Literal -> MLIR.AttributeValue
+codegenAltLHSLit' l =
     case l of
       -- Literal.LitNumber numty n _ ->
       --   case numty of
@@ -520,10 +554,25 @@ codegenAltLHSLit l =
       -- Literal.LitRubbish ->  error $ "unknown: how to handle null addr cvtLit(Literal.LitRubbish)?"
       -- Literal.LitInteger x _ -> ppr x
 
-codegenAltLhs :: CoreSyn.AltCon -> MLIR.AttributeValue
-codegenAltLhs (DataAlt altcon) =  MLIR.AttributeSymbolRef (MLIR.SymbolRefId (nameStableString (dataConName altcon)))
-codegenAltLhs (LitAlt l)       = codegenAltLHSLit l
-codegenAltLhs DEFAULT          = MLIR.AttributeSymbolRef (MLIR.SymbolRefId "default") -- text "\"default\""
+codegenAltLhs' :: CoreSyn.AltCon -> MLIR.AttributeValue
+codegenAltLhs' (DataAlt altcon) =  MLIR.AttributeSymbolRef (MLIR.SymbolRefId (nameStableString (dataConName altcon)))
+codegenAltLhs' (LitAlt l)       = codegenAltLHSLit' l
+codegenAltLhs' DEFAULT          = MLIR.AttributeSymbolRef (MLIR.SymbolRefId "default") -- text "\"default\""
+
+
+codegenAltRHS' :: Wild -> [Var] -> CoreExpr -> State Int MLIR.Region
+codegenAltRHS' wild bnds rhs = do
+    -- doc_wild <- cvtWild wild
+    -- doc_binds <- traverse cvtVar bnds
+    -- let params = hsep $ punctuate comma $ (doc_wild >< text ": !hask.untyped"):[b >< text ": !hask.untyped" | b <- doc_binds] 
+    -- builderAppend $ text  "{"
+    -- builderAppend $ text "^entry(" >< params >< text "):"
+    -- -- | TODO: we need a way to nest stuff
+    -- name_rhs <- builderNest 2 $ flattenExpr rhs
+    -- builderAppend $ (text "hask.return(") >< name_rhs >< (text ")")
+    -- builderAppend $ text "}"
+    return MLIR.defaultRegion
+
 
 
 -- cvtAltRHS :: Wild -> [Var] -> CoreExpr -> Builder ()
@@ -554,7 +603,7 @@ codegenAltLhs DEFAULT          = MLIR.AttributeSymbolRef (MLIR.SymbolRefId "defa
 -- return: attribute dict is LHS, region is RHS
 codegenAlt' :: Wild -> (Int, CoreAlt) -> State Int (MLIR.AttributeDict, MLIR.Region)
 codegenAlt' (Wild w) (i, (lhs, binds, rhs)) =  pure 
-  (MLIR.AttributeDict [("alt" ++ show i, codegenAltLhs lhs)], error "foo")
+  (MLIR.AttributeDict [("alt" ++ show i, codegenAltLhs' lhs)], error "foo")
 
 codegenExpr' :: CoreExpr -> State Int ([MLIR.Operation], MLIR.SSAId)
 codegenExpr' (Var x) = return ([], MLIR.SSAId (nameStableString . varName $ x))
@@ -565,9 +614,24 @@ codegenExpr' (Case scr wild _ alts) = do
  outs <- traverse (codegenAlt' (Wild wild))   ((zip [0,1..] alts) :: [(Int, CoreAlt)])
  curid <- builderMakeUniqueSSAId
  return ([], curid)
-
-
-   
+-- | codegenExpr (App f x) = do
+-- |  curid <- builderMakeUniqueSSAId
+-- |  return ([], curid)
+-- | codegenExpr (Lit l) = do
+-- |  curid <- builderMakeUniqueSSAId
+-- |  return ([], curid)
+-- | codegenExpr (Type t) = do
+-- |  curid <- builderMakeUniqueSSAId
+-- |  return ([], curid)
+-- | codegenExpr (Tick _ e) = do
+-- |  curid <- builderMakeUniqueSSAId
+-- |  return ([], curid)
+-- | codegenExpr (Cast _ e) = do
+-- |  curid <- builderMakeUniqueSSAId
+-- |  return ([], curid)
+codegenExpr _ = do
+ curid <- builderMakeUniqueSSAId
+ return ([], curid)
 
 
 flattenExpr :: CoreExpr -> Builder SSAName
