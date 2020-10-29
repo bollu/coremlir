@@ -4,6 +4,15 @@ import qualified Data.List.NonEmpty as NE
 import Outputable as O
 
 
+-- | TODO: how to get access to actual lines in SDoc so we can // all of the
+-- lines?
+newtype Comment = Comment SDoc -- any comment string
+commentString :: String -> Comment
+commentString s = Comment (text s)
+
+instance Outputable Comment where
+  ppr (Comment x) = text "//" O.<> x
+
 -- // Identifiers
 -- bare-id ::= (letter|[_]) (letter|digit|[_$.])*
 newtype BareId = BareId String
