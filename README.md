@@ -15,6 +15,8 @@ Convert GHC Core to MLIR.
   file.
 - IORefs are bad.
 
+
+
 # TODO:
 - Fix MLIR bugs.
 - Refactor to make type annotations less annoying. In particular, `ap`
@@ -55,6 +57,30 @@ Convert GHC Core to MLIR.
 - In fact, I'm not even sure that that suffices. I might have to build an entirely
   new instruction just to fix the result type of the `case`?
 - This is beyond fucked. 
+- Got some paper writing done!
+- Reading the generic parsing code to write a small haskell API for it, I'm done
+  gluing the fucking printing together by hand...
+  [parseGenericOperation](https://github.com/llvm/llvm-project/blob/735ab4be35695df9f9da7ae8b584cec28eabf1fe/mlir/lib/Parser/Parser.cpp#L727)
+
+```hs
+import Data.Vector.Unboxed as V
+
+
+-- a * x + b
+a, x, b :: Vector Int
+a = fromList [1, 2, 3, 4, 5, 6, 7, 8, 9]
+x = fromList [3, 1, 4, 1, 5, 1, 6, 1, 7]
+b = fromList [10, 20, 30, 40, 50, 60, 70]
+
+outv = V.zipWith (+) (V.zipWith (*) a x) b
+outf = V.foldl (+) 0 outv
+
+main :: IO ()
+main = print outv >> print outf
+```
+
+GHC performs no constant folding on this. On the other hand, MLIR should be able
+to reduce the above program to a single constant
 
 
 # Friday, Oct 23rd

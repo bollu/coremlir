@@ -482,7 +482,7 @@ flattenExpr expr =
             i <- builderMakeUnique
             let name_lambda = text $ "%lambda_" ++ show i
             doc_param <- cvtVar param
-            builderAppend $ name_lambda <+> (text "=")  <+> text "hask.lambdaSSA(" >< doc_param >< (text ")") <+> (text "{")
+            builderAppend $ name_lambda <+> (text "=")  <+> text "hask.lambda(" >< doc_param >< (text ")") <+> (text "{")
             return_body <- builderNest 2 $ flattenExpr body
             builderAppend $ nest 2 $ (text "hask.return(") >< return_body >< (text ")")
             builderAppend $ (text "}")
@@ -502,7 +502,7 @@ flattenExpr expr =
             let name_case = text $ "%case_" ++ show i
             case isCaseAltsOnlyDefault as of
               Nothing -> do
-                  builderAppend $ name_case <+> text "=" <+> text "hask.caseSSA " <+> name_scrutinee
+                  builderAppend $ name_case <+> text "=" <+> text "hask.case " <+> name_scrutinee
                   forM_ as (cvtAlt (Wild wild))
                   return name_case
               Just defaultExpr -> do
@@ -526,7 +526,7 @@ flattenExpr expr =
             name_x <- flattenExpr x
             i <- builderMakeUnique
             let name_app = text ("%app_" ++ show i) 
-            builderAppend $  (name_app <+> (text "=") <+> (text "hask.apSSA(") >< name_f >< comma <+> name_x >< (text ")")) 
+            builderAppend $  (name_app <+> (text "=") <+> (text "hask.ap(") >< name_f >< comma <+> name_x >< (text ")")) 
             return name_app
 -- !    -- Builder $ \i0 ->
 -- !    --  let (i1, name_f, preamble_f) = runBuilder_ (flattenExpr f) i0
