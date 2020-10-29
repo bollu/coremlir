@@ -1,36 +1,62 @@
+-- | https://github.com/llvm/llvm-project/blob/master/mlir/docs/LangRef.md
 module Core2MLIR.MLIR where
-import Data.List.NonEmpty
-import Outputable
+import qualified Data.List.NonEmpty as NE
+import Outputable as O
 
 
 -- // Identifiers
 -- bare-id ::= (letter|[_]) (letter|digit|[_$.])*
-data BareId = BareId String
+newtype BareId = BareId String
+
+instance Outputable BareId where
+  ppr (BareId x) = ppr x
+
 -- bare-id-list ::= bare-id (`,` bare-id)*
 -- ssa-id ::= `%` suffix-id
 -- suffix-id ::= (digit+ | ((letter|id-punct) (letter|id-punct|digit)*))
 data SSAId = SSAId String
+
+instance Outputable SSAId where
+  ppr (SSAId x) = ppr ('%':x)
+
 -- symbol-ref-id ::= `@` (suffix-id | string-literal)
 data SymbolRefId = SymbolRefId String
+
+instance Outputable SymbolRefId where
+  ppr (SymbolRefId x) = ppr ('@':x)
 -- operation
 -- region ::= `{` block* `}`
 newtype Region = Region [Block]
+
+instance Outputable Region where
+  ppr (Region bs) = lbrace <+> nest 4 (vcat (map ppr bs)) <+> rbrace
+ 
 -- region-list       ::= region (`,` region)*
 newtype RegionList = RegionList [Region]
 -- block           ::= block-label operation+
-data Block = Block BlockLabel (NonEmpty Operation)
+data Block = Block BlockLabel (NE.NonEmpty Operation)
+
+instance Outputable Block where
+  
 -- block-label     ::= block-id block-arg-list? `:`
 data BlockLabel = BlockLabel BlockId BlockArgList
+
+instance Outputable BlockLabel where
+  ppr (BlockLabel name args) = 
+    let prettyArgs args = parens (hcat $ punctuate comma [ppr v O.<> colon O.<> ppr t | (v, t) <- args])
+    in ppr name  <+> prettyArgs args O.<> colon
 -- // Non-empty list of names and types.
 -- value-id-and-type-list ::= value-id-and-type (`,` value-id-and-type)*
 -- block-arg-list ::= `(` value-id-and-type-list? `)`
 -- value-id-and-type ::= value-id `:` type
 -- // Non-empty list of names and types.
 -- value-id-and-type-list ::= value-id-and-type (`,` value-id-and-type)*
-type BlockArgList = [(ValueId, Type)]
+type BlockArgList = [(SSAId, Type)]-- [(ValueId, Type)]
 -- block-id        ::= caret-id
 -- caret-id        ::= `^` suffix-id
-newtype BlockId = BlockId SuffixId
+newtype BlockId = BlockId String -- BlockId SuffixId 
+instance Outputable BlockId where
+  ppr (BlockId x) = ppr ('^':x)
 -- suffix-id ::= (digit+ | ((letter|id-punct) (letter|id-punct|digit)*))
 newtype SuffixId = SuffixId String
 
@@ -93,6 +119,8 @@ type FunctionType = ([Type], Type)
 --                     | tensor-type
 --                     | tuple-type
 --                     | vector-type
+-- dialect-type ::= '!' opaque-dialect-item
+-- opaque-dialect-item ::= dialect-namespace '<' string-literal '>'
 -- signed-integer-type ::= `si` [1-9][0-9]*
 -- unsigned-integer-type ::= `ui` [1-9][0-9]*
 -- signless-integer-type ::= `i` [1-9][0-9]*
@@ -100,8 +128,11 @@ type FunctionType = ([Type], Type)
 --                  unsigned-integer-type |
 --                  signless-integer-type
 -- 
-data Type = TypeDialect String 
+data Type = TypeDialect DialectNamespace String
     | TypeIntegerSignless Int  -- ^ width
+instance Outputable Type where
+  ppr (TypeDialect ns x) = ppr ns  O.<> angleBrackets (ppr x)
+  ppr (TypeIntegerSignless i) = ppr 'i' O.<> ppr i
 
 data SuccessorList =SuccessorList
 -- custom-operation  ::= bare-id custom-operation-format
@@ -116,16 +147,12 @@ newtype OpResult = OpResult String -- TODO: add the maybe int to pick certain re
 -- // Uses of value, e.g. in an operand list to an operation.
 -- value-use ::= value-id
 -- value-use-list ::= value-use (`,` value-use)*
-newtype ValueUseList = ValueUseList [ValueId]
+newtype ValueUseList = ValueUseList [SSAId] -- [ValueId]
 
 -- value-id ::= `%` suffix-id
-newtype ValueId = ValueId String
+-- newtype ValueId = ValueId String
 
 
--- type ::= type-alias | dialect-type | standard-type
--- type-list-no-parens ::=  type (`,` type)*
--- type-list-parens ::= `(` `)`
---                    | `(` type-list-no-parens `)`
 -- // This is a common way to refer to a value with a specified type.
 -- ssa-use-and-type ::= ssa-use `:` type
 -- 
@@ -134,6 +161,8 @@ newtype ValueId = ValueId String
 
 -- dialect-namespace ::= bare-id
 newtype DialectNamespace = DialectNamespace String
+instance Outputable DialectNamespace where 
+  ppr (DialectNamespace x) = ppr x
 -- opaque-dialect-item ::= dialect-namespace '<' string-literal '>'
 -- pretty-dialect-item ::= dialect-namespace '.' pretty-dialect-item-lead-ident
 --                                               pretty-dialect-item-body?
