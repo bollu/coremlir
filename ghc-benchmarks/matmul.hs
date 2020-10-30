@@ -1,14 +1,26 @@
-import Data.Vector.Unboxed as V
+import qualified Data.Vector.Unboxed as V
+import GHC.List as L
 
 
 -- a * x + b
-a, x, b :: Vector Int
-a = fromList [1, 2, 3, 4, 5, 6, 7, 8, 9]
-x = fromList [3, 1, 4, 1, 5, 1, 6, 1, 7]
-b = fromList [10, 20, 30, 40, 50, 60, 70]
+av, xv, bv :: V.Vector Int
+av = V.replicate 10 1-- fromList [1, 2, 3, 4, 5, 6, 7, 8, 9]
+xv = V.replicate 10 2
+bv = V.replicate 10 3
 
-outv = V.zipWith (+) (V.zipWith (*) a x) b
-outf = V.sum 0 outv
+outv :: V.Vector Int;
+outv = V.zipWith (+) (V.zipWith (*) av xv) bv
 
 main :: IO ()
-main = print outv >> print outf
+mainv = print (V.sum outv)
+
+al, xl, bl :: [Int]
+al = L.replicate 10 1
+xl = L.replicate 10 2
+bl = L.replicate 10 2
+
+outl :: [Int]
+outl = zipWith (+) (zipWith (*) al xl) bl
+mainl = print $ Prelude.sum (outl)
+
+main = mainv >> mainl

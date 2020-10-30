@@ -1,4 +1,6 @@
-.PHONY: build core2mlir fib fibstrict clean install
+.PHONY: build core2mlir fib fibstrict clean install run
+      
+run: fib
 
 dataconstructors: clean install
 	ghc -O0 -dverbose-core2core -ddump-prep -ddump-ds -ddump-simpl  -ddump-to-file \
@@ -12,6 +14,7 @@ fib: clean install
 	ghc -O0 -dverbose-core2core -ddump-prep -ddump-ds -ddump-simpl  -ddump-to-file -fplugin Core2MLIR.Plugin -dumpdir=dump -O fib.hs
 	cp dump/tomlir-fib.pass-0001.mlir .
 	cp dump/tomlir-fib.pass-0000.mlir .
+	cat dump/tomlir-fib.pass-0000.mlir
 	make -C ../../build/
 	../../build/bin/hask-opt tomlir-fib.pass-0000.mlir
 

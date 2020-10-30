@@ -1,22 +1,21 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns #-}
-module Core2MLIR.ConvertToMLIR(cvtModuleToMLIR, codegenModuleToMLIRSDoc) where
+module Core2MLIR.ConvertToMLIR(cvtModuleToMLIR) where
 import Var (Var, varName)
 import qualified Var
 import Id (isFCallId, isGlobalId, isExportedId)
 import Module (ModuleName, moduleNameFS, moduleName, pprModuleName)
 import Unique (Unique, getUnique, unpkUnique)
-import Name (getOccName, occNameFS, OccName, getName, nameModule_maybe, Name, nameStableString)
+import Name (getOccName, occNameFS, OccName, getName, nameModule_maybe, Name)
 import qualified BasicTypes as OccInfo (OccInfo(..), isStrongLoopBreaker)
 import qualified CoreSyn
 import CoreSyn (Expr(..), CoreExpr, Bind(..), CoreAlt, CoreBind, AltCon(..),)
 import TyCoRep as Type (Type(..))
-import Outputable
--- import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
---                    ($+$), hang, (<>), ($$), blankLine, lparen, rparen,
---                    lbrack, rbrack, pprWithCommas, empty, comma, renderWithStyle,
---                    defaultDumpStyle, punctuate, hsep, reallyAlwaysQualify,
---                    showSDocDump, showSDocDebug, initSDocContext, mkDumpStyle)
+import Outputable (ppr, showSDoc, SDoc, vcat, hcat, text, hsep, nest, (<+>),
+                   ($+$), hang, (<>), ($$), blankLine, lparen, rparen,
+                   lbrack, rbrack, pprWithCommas, empty, comma, renderWithStyle,
+                   defaultDumpStyle, punctuate, hsep, reallyAlwaysQualify,
+                   showSDocDump, showSDocDebug, initSDocContext, mkDumpStyle)
 import PprCore (pprCoreBindingsWithSize)
 import HscTypes (ModGuts(..))
 import Module (ModuleName, moduleNameFS, moduleName)
@@ -25,10 +24,8 @@ import Control.Monad (ap, forM_)
 import TyCon
 import FastString
 import Literal
-import Control.Monad.State
 import qualified Data.Set as S
 import qualified Data.ByteString.Char8 as BS
-import qualified Core2MLIR.MLIR as MLIR
 import GHC(DynFlags, TyCon)
 
 -- import Text.PrettyPrint.ANSI.Leijen
@@ -46,7 +43,7 @@ type SSAName = SDoc
 type PossibleRecursiveVar = Var
 
 -- | monad instance
-data Builder a = Builder { runBuilder_ :: (Int, S.Set PossibleRecursiveVar) -> ((Int, S.Set PossibleRecursiveVar), a, SDoc) } -- , recnames :: S.Set String }
+data Builder a = Builder { runBuilder_ :: (Int, S.Set PossibleRecursiveVar) -> ((Int, S.Set PossibleRecursiveVar), a, SDoc) } --, recnames :: S.Set String }
 
 runBuilder :: Builder () -> SDoc
 runBuilder b = let (_, _, doc) = runBuilder_ b (0, S.empty) in doc
@@ -180,7 +177,7 @@ cvtDataConToMLIR dc = builderAppend $ text"// ***NOT HASKELL 98!***"
 
 
 
-cvtTyConToMLIR :: TyCon -> Builder ()
+cvtTyConToMLIR :: TyCon -> Builder()
 cvtTyConToMLIR c = do
  builderAppend $ text"//==TYCON: " >< ppr (tyConName c) >< (text "==")
  builderAppend $ text "//unique:">< ppr (tyConUnique c)
@@ -190,23 +187,6 @@ cvtTyConToMLIR c = do
  builderAppend $ text"//ctype: " >< ppr (tyConCType_maybe c)
  builderAppend $ text"//arity: " >< ppr (tyConArity c)
  builderAppend $ text"//binders: " >< ppr (tyConBinders c)
-
-codegenTyCon :: TyCon -> State Int MLIR.Operation
-codegenTyCon c = error "codegen ty con" -- MLIR.Comment (tyConCType_maybe c) -- pure (MLIR.defaultop)
-
-
-codegenModuleToMLIRSDoc ::DynFlags -> String -> ModGuts -> SDoc
-codegenModuleToMLIRSDoc dflags phase guts = 
-  vcat $ (map ppr (codegenModuleToMLIR dflags phase guts))
-
--- | kill me now I'm using { ... }
-codegenModuleToMLIR :: DynFlags -> String -> ModGuts -> [MLIR.Operation]
-codegenModuleToMLIR dfags phase guts = evalState (do
-   -- tys <- forM (mg_tcs guts) codegenTyCon
-   let tys = []
-   topbindss <- forM (filter shouldKeepBind (mg_binds guts)) codegenTopBind
-   return (tys ++ concat topbindss)) 0
-  
 
 cvtModuleToMLIR :: DynFlags -> String -> ModGuts -> SDoc
 cvtModuleToMLIR dfags phase guts = runBuilder $ do
@@ -227,15 +207,8 @@ cvtModuleToMLIR dfags phase guts = runBuilder $ do
 cvtBindRhs :: PossibleRecursiveVar -> CoreExpr -> Builder ()
 cvtBindRhs name rhs = do
   rhs_name <- flattenExpr rhs
-  builderAppend $ (text "hask.return(") >< rhs_name >< (text ")")
+  builderAppend $ (text "hask.return(") >< rhs_name >< (text ")") 
   return ()
-
-codegenBindRhs :: PossibleRecursiveVar -> CoreExpr -> State Int MLIR.Region
-codegenBindRhs name rhs = do
-  return MLIR.defaultRegion
-  -- rhs_name <- flattenExpr rhs
-  -- builderAppend $ (text "hask.return(") >< rhs_name >< (text ")") 
-  -- return ()
   -- let (_, rhs_name, rhs_preamble) = runBuilder_ (flattenExpr rhs) 0
   --     body = rhs_preamble $+$ ((text "hask.return(") >< rhs_name >< (text ")"))  
   -- in body
@@ -338,34 +311,7 @@ cvtVarORIGINAL_VERSION v =
   in (text "%var__X_") >< (text $ varToUniqueName $ v) >< (text "_X_")
 
 
--- varToUniqueName :: Var -> String
--- varToUniqueName v =  (escapeName  $ unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
 
-
-varToString :: Var -> String
-varToString v =(unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
-
-
--- | hask.return
-haskreturnop :: MLIR.SSAId -> MLIR.Operation
-haskreturnop retv = MLIR.defaultop {
-       MLIR.opname = "hask.return", 
-       MLIR.opvals = MLIR.ValueUseList [retv]
-  }
-
-codegenTopBindImpl :: (Var, CoreExpr) -> State Int MLIR.Operation
-codegenTopBindImpl (varname, e) =  do
-  -- (ops, finalval) <- codegenExpr e
-  let ops = []
-  let finalval = MLIR.SSAId "hack"
-  let entry = MLIR.block "entry"  [] (ops ++ [haskreturnop finalval])
-  -- let r = MLIR.Region [entry]
-  let r = MLIR.Region [entry]
-  return MLIR.defaultop { 
-       MLIR.opname = "hask.func", 
-       MLIR.opattrs = MLIR.AttributeDict [("sym_name", MLIR.AttributeString (varToString varname))],
-       MLIR.opregions = MLIR.RegionList [r]
-     }
 
 cvtTopBindImpl :: (Var, CoreExpr) -> Builder ()
 cvtTopBindImpl (b, e) = do 
@@ -383,19 +329,6 @@ cvtTopBind (Rec bs) =
       forM_ bs cvtTopBindImpl
       -- (vcat $ [hsep [cvtVar b, text "=",
       --          braces_scoped (text "hask.toplevel_binding") (cvtBindRhs b e)] | (b, e) <- bs])
-      --
-
-codegenTopBind :: CoreBind -> State Int [MLIR.Operation]
-codegenTopBind (NonRec b e) = do 
-   bind <- codegenTopBindImpl (b, e)
-   return [bind] 
-
-    -- ((cvtVar b) <+> (text "=")) $$ 
-    -- (nest 2 $ (text "hask.toplevel_binding") <+> (text "{") $$ (nest 2 $  (cvtBindRhs b e)) $$ (text "}"))
-codegenTopBind (Rec bs) = forM bs codegenTopBindImpl
-      -- (vcat $ [hsep [cvtVar b, text "=",
-      --          braces_scoped (text "hask.toplevel_binding") (cvtBindRhs b e)] | (b, e) <- bs])
-
 
 
 parenthesize :: SDoc -> SDoc
@@ -407,10 +340,10 @@ cvtLit l =
     case l of
 #if MIN_VERSION_ghc(8,8,0)
       Literal.LitChar x ->  ppr x
-      Literal.LitString x -> pprHsBytes x
+      Literal.LitString x -> ppr x
       Literal.LitNullAddr -> error $ "unknown: how to handle null addr cvtLit(Literal.LitNullAddr)?"
-      Literal.LitFloat x -> error "x" -- ppr x
-      Literal.LitDouble x -> rational x
+      Literal.LitFloat x -> ppr x
+      Literal.LitDouble x -> ppr x
       Literal.LitLabel x _ _ -> ppr $ unpackFS  x
       Literal.LitRubbish ->  error $ "unknown: how to handle null addr cvtLit(Literal.LitRubbish)?"
 #else
@@ -451,10 +384,10 @@ cvtAltLHSLit l =
     case l of
 #if MIN_VERSION_ghc(8,8,0)
       Literal.LitChar x ->  ppr x
-      Literal.LitString x -> error "x" -- ppr x
+      Literal.LitString x -> ppr x
       Literal.LitNullAddr -> error $ "unknown: how to handle null addr cvtLit(Literal.LitNullAddr)?"
-      Literal.LitFloat x -> error "x" -- ppr x
-      Literal.LitDouble x -> error "x" -- ppr x
+      Literal.LitFloat x -> ppr x
+      Literal.LitDouble x -> ppr x
       Literal.LitLabel x _ _ -> ppr $ unpackFS  x
       Literal.LitRubbish ->  error $ "unknown: how to handle null addr cvtLit(Literal.LitRubbish)?"
 #else
@@ -485,6 +418,7 @@ cvtAltLhs :: CoreSyn.AltCon -> SDoc
 cvtAltLhs (DataAlt altcon) = text "@" >< docDoubleQuote >< ppr (dataConName altcon) >< docDoubleQuote
 cvtAltLhs (LitAlt l)       = cvtAltLHSLit l
 cvtAltLhs DEFAULT          = text "\"default\""
+
 
 arrow :: SDoc; arrow = text "->"
 
@@ -528,7 +462,7 @@ cvtAltRHS wild bnds rhs = do
 -- TODO: add combinators to make this prettier. Something like 'builderSurround...'
 cvtAlt :: Wild -> CoreAlt -> Builder ()
 cvtAlt wild (lhs, bs, e) = do
- builderAppend $ lbrack >< cvtAltLhs lhs <+> Outputable.arrow
+ builderAppend $ lbrack >< cvtAltLhs lhs <+> arrow
  cvtAltRHS wild bs e
  builderAppend $ rbrack
  return ()
@@ -540,185 +474,415 @@ isCaseAltsOnlyDefault [(DEFAULT, _, e)] = Just e
 isCaseAltsOnlyDefault _ = Nothing
 
 
--- | codegen an expression and give it a name?
-
-
--- | case needs scrutinee, alts, 
-createCase :: MLIR.SSAId -> [(MLIR.SymbolRefId, MLIR.Region)] -> MLIR.Operation
-createCase scrutinee alts = error "foo"
-
-
--- | create unique int
-builderMakeUniqueInt :: State Int Int
-builderMakeUniqueInt = do
-  i <- get
-  put (i + 1)
-  return i
-
--- | create unique ID
-builderMakeUniqueSSAId :: State Int MLIR.SSAId
-builderMakeUniqueSSAId = do
-  i <- get
-  put (i + 1)
-  return (MLIR.SSAId (show i))
-
-codegenAltLHSLit' :: Literal -> MLIR.AttributeValue
-codegenAltLHSLit' l =
-    case l of
-      -- Literal.LitNumber numty n _ ->
-      --   case numty of
-      --     Literal.LitNumInt -> MLIR.AttributeInteger n
-      --     Literal.LitNumInt64 -> ppr n
-      --     Literal.LitNumWord -> ppr n
-      --     Literal.LitNumWord64 -> ppr n
-      --     Literal.LitNumInteger -> ppr n
-      --     Literal.LitNumNatural -> ppr n
-      Literal.LitString s    -> MLIR.AttributeString (BS.unpack s)
-      Literal.LitNumber _ i _ ->  MLIR.AttributeInteger i
-      -- Literal.LitChar x ->  ppr x
-      -- Literal.LitString x -> error "x" -- ppr x
-      -- Literal.LitNullAddr -> error $ "unknown: how to handle null addr cvtLit(Literal.LitNullAddr)?"
-      -- Literal.LitFloat x -> error "x" -- ppr x
-      -- Literal.LitDouble x -> error "x" -- ppr x
-      -- Literal.LitLabel x _ _ -> ppr $ unpackFS  x
-      -- Literal.LitRubbish ->  error $ "unknown: how to handle null addr cvtLit(Literal.LitRubbish)?"
-      -- Literal.LitInteger x _ -> ppr x
-
-codegenAltLhs' :: CoreSyn.AltCon -> MLIR.AttributeValue
-codegenAltLhs' (DataAlt altcon) =  MLIR.AttributeSymbolRef (MLIR.SymbolRefId (nameStableString (dataConName altcon)))
-codegenAltLhs' (LitAlt l)       = codegenAltLHSLit' l
-codegenAltLhs' DEFAULT          = MLIR.AttributeSymbolRef (MLIR.SymbolRefId "default") -- text "\"default\""
-
-
-codegenAltRHS' :: Wild -> [Var] -> CoreExpr -> State Int MLIR.Region
-codegenAltRHS' wild bnds rhs = do
-    -- doc_wild <- cvtWild wild
-    -- doc_binds <- traverse cvtVar bnds
-    -- let params = hsep $ punctuate comma $ (doc_wild >< text ": !hask.untyped"):[b >< text ": !hask.untyped" | b <- doc_binds] 
-    -- builderAppend $ text  "{"
-    -- builderAppend $ text "^entry(" >< params >< text "):"
-    -- -- | TODO: we need a way to nest stuff
-    -- name_rhs <- builderNest 2 $ flattenExpr rhs
-    -- builderAppend $ (text "hask.return(") >< name_rhs >< (text ")")
-    -- builderAppend $ text "}"
-    return MLIR.defaultRegion
-
-
-
--- cvtAltRHS :: Wild -> [Var] -> CoreExpr -> Builder ()
--- cvtAltRHS wild bnds rhs = do
---     doc_wild <- cvtWild wild
---     doc_binds <- traverse cvtVar bnds
---     let params = hsep $ punctuate comma $ (doc_wild >< text ": !hask.untyped"):[b >< text ": !hask.untyped" | b <- doc_binds] 
---     builderAppend $ text  "{"
---     builderAppend $ text "^entry(" >< params >< text "):"
---     -- | TODO: we need a way to nest stuff
---     name_rhs <- builderNest 2 $ flattenExpr rhs
---     builderAppend $ (text "hask.return(") >< name_rhs >< (text ")")
---     builderAppend $ text "}"
---     return ()
-
--- type Alt b = (AltCon, [b], Expr b)
--- |
--- | data AltCon
--- |   = DataAlt DataCon   --  ^ A plain data constructor: @case e of { Foo x -> ... }@.
--- |                       -- Invariant: the 'DataCon' is always from a @data@ type, and never from a @newtype@
--- |   | LitAlt  Literal   -- ^ A literal: @case e of { 1 -> ... }@
--- |                       -- Invariant: always an *unlifted* literal
--- |                       -- See Note [Literal alternatives]
--- |   | DEFAULT           -- ^ Trivial alternative: @case e of { _ -> ... }@
--- |    deriving (Eq, Data)
-
--- | int is the index, Var is the variable
--- return: attribute dict is LHS, region is RHS
-codegenAlt' :: Wild -> (Int, CoreAlt) -> State Int (MLIR.AttributeDict, MLIR.Region)
-codegenAlt' (Wild w) (i, (lhs, binds, rhs)) =  pure 
-  (MLIR.AttributeDict [("alt" ++ show i, codegenAltLhs' lhs)], error "foo")
-
-codegenExpr' :: CoreExpr -> State Int ([MLIR.Operation], MLIR.SSAId)
-codegenExpr' (Var x) = return ([], MLIR.SSAId (nameStableString . varName $ x))
-codegenExpr' (Lam param body) = 
-  error $ "unhandled: lambdas"
-codegenExpr' (Case scr wild _ alts) = do
- (ops_scr, name_scr) <- codegenExpr' scr
- outs <- traverse (codegenAlt' (Wild wild))   ((zip [0,1..] alts) :: [(Int, CoreAlt)])
- curid <- builderMakeUniqueSSAId
- return ([], curid)
--- | codegenExpr (App f x) = do
--- |  curid <- builderMakeUniqueSSAId
--- |  return ([], curid)
--- | codegenExpr (Lit l) = do
--- |  curid <- builderMakeUniqueSSAId
--- |  return ([], curid)
--- | codegenExpr (Type t) = do
--- |  curid <- builderMakeUniqueSSAId
--- |  return ([], curid)
--- | codegenExpr (Tick _ e) = do
--- |  curid <- builderMakeUniqueSSAId
--- |  return ([], curid)
--- | codegenExpr (Cast _ e) = do
--- |  curid <- builderMakeUniqueSSAId
--- |  return ([], curid)
-codegenExpr _ = do
- curid <- builderMakeUniqueSSAId
- return ([], curid)
-
-
 flattenExpr :: CoreExpr -> Builder SSAName
-flattenExpr expr = 
-      case expr of
-        Var x -> (cvtVar x)--return ((text"%") >< ppr x)
-        Lam param body -> do
-            i <- builderMakeUnique
-            let name_lambda = text $ "%lambda_" ++ show i
-            doc_param <- cvtVar param
-            builderAppend $ name_lambda <+> (text "=")  <+> text "hask.lambda(" >< doc_param >< (text ")") <+> (text "{")
-            return_body <- builderNest 2 $ flattenExpr body
-            builderAppend $ nest 2 $ (text "hask.return(") >< return_body >< (text ")")
-            builderAppend $ (text "}")
-            return name_lambda
-        Case scrutinee wild _ as -> do
-            name_scrutinee <- flattenExpr scrutinee
-            i <- builderMakeUnique
-            let name_case = text $ "%case_" ++ show i
-            case isCaseAltsOnlyDefault as of
-              Nothing -> do
-                  builderAppend $ name_case <+> text "=" <+> text "hask.case " <+> name_scrutinee
-                  forM_ as (cvtAlt (Wild wild))
-                  return name_case
-              Just defaultExpr -> do
-                  doc_wild <- cvtWild (Wild wild)
-                  builderAppend $ doc_wild <+> text "=" <+> text "hask.force (" >< name_scrutinee >< text ")"
-                  -- builderAppend $ doc_wild <+> text "=" <+> text "hask.copy (" >< name_scrutinee >< text ")"
-                  name_rhs <- flattenExpr defaultExpr
-                  return name_rhs
-        App f x -> do
-            name_f <- flattenExpr f
-            name_x <- flattenExpr x
-            i <- builderMakeUnique
-            let name_app = text ("%app_" ++ show i) 
-            builderAppend $  (name_app <+> (text "=") <+> (text "hask.ap(") >< name_f >< comma <+> name_x >< (text ")")) 
-            return name_app
-        Lit l -> do
-            i <- builderMakeUnique
-            let name_lit = text $ "%lit_" ++ show i
-            builderAppend $ name_lit <+> (text "=") <+> cvtLit l
-            return name_lit  
-        Type t -> do
-          i <- builderMakeUnique
-          let type_lit = text $ "%type_" ++ show i
-          builderAppend $ type_lit <+> (text "=") <+> (text "hask.make_string(\"TYPEINFO_ERASED\")")
-          return type_lit
-        Tick _ e -> return (text ("TICK"))
-        Cast _ e -> return (text ("CAST"))
-        Let (NonRec b e) body -> do
-            i <- builderMakeUnique 
-            let name_unimpl = text ("%unimpl_let_nonrec" ++ show i)
-            builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
-            return name_unimpl
-          
-        Let (Rec bs) body -> do 
-            i <- builderMakeUnique 
-            let name_unimpl = text ("%unimpl_let_rec" ++ show i)
-            builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
-            return name_unimpl
+flattenExpr expr =
+  case expr of
+    Var x -> (cvtVar x)--return ((text"%") >< ppr x)
+    Lam param body -> do
+        i <- builderMakeUnique
+        let name_lambda = text $ "%lambda_" ++ show i
+        doc_param <- cvtVar param
+        builderAppend $ name_lambda <+> (text "=")  <+> text "hask.lambdaSSA(" >< doc_param >< (text ")") <+> (text "{")
+        return_body <- builderNest 2 $ flattenExpr body
+        builderAppend $ nest 2 $ (text "hask.return(") >< return_body >< (text ")")
+        builderAppend $ (text "}")
+        return name_lambda
+        
+     -- Builder $ \i0 ->
+     --  let (i1, name_body, preamble_body) = runBuilder_ (flattenExpr body) i0
+     --      name_lambda = text ("%lambda_" ++ show i1)
+     --      fulldoc =  (name_lambda) <+> (text "=") $$
+     --                     (nest 2 $ ((text "hask.lambdaSSA(") >< (cvtVar param) >< (text ")") <+> (text "{")) $$ 
+     --                        (nest 2 (preamble_body $+$ ((text "hask.return(") >< name_body >< (text ")")))) $$
+     --                        text "}")
+     --      in (i1+1, name_lambda, fulldoc)
+    Case scrutinee wild _ as -> do
+        name_scrutinee <- flattenExpr scrutinee
+        i <- builderMakeUnique
+        let name_case = text $ "%case_" ++ show i
+        case isCaseAltsOnlyDefault as of
+          Nothing -> do
+              builderAppend $ name_case <+> text "=" <+> text "hask.caseSSA " <+> name_scrutinee
+              forM_ as (cvtAlt (Wild wild))
+              return name_case
+          Just defaultExpr -> do
+              doc_wild <- cvtWild (Wild wild)
+              builderAppend $ doc_wild <+> text "=" <+> text "hask.force (" >< name_scrutinee >< text ")"
+              -- builderAppend $ doc_wild <+> text "=" <+> text "hask.copy (" >< name_scrutinee >< text ")"
+              name_rhs <- flattenExpr defaultExpr
+              return name_rhs
+      -- Builder $ \i0 -> 
+      --           let (i1, name_scrutinee, preamble_scrutinee) = runBuilder_ (flattenExpr scrutinee) i0
+      --               name_case = text ("%case_" ++ show i1) 
+      --               (i2, _, alts_doc) = runBuilder_ (forM_ as (cvtAlt (Wild wild))) i1
+      --               fulldoc = preamble_scrutinee $+$ 
+      --                       hang ((name_case <+>  (text "=") $+$ (nest 2 $ (text "hask.caseSSA") <+> name_scrutinee)))
+      --                             2
+      --                             alts_doc
+      --           in (i2+1, name_case, fulldoc)
+
+    App f x -> do
+        name_f <- flattenExpr f
+        name_x <- flattenExpr x
+        i <- builderMakeUnique
+        let name_app = text ("%app_" ++ show i) 
+        builderAppend $  (name_app <+> (text "=") <+> (text "hask.apSSA(") >< name_f >< comma <+> name_x >< (text ")")) 
+        return name_app
+    -- Builder $ \i0 ->
+    --  let (i1, name_f, preamble_f) = runBuilder_ (flattenExpr f) i0
+    --      (i2, name_x, preamble_x) = runBuilder_ (flattenExpr x) i1
+    --      name_app = text ("%app_" ++ show i2)
+    --      fulldoc = preamble_f $+$ preamble_x $+$ (name_app <+> (text " = ") <+> (text "hask.apSSA(") >< name_f >< comma <+> name_x >< (text ")"))
+    --  in (i2+1, name_app, fulldoc)
+    Lit l -> do
+        i <- builderMakeUnique
+        let name_lit = text $ "%lit_" ++ show i
+        builderAppend $ name_lit <+> (text "=") <+> cvtLit l
+        return name_lit  
+      -- Builder $ \i0 ->
+      --       let  name_lit = text $ "%lit_" ++ show i0
+      --           fulldoc =  name_lit <+> (text "=") <+>  cvtLit l
+      --       in (i0+1, name_lit, fulldoc)
+      -- return (text ("LITERAL"))
+    Type t -> do
+      i <- builderMakeUnique
+      let type_lit = text $ "%type_" ++ show i
+      builderAppend $ type_lit <+> (text "=") <+> (text "hask.make_string(\"TYPEINFO_ERASED\")")
+      return type_lit
+    -- Builder $ \i0 ->
+    --  let type_lit = text $ "%type_" ++ show i0 -- text $ "hask.make_string(\"TYPEINFO_ERASED\")" 
+    --      fulldoc = type_lit <+> (text " = ") <+> (text "hask.make_string(\"TYPEINFO_ERASED\")")
+    --  in (i0+1, type_lit, fulldoc)
+    -- return $ text  "hask.make_string(\"TYPEINFO_ERASED\")" -- (text ("TYPE"))
+    Tick _ e -> return (text ("TICK"))
+    Cast _ e -> return (text ("CAST"))
+
+   Let (NonRec b e) body -> do
+        i <- builderMakeUnique 
+        let name_unimpl = text ("%unimpl_let_nonrec" ++ show i)
+        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
+        return name_unimpl
+      
+   Let (Rec bs) body -> do 
+        i <- builderMakeUnique 
+        let name_unimpl = text ("%unimpl_let_rec" ++ show i)
+        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
+        return name_unimpl
+
+    _ -> do
+        i <- builderMakeUnique 
+        let name_unimpl = text ("%unimpl_" ++ show i)
+        builderAppend $ name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)")
+        return name_unimpl
+      -- Builder $ \i0 -> let name_unimpl = text ("%unimpl_" ++ show i0)
+      --                         fulldoc = name_unimpl <+> (text " = ") <+> (text "hask.make_i32(42)") 
+      --                   in (i0+1, name_unimpl, fulldoc)
+
+-- instantiates an expression, giving it a name and an SDoc that needs to be pasted above it.
+-- TODO: we need a monad here to allow us to build an AST while returning a variable name.
+
+-- cvtExpr :: CoreExpr -> SDoc
+-- cvtExpr expr =
+--   case expr of
+--     Var x -> text "%" >< ppr x
+--     Lam x e -> braces_scoped (text "hask.lambda" <+> (parenthesize (cvtVar x))) (cvtExpr e)
+--     Case e wild _ as -> text "hask.caseSSA" <+> (cvtExpr e)  $+$ (nest 2 $ vcat [cvtAlt wild a | a <-as ])
+--     _ -> text  "hask.dummy_finish"
+
+  -- case expr of
+  --   Var x
+  --       -- foreign calls are local but have no binding site.
+  --       -- TODO: use hasNoBinding here.
+  --     | isFCallId x   -> EVarGlobal ForeignCall
+  --     | Just m <- nameModule_maybe $ getName x
+  --                     -> EVarGlobal $ ExternalName (cvtModuleName $ Module.moduleName m)
+  --                                                  (occNameToText $ getOccName x)
+  --                                                  (cvtUnique $ getUnique x)
+  --     | otherwise     -> EVar (cvtVar x)
+  --   Lit l             -> ELit (cvtLit l)
+  --   App x y           -> EApp (cvtExpr x) (cvtExpr y)
+  --   Lam x e
+  --     | Var.isTyVar x -> ETyLam (cvtVar x) (cvtExpr e)
+  --     | otherwise     -> ELam (cvtBinder x) (cvtExpr e)
+  --   Let (NonRec b e) body -> ELet [(cvtBinder b, cvtExpr e)] (cvtExpr body)
+  --   Let (Rec bs) body -> ELet (map (bimap cvtBinder cvtExpr) bs) (cvtExpr body)
+  --   Case e x _ as     -> ECase (cvtExpr e) (cvtBinder x) (map cvtAlt as)
+  --   Cast x _          -> cvtExpr x
+  --   Tick _ e          -> cvtExpr e
+  --   Type t            -> EType $ cvtType t
+  --   Coercion _        -> ECoercion
+
+
+{-
+import Data.Bifunctor
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+
+import Literal (Literal(..))
+#if MIN_VERSION_ghc(8,6,0)
+import qualified Literal
+#endif
+import Var (Var)
+import qualified Var
+import Id (isFCallId)
+import Module (ModuleName, moduleNameFS, moduleName)
+import Unique (Unique, getUnique, unpkUnique)
+import Name (getOccName, occNameFS, OccName, getName, nameModule_maybe)
+import qualified IdInfo
+import qualified BasicTypes as OccInfo (OccInfo(..), isStrongLoopBreaker)
+#if MIN_VERSION_ghc(8,0,0)
+import qualified CoreStats
+#else
+import qualified CoreUtils as CoreStats
+#endif
+import qualified CoreSyn
+import CoreSyn (Expr(..), CoreExpr, Bind(..), CoreAlt, CoreBind, AltCon(..))
+import HscTypes (ModGuts(..))
+import FastString (FastString)
+import qualified FastString
+#if MIN_VERSION_ghc(8,2,0)
+import TyCoRep as Type (Type(..))
+#elif MIN_VERSION_ghc(8,0,0)
+import TyCoRep as Type (Type(..), TyBinder(..))
+#else
+import TypeRep as Type (Type(..))
+#endif
+#if !(MIN_VERSION_ghc(8,2,0))
+import Type (splitFunTy_maybe)
+#endif
+import TyCon (TyCon, tyConUnique)
+
+import Outputable (ppr, showSDoc, SDoc)
+import DynFlags (unsafeGlobalDynFlags)
+
+import Core2MLIR.Ast as Ast
+
+cvtSDoc :: SDoc -> T.Text
+cvtSDoc = T.pack . showSDoc unsafeGlobalDynFlags
+
+fastStringToText :: FastString -> T.Text
+fastStringToText = TE.decodeUtf8
+#if MIN_VERSION_ghc(8,10,0)
+  . FastString.bytesFS
+#else
+  . FastString.fastStringToByteString
+#endif
+
+occNameToText :: OccName -> T.Text
+occNameToText = fastStringToText . occNameFS
+
+cvtUnique :: Unique.Unique -> Ast.Unique
+cvtUnique u =
+    let (a,b) = unpkUnique u
+    in Ast.Unique a b
+
+cvtVar :: Var -> BinderId
+cvtVar = BinderId . cvtUnique . Var.varUnique
+
+cvtBinder :: Var -> SBinder
+cvtBinder v
+  | Var.isId v =
+    SBndr $ Binder { binderName   = occNameToText $ getOccName v
+                   , binderId     = cvtVar v
+                   , binderIdInfo = cvtIdInfo $ Var.idInfo v
+                   , binderIdDetails = cvtIdDetails $ Var.idDetails v
+                   , binderType   = cvtType $ Var.varType v
+                   }
+  | otherwise =
+    SBndr $ TyBinder { binderName   = occNameToText $ getOccName v
+                     , binderId     = cvtVar v
+                     , binderKind   = cvtType $ Var.varType v
+                     }
+
+cvtIdInfo :: IdInfo.IdInfo -> Ast.IdInfo SBinder BinderId
+cvtIdInfo i =
+    IdInfo { idiArity         = IdInfo.arityInfo i
+           , idiIsOneShot     = IdInfo.oneShotInfo i == IdInfo.OneShotLam
+           , idiUnfolding     = cvtUnfolding $ IdInfo.unfoldingInfo i
+           , idiInlinePragma  = cvtSDoc $ ppr $ IdInfo.inlinePragInfo i
+           , idiOccInfo       = case IdInfo.occInfo i of
+#if MIN_VERSION_ghc(8,2,0)
+                                  OccInfo.ManyOccs{} -> OccManyOccs
+#else
+                                  OccInfo.NoOccInfo  -> OccManyOccs
+#endif
+                                  OccInfo.IAmDead    -> OccDead
+                                  OccInfo.OneOcc{}   -> OccOneOcc
+                                  oi@OccInfo.IAmALoopBreaker{} -> OccLoopBreaker (OccInfo.isStrongLoopBreaker oi)
+           , idiStrictnessSig = cvtSDoc $ ppr $ IdInfo.strictnessInfo i
+           , idiDemandSig     = cvtSDoc $ ppr $ IdInfo.demandInfo i
+           , idiCallArity     = IdInfo.callArityInfo i
+           }
+
+cvtUnfolding :: CoreSyn.Unfolding -> Ast.Unfolding SBinder BinderId
+cvtUnfolding CoreSyn.NoUnfolding = Ast.NoUnfolding
+#if MIN_VERSION_ghc(8,2,0)
+cvtUnfolding CoreSyn.BootUnfolding = Ast.BootUnfolding
+#endif
+cvtUnfolding (CoreSyn.OtherCon cons) = Ast.OtherCon (map cvtAltCon cons)
+cvtUnfolding (CoreSyn.DFunUnfolding{}) = Ast.DFunUnfolding
+cvtUnfolding u@(CoreSyn.CoreUnfolding{}) =
+    Ast.CoreUnfolding { unfTemplate   = cvtExpr $ CoreSyn.uf_tmpl u
+                      , unfIsValue    = CoreSyn.uf_is_value u
+                      , unfIsConLike  = CoreSyn.uf_is_conlike u
+                      , unfIsWorkFree = CoreSyn.uf_is_work_free u
+                      , unfGuidance   = cvtSDoc $ ppr $ CoreSyn.uf_guidance u
+                      }
+
+cvtIdDetails :: IdInfo.IdDetails -> Ast.IdDetails
+cvtIdDetails d =
+    case d of
+      IdInfo.VanillaId -> Ast.VanillaId
+      IdInfo.RecSelId{} -> Ast.RecSelId
+      IdInfo.DataConWorkId{} -> Ast.DataConWorkId
+      IdInfo.DataConWrapId{} -> Ast.DataConWrapId
+      IdInfo.ClassOpId{} -> Ast.ClassOpId
+      IdInfo.PrimOpId{} -> Ast.PrimOpId
+      IdInfo.FCallId{} -> error "This shouldn't happen"
+      IdInfo.TickBoxOpId{} -> Ast.TickBoxOpId
+      IdInfo.DFunId{} -> Ast.DFunId
+#if MIN_VERSION_ghc(8,0,0)
+      IdInfo.CoVarId{} -> Ast.CoVarId
+#endif
+#if MIN_VERSION_ghc(8,2,0)
+      IdInfo.JoinId n -> Ast.JoinId n
+#endif
+
+cvtCoreStats :: CoreStats.CoreStats -> Ast.CoreStats
+cvtCoreStats stats =
+    Ast.CoreStats
+      { csTerms     = CoreStats.cs_tm stats
+      , csTypes     = CoreStats.cs_ty stats
+      , csCoercions = CoreStats.cs_co stats
+#if MIN_VERSION_ghc(8,2,0)
+      , csValBinds  = CoreStats.cs_vb stats
+      , csJoinBinds = CoreStats.cs_jb stats
+#else
+      , csValBinds  = 0
+      , csJoinBinds = 0
+#endif
+      }
+
+exprStats :: CoreExpr -> CoreStats.CoreStats
+#if MIN_VERSION_ghc(8,0,0)
+exprStats = CoreStats.exprStats
+#else
+-- exprStats wasn't exported in 7.10
+exprStats _ = CoreStats.CS 0 0 0
+#endif
+
+cvtTopBind :: CoreBind -> STopBinding
+cvtTopBind (NonRec b e) =
+    NonRecTopBinding (cvtBinder b) (cvtCoreStats $ exprStats e) (cvtExpr e)
+cvtTopBind (Rec bs) =
+    RecTopBinding $ map to bs
+  where to (b, e) = (cvtBinder b, cvtCoreStats $ exprStats e, cvtExpr e)
+
+cvtExpr :: CoreExpr -> Ast.SExpr
+cvtExpr expr =
+  case expr of
+    Var x
+        -- foreign calls are local but have no binding site.
+        -- TODO: use hasNoBinding here.
+      | isFCallId x   -> EVarGlobal ForeignCall
+      | Just m <- nameModule_maybe $ getName x
+                      -> EVarGlobal $ ExternalName (cvtModuleName $ Module.moduleName m)
+                                                   (occNameToText $ getOccName x)
+                                                   (cvtUnique $ getUnique x)
+      | otherwise     -> EVar (cvtVar x)
+    Lit l             -> ELit (cvtLit l)
+    App x y           -> EApp (cvtExpr x) (cvtExpr y)
+    Lam x e
+      | Var.isTyVar x -> ETyLam (cvtBinder x) (cvtExpr e)
+      | otherwise     -> ELam (cvtBinder x) (cvtExpr e)
+    Let (NonRec b e) body -> ELet [(cvtBinder b, cvtExpr e)] (cvtExpr body)
+    Let (Rec bs) body -> ELet (map (bimap cvtBinder cvtExpr) bs) (cvtExpr body)
+    Case e x _ as     -> ECase (cvtExpr e) (cvtBinder x) (map cvtAlt as)
+    Cast x _          -> cvtExpr x
+    Tick _ e          -> cvtExpr e
+    Type t            -> EType $ cvtType t
+    Coercion _        -> ECoercion
+
+cvtAlt :: CoreAlt -> Ast.SAlt
+cvtAlt (con, bs, e) = Alt (cvtAltCon con) (map cvtBinder bs) (cvtExpr e)
+
+cvtAltCon :: CoreSyn.AltCon -> Ast.AltCon
+cvtAltCon (DataAlt altcon) = Ast.AltDataCon $ occNameToText $ getOccName altcon
+cvtAltCon (LitAlt l)       = Ast.AltLit $ cvtLit l
+cvtAltCon DEFAULT          = Ast.AltDefault
+
+cvtLit :: Literal -> Ast.Lit
+cvtLit l =
+    case l of
+#if MIN_VERSION_ghc(8,8,0)
+      Literal.LitChar x -> Ast.MachChar x
+      Literal.LitString x -> Ast.MachStr x
+      Literal.LitNullAddr -> Ast.MachNullAddr
+      Literal.LitFloat x -> Ast.MachFloat x
+      Literal.LitDouble x -> Ast.MachDouble x
+      Literal.LitLabel x _ _ -> Ast.MachLabel $ fastStringToText  x
+      Literal.LitRubbish -> Ast.LitRubbish
+#else
+      Literal.MachChar x -> Ast.MachChar x
+      Literal.MachStr x -> Ast.MachStr x
+      Literal.MachNullAddr -> Ast.MachNullAddr
+      Literal.MachFloat x -> Ast.MachFloat x
+      Literal.MachDouble x -> Ast.MachDouble x
+      Literal.MachLabel x _ _ -> Ast.MachLabel $ fastStringToText  x
+#endif
+#if MIN_VERSION_ghc(8,6,0)
+      Literal.LitNumber numty n _ ->
+        case numty of
+          Literal.LitNumInt -> Ast.MachInt n
+          Literal.LitNumInt64 -> Ast.MachInt64 n
+          Literal.LitNumWord -> Ast.MachWord n
+          Literal.LitNumWord64 -> Ast.MachWord64 n
+          Literal.LitNumInteger -> Ast.LitInteger n
+          Literal.LitNumNatural -> Ast.LitNatural n
+#else
+      Literal.MachInt x -> Ast.MachInt x
+      Literal.MachInt64 x -> Ast.MachInt64 x
+      Literal.MachWord x -> Ast.MachWord x
+      Literal.MachWord64 x -> Ast.MachWord64 x
+      Literal.LitInteger x _ -> Ast.LitInteger x
+#endif
+
+cvtModule :: String -> ModGuts -> Ast.SModule
+cvtModule phase guts =
+    Ast.Module name (T.pack phase) (map cvtTopBind $ mg_binds guts)
+  where name = cvtModuleName $ Module.moduleName $ mg_module guts
+
+cvtModuleName :: Module.ModuleName -> Ast.ModuleName
+cvtModuleName = Ast.ModuleName . fastStringToText . moduleNameFS
+
+cvtType :: Type.Type -> Ast.SType
+#if MIN_VERSION_ghc(8,10,0)
+cvtType (Type.FunTy _flag a b) = Ast.FunTy (cvtType a) (cvtType b)
+#elif MIN_VERSION_ghc(8,2,0)
+cvtType (Type.FunTy a b) = Ast.FunTy (cvtType a) (cvtType b)
+#else
+cvtType t
+  | Just (a,b) <- splitFunTy_maybe t = Ast.FunTy (cvtType a) (cvtType b)
+#endif
+cvtType (Type.TyVarTy v)       = Ast.VarTy (cvtVar v)
+cvtType (Type.AppTy a b)       = Ast.AppTy (cvtType a) (cvtType b)
+cvtType (Type.TyConApp tc tys) = Ast.TyConApp (cvtTyCon tc) (map cvtType tys)
+#if MIN_VERSION_ghc(8,8,0)
+cvtType (Type.ForAllTy (Var.Bndr b _) t) = Ast.ForAllTy (cvtBinder b) (cvtType t)
+#elif MIN_VERSION_ghc(8,2,0)
+cvtType (Type.ForAllTy (Var.TvBndr b _) t) = Ast.ForAllTy (cvtBinder b) (cvtType t)
+#elif MIN_VERSION_ghc(8,0,0)
+cvtType (Type.ForAllTy (Named b _) t) = Ast.ForAllTy (cvtBinder b) (cvtType t)
+cvtType (Type.ForAllTy (Anon _) t)    = cvtType t
+#else
+cvtType (Type.ForAllTy b t)    = Ast.ForAllTy (cvtBinder b) (cvtType t)
+#endif
+cvtType (Type.LitTy _)         = Ast.LitTy
+#if MIN_VERSION_ghc(8,0,0)
+cvtType (Type.CastTy t _)      = cvtType t
+cvtType (Type.CoercionTy _)    = Ast.CoercionTy
+#endif
+
+cvtTyCon :: TyCon.TyCon -> Ast.TyCon
+cvtTyCon tc = TyCon (occNameToText $ getOccName tc) (cvtUnique $ tyConUnique tc)
+-}  

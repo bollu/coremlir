@@ -26,6 +26,8 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Friday, Oct 30th
+
 # Thursday, Oct 29th
 
 - Email arnaud, we're talking Nov 10th, maybe? He's busy because of his
@@ -34,6 +36,36 @@ Convert GHC Core to MLIR.
 - Getting a generic MLIR printer infrastructure up in Haskell. Will use it for
   my GHC plugin, as well as to optimize cherry picked examples from `Data.Vector.Unboxed`
 - I maybe able to perform [`freeJIT`](https://github.com/bollu/freejit) now that MLIR exists!
+
+```
+module {
+
+  hask.func @two () -> !hask.adt<@SimpleInt>  {
+     %v = hask.make_i64(2)
+     %boxed = hask.construct(@SimpleInt, %v:!hask.value) : !hask.adt<@SimpleInt> 
+     hask.return(%boxed): !hask.adt<@SimpleInt> 
+  }
+
+  hask.func @main (%v: !hask.adt<@SimpleInt>, %wt: !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt> {
+      %number = hask.make_i64(0 : i64)
+      %reti = hask.case @SimpleInt %v 
+           [@SimpleInt -> { ^entry(%ival: !hask.value):
+              %w = hask.force(%wt):!hask.adt<@SimpleInt>
+               %number43 = hask.make_i64(43 : i64)
+               hask.return(%number43):!hask.value
+            }]
+            [@default -> { 
+               ^entry:
+                   %number42 = hask.make_i64(42 : i64)
+                   hask.return(%number42):!hask.value
+
+            }]
+      %two = hask.ref(@two):  !hask.fn<() -> !hask.adt<@SimpleInt>>
+      %twot = hask.ap(%two :  !hask.fn<() -> !hask.adt<@SimpleInt>> )
+      hask.return(%reti) : !hask.value
+  }
+}
+```
 
 ```
 module {

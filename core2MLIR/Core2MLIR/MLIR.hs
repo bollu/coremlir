@@ -57,9 +57,24 @@ instance Outputable RegionList where
   ppr (RegionList rs) = parens (commaList (map ppr rs))
 
 -- block           ::= block-label operation+
-data Block = Block BlockLabel (NE.NonEmpty Operation)
+-- | It's not worth the hassle of non-empty sadly. I'll just expose a 
+-- smart constructor?
+data Block = Block BlockLabel [Operation]
 
 instance Outputable Block where
+   ppr (Block label ops) = ppr label <+> colon <+> (vcat $ map ppr ops)
+
+
+block :: String -- ^ BB name
+  -> [(SSAId, Type)] -- ^ BB arg list 
+  -> [Operation] -- ^ BB instructions
+  -> Block
+block name _ []= error $ "empty list passed to: " ++ name
+block name args ops = Block (BlockLabel (BlockId name) args) ops
+
+blockAppendOp :: Operation -> Block -> Block
+blockAppendOp op (Block name ops) = Block name (ops ++ [op])
+
   
 -- block-label     ::= block-id block-arg-list? `:`
 data BlockLabel = BlockLabel BlockId BlockArgList
@@ -226,6 +241,8 @@ newtype OpResult = OpResult String -- TODO: add the maybe int to pick certain re
 -- value-use ::= value-id
 -- value-use-list ::= value-use (`,` value-use)*
 newtype ValueUseList = ValueUseList [SSAId] -- [ValueId]
+
+
 instance Outputable ValueUseList where
   ppr (ValueUseList []) = empty
   ppr (ValueUseList [v]) = ppr v
