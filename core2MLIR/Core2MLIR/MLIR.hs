@@ -47,6 +47,9 @@ instance Outputable Region where
  
 -- region-list       ::= region (`,` region)*
 newtype RegionList = RegionList [Region]
+instance Outputable RegionList where
+  ppr _ = error "outpuut regionlist"
+
 -- block           ::= block-label operation+
 data Block = Block BlockLabel (NE.NonEmpty Operation)
 
@@ -86,6 +89,9 @@ type AttributeName = String
 data AttributeDict = AttributeDict [(AttributeName, AttributeValue)] 
   deriving(Monoid, Semigroup)
 
+instance Outputable AttributeDict where
+  ppr _ = error "outputable of AttributeDict"
+
 
 -- attribute-value ::= attribute-alias | dialect-attribute | standard-attribute
 -- standard-attribute ::=   affine-map-attribute
@@ -120,9 +126,9 @@ data Operation =
 instance Outputable Operation where
   ppr op = 
        text (opname op) O.<> 
-       ppr (opvals op) O.<>
+       parens (ppr (opvals op)) O.<>
        ppr (opsuccs op) O.<>
-       ppr (opregions op) O.<>
+       parens (ppr (opregions op)) O.<>
        ppr (opattrs op) O.<> colon O.<> ppr (opty op)
 
 
@@ -132,12 +138,24 @@ defaultop = Operation "DEFAULTOP" (ValueUseList []) SuccessorList (RegionList []
 
 
 
+-- | parenthesized list
+parenList :: Outputable a => [a] -> SDoc
+parenList xs = parens (hcat $ punctuate comma ((map ppr xs)))
+
 -- // MLIR functions can return multiple values.
 -- function-result-type ::= type-list-parens
 --                        | non-function-type
 -- 
 -- function-type ::= type-list-parens `->` function-result-type
-data FunctionType = FunctionType { paramtys :: [Type], rettys :: [Type] }
+data FunctionType = 
+  FunctionType { 
+    functionTypeParams :: [Type],
+    functionTypeRets :: [Type]
+  }
+
+instance Outputable FunctionType where
+  ppr (FunctionType ps rs) = 
+    parenList ps O.<> text " -> " O.<> parenList rs
 
 -- | default function type
 defaultFunctionType :: FunctionType; defaultFunctionType = FunctionType [] []
@@ -168,7 +186,10 @@ instance Outputable Type where
   ppr (TypeDialect ns x) = ppr ns  O.<> angleBrackets (ppr x)
   ppr (TypeIntegerSignless i) = ppr 'i' O.<> ppr i
 
-data SuccessorList =SuccessorList
+-- | successor-list    ::= successor (`,` successor)*
+data SuccessorList = SuccessorList
+instance Outputable SuccessorList where
+  ppr (SuccessorList) = empty
 -- custom-operation  ::= bare-id custom-operation-format
 -- op-result-list    ::= op-result (`,` op-result)* `=`
 newtype OpResultList = NonEmpty OpResult
@@ -182,6 +203,10 @@ newtype OpResult = OpResult String -- TODO: add the maybe int to pick certain re
 -- value-use ::= value-id
 -- value-use-list ::= value-use (`,` value-use)*
 newtype ValueUseList = ValueUseList [SSAId] -- [ValueId]
+
+instance Outputable ValueUseList where
+  ppr (ValueUseList vs) = hcat $ punctuate comma (map ppr vs)
+
 
 -- value-id ::= `%` suffix-id
 -- newtype ValueId = ValueId String
