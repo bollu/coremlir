@@ -86,7 +86,9 @@ genMLIR dflags n phase guts = do
     showPass dflags $ "===GhcDump: Dumping MLIR to "++ fname++"==="
     let in_dump_dir = maybe id (</>) (dumpDir dflags)
     createDirectoryIfMissing True $ takeDirectory $ in_dump_dir fname
-    withFile (in_dump_dir fname) WriteMode (\h -> printSDoc PageMode dflags h (defaultDumpStyle dflags) (cvtModuleToMLIR dflags phase guts))
+    withFile (in_dump_dir fname) WriteMode 
+      -- (\h -> printSDoc PageMode dflags h (defaultDumpStyle dflags) (cvtModuleToMLIR dflags phase guts))
+      (\h -> printSDoc PageMode dflags h (defaultDumpStyle dflags) (codegenModuleToMLIRSDoc dflags phase guts))
     putStrLn $ "===ran core2MLIR==="
     return guts
 

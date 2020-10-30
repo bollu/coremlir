@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns #-}
-module Core2MLIR.ConvertToMLIR(cvtModuleToMLIR) where
+module Core2MLIR.ConvertToMLIR(cvtModuleToMLIR, codegenModuleToMLIRSDoc) where
 import Var (Var, varName)
 import qualified Var
 import Id (isFCallId, isGlobalId, isExportedId)
