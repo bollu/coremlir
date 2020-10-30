@@ -5,6 +5,9 @@ module Core2MLIR.MLIR where
 import qualified Data.List.NonEmpty as NE
 import Outputable as O
 
+-- parenthesis: smooth sounds -> smooth curve -> ()
+-- bracket: hard -ket sound -> rigid corner -> []
+-- braces: shape looks like the braces people use for teeth -> {}
 
 -- | TODO: how to get access to actual lines in SDoc so we can // all of the
 -- lines?
@@ -34,7 +37,7 @@ instance Outputable SSAId where
 data SymbolRefId = SymbolRefId String
 
 instance Outputable SymbolRefId where
-  ppr (SymbolRefId x) = text ('@':x)
+  ppr (SymbolRefId x) =  text "@" O.<> (doubleQuotes (text x))
 -- operation
 -- region ::= `{` block* `}`
 newtype Region = Region [Block]
@@ -45,10 +48,13 @@ defaultRegion = Region []
 instance Outputable Region where
   ppr (Region bs) = lbrace <+> nest 4 (vcat (map ppr bs)) <+> rbrace
  
+-- generic-operation ::= string-literal `(` value-use-list? `)`  successor-list?
+--                       (`(` region-list `)`)? attribute-dict? `:` function-type
 -- region-list       ::= region (`,` region)*
 newtype RegionList = RegionList [Region]
 instance Outputable RegionList where
-  ppr _ = error "outpuut regionlist"
+  ppr (RegionList []) = empty
+  ppr (RegionList rs) = parens (commaList (map ppr rs))
 
 -- block           ::= block-label operation+
 data Block = Block BlockLabel (NE.NonEmpty Operation)
@@ -60,7 +66,7 @@ data BlockLabel = BlockLabel BlockId BlockArgList
 
 instance Outputable BlockLabel where
   ppr (BlockLabel name args) = 
-    let prettyArgs args = parens (hcat $ punctuate comma [ppr v O.<> colon O.<> ppr t | (v, t) <- args])
+    let prettyArgs args = parens (commaList [ppr v O.<> colon O.<> ppr t | (v, t) <- args])
     in ppr name  <+> prettyArgs args O.<> colon
 -- // Non-empty list of names and types.
 -- value-id-and-type-list ::= value-id-and-type (`,` value-id-and-type)*
@@ -89,8 +95,12 @@ type AttributeName = String
 data AttributeDict = AttributeDict [(AttributeName, AttributeValue)] 
   deriving(Monoid, Semigroup)
 
+-- generic-operation ::= string-literal `(` value-use-list? `)`  successor-list?
+--                       (`(` region-list `)`)? attribute-dict? `:` function-type
 instance Outputable AttributeDict where
-  ppr _ = error "outputable of AttributeDict"
+  ppr (AttributeDict []) = empty
+  ppr (AttributeDict nvs) = 
+    braces . commaList $ [text name O.<+> equals O.<+> ppr val | (name, val) <- nvs]
 
 
 -- attribute-value ::= attribute-alias | dialect-attribute | standard-attribute
@@ -107,8 +117,17 @@ instance Outputable AttributeDict where
 --                        | type-attribute
 --                        | unit-attribute
 -- 
-data AttributeValue = AttributeSymbolRef SymbolRefId | AttributeString String | AttributeInteger Integer | AttributeType Type 
+data AttributeValue = AttributeSymbolRef SymbolRefId | 
+                      AttributeString String | 
+                      AttributeInteger Integer | 
+                      AttributeType Type 
 
+
+instance Outputable AttributeValue where
+  ppr (AttributeSymbolRef x) = ppr x
+  ppr (AttributeString x) = doubleQuotes (text x)
+  ppr (AttributeInteger x) = integer x
+  ppr (AttributeType x) = ppr x
 
 -- operation         ::= op-result-list? (generic-operation | custom-operation)
 --                       trailing-location?
@@ -125,10 +144,10 @@ data Operation =
 
 instance Outputable Operation where
   ppr op = 
-       text (opname op) O.<> 
+       doubleQuotes (text (opname op)) O.<> 
        parens (ppr (opvals op)) O.<>
        ppr (opsuccs op) O.<>
-       parens (ppr (opregions op)) O.<>
+       (ppr (opregions op)) O.<>
        ppr (opattrs op) O.<> colon O.<> ppr (opty op)
 
 
@@ -137,10 +156,9 @@ defaultop :: Operation
 defaultop = Operation "DEFAULTOP" (ValueUseList []) SuccessorList (RegionList [])  (AttributeDict []) defaultFunctionType
 
 
+commaList :: Outputable a => [a] -> SDoc
+commaList xs = hcat $ punctuate comma ((map ppr xs))
 
--- | parenthesized list
-parenList :: Outputable a => [a] -> SDoc
-parenList xs = parens (hcat $ punctuate comma ((map ppr xs)))
 
 -- // MLIR functions can return multiple values.
 -- function-result-type ::= type-list-parens
@@ -155,7 +173,7 @@ data FunctionType =
 
 instance Outputable FunctionType where
   ppr (FunctionType ps rs) = 
-    parenList ps O.<> text " -> " O.<> parenList rs
+    parens (commaList ps) O.<> text " -> " O.<> parens (commaList rs)
 
 -- | default function type
 defaultFunctionType :: FunctionType; defaultFunctionType = FunctionType [] []
@@ -183,7 +201,7 @@ defaultFunctionType :: FunctionType; defaultFunctionType = FunctionType [] []
 data Type = TypeDialect DialectNamespace String
     | TypeIntegerSignless Int  -- ^ width
 instance Outputable Type where
-  ppr (TypeDialect ns x) = ppr ns  O.<> angleBrackets (ppr x)
+  ppr (TypeDialect ns x) = ppr ns  O.<> angleBrackets (text x)
   ppr (TypeIntegerSignless i) = ppr 'i' O.<> ppr i
 
 -- | successor-list    ::= successor (`,` successor)*
@@ -200,12 +218,18 @@ newtype OpResult = OpResult String -- TODO: add the maybe int to pick certain re
 -- region-list       ::= region (`,` region)*
 -- trailing-location ::= (`loc` `(` location `)`)?
 -- // Uses of value, e.g. in an operand list to an operation.
+
+
+
+-- generic-operation ::= string-literal `(` value-use-list? `)`  successor-list?
+--                       (`(` region-list `)`)? attribute-dict? `:` function-type
 -- value-use ::= value-id
 -- value-use-list ::= value-use (`,` value-use)*
 newtype ValueUseList = ValueUseList [SSAId] -- [ValueId]
-
 instance Outputable ValueUseList where
-  ppr (ValueUseList vs) = hcat $ punctuate comma (map ppr vs)
+  ppr (ValueUseList []) = empty
+  ppr (ValueUseList [v]) = ppr v
+  ppr (ValueUseList vs) = parens (commaList (map ppr vs))
 
 
 -- value-id ::= `%` suffix-id

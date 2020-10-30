@@ -192,7 +192,7 @@ cvtTyConToMLIR c = do
  builderAppend $ text"//binders: " >< ppr (tyConBinders c)
 
 codegenTyCon :: TyCon -> State Int MLIR.Operation
-codegenTyCon c = error "codegenTyCon"
+codegenTyCon c = pure (MLIR.defaultop)
 
 
 codegenModuleToMLIRSDoc ::DynFlags -> String -> ModGuts -> SDoc
@@ -337,9 +337,21 @@ cvtVarORIGINAL_VERSION v =
   in (text "%var__X_") >< (text $ varToUniqueName $ v) >< (text "_X_")
 
 
+-- varToUniqueName :: Var -> String
+-- varToUniqueName v =  (escapeName  $ unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
+
+
+varToString :: Var -> String
+varToString v =(unpackFS $ occNameFS $ getOccName v) ++ "_" ++ (show $ getUnique v)
 
 codegenTopBindImpl :: (Var, CoreExpr) -> State Int MLIR.Operation
-codegenTopBindImpl (b, e) = error "unimplement codegenTopBindImpl"
+codegenTopBindImpl (varname, e) =  do
+  let r = MLIR.Region []
+  return MLIR.defaultop { 
+       MLIR.opname = "hask.func", 
+       MLIR.opattrs = MLIR.AttributeDict [("sym_name", MLIR.AttributeString (varToString varname))],
+       MLIR.opregions = MLIR.RegionList [r]
+     }
 
 cvtTopBindImpl :: (Var, CoreExpr) -> Builder ()
 cvtTopBindImpl (b, e) = do 
