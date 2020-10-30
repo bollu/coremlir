@@ -116,6 +116,16 @@ data Operation =
               opattrs :: AttributeDict,
               opty :: FunctionType
             }
+
+instance Outputable Operation where
+  ppr op = 
+       text (opname op) O.<> 
+       ppr (opvals op) O.<>
+       ppr (opsuccs op) O.<>
+       ppr (opregions op) O.<>
+       ppr (opattrs op) O.<> colon O.<> ppr (opty op)
+
+
 -- | default operation.
 defaultop :: Operation
 defaultop = Operation "DEFAULTOP" (ValueUseList []) SuccessorList (RegionList [])  (AttributeDict []) defaultFunctionType

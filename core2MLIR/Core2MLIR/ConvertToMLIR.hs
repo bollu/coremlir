@@ -195,12 +195,16 @@ codegenTyCon :: TyCon -> State Int MLIR.Operation
 codegenTyCon c = error "codegenTyCon"
 
 
+codegenModuleToMLIRSDoc ::DynFlags -> String -> ModGuts -> SDoc
+codegenModuleToMLIRSDoc dflags phase guts = 
+  vcat $ (map ppr (codegenModuleToMLIR dflags phase guts))
+
 -- | kill me now I'm using { ... }
 codegenModuleToMLIR :: DynFlags -> String -> ModGuts -> [MLIR.Operation]
-codegenModuleToMLIR dfags phase guts = _ $ do
+codegenModuleToMLIR dfags phase guts = evalState (do
    tys <- forM (mg_tcs guts) codegenTyCon
    topbindss <- forM (filter shouldKeepBind (mg_binds guts)) codegenTopBind
-   return (tys ++ concat topbindss)
+   return (tys ++ concat topbindss)) 0
   
 
 cvtModuleToMLIR :: DynFlags -> String -> ModGuts -> SDoc
