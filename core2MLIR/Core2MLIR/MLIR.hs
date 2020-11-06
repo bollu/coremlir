@@ -1,6 +1,5 @@
 -- | https://github.com/llvm/llvm-project/blob/master/mlir/docs/LangRef.md
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DeriveAnyClass #-}
 module Core2MLIR.MLIR where
 import qualified Data.List.NonEmpty as NE
 import Outputable as O
@@ -30,8 +29,18 @@ instance Outputable BareId where
 -- suffix-id ::= (digit+ | ((letter|id-punct) (letter|id-punct|digit)*))
 data SSAId = SSAId String
 
+sanitizeSSAId :: String -> String
+sanitizeSSAId "#" = "$hash"
+sanitizeSSAId "[]" = "$list"
+sanitizeSSAId "()" = "$unittuple"
+sanitizeSSAId "*" = "$star"
+sanitizeSSAId ('#':xs) = "$hash$" ++ sanitizeSSAId xs
+sanitizeSSAId (x:xs) = x:sanitizeSSAId xs
+sanitizeSSAId [] = []
+
 instance Outputable SSAId where
-  ppr (SSAId x) = text ('%':x)
+  ppr (SSAId x) = 
+    text ("%") O.<> text (sanitizeSSAId x) -- doubleQuotes (text x)
 
 -- symbol-ref-id ::= `@` (suffix-id | string-literal)
 data SymbolRefId = SymbolRefId String
@@ -68,6 +77,10 @@ singleBBRegionList bb = RegionList [Region [bb]]
 -- | It's not worth the hassle of non-empty sadly. I'll just expose a 
 -- smart constructor?
 data Block = Block BlockLabel [Operation]
+
+blockArgTys :: Block -> [Type]
+blockArgTys (Block (BlockLabel _ (idAndTys)) _)  = map snd idAndTys
+
 
 instance Outputable Block where
    ppr (Block label ops) = ppr label <+> (vcat $ map ppr ops)
@@ -116,8 +129,8 @@ newtype SuffixId = SuffixId String
 -- dependent-attribute-name ::= ((letter|[_]) (letter|digit|[_$])*)
 --                            | string-literal
 type AttributeName = String
-data AttributeDict = AttributeDict [(AttributeName, AttributeValue)] 
-  deriving(Monoid, Semigroup)
+newtype AttributeDict = AttributeDict [(AttributeName, AttributeValue)] 
+                             deriving(Monoid, Semigroup)
 
 -- generic-operation ::= string-literal `(` value-use-list? `)`  successor-list?
 --                       (`(` region-list `)`)? attribute-dict? `:` function-type
@@ -222,10 +235,12 @@ defaultFunctionType :: FunctionType; defaultFunctionType = FunctionType [] []
 --                  unsigned-integer-type |
 --                  signless-integer-type
 -- 
-data Type = TypeDialect DialectNamespace String
+data Type =  TypeCustom SDoc
+    -- TypeDialect DialectNamespace String HACK: removed TypeDialect
     | TypeIntegerSignless Int  -- ^ width
 instance Outputable Type where
-  ppr (TypeDialect ns x) = ppr ns  O.<> angleBrackets (text x)
+  ppr (TypeCustom d) = d
+  -- ppr (TypeDialect ns x) = ppr ns  O.<> angleBrackets (text x)
   ppr (TypeIntegerSignless i) = ppr 'i' O.<> ppr i
 
 -- | successor-list    ::= successor (`,` successor)*
@@ -251,10 +266,12 @@ newtype OpResult = OpResult String -- TODO: add the maybe int to pick certain re
 -- value-use-list ::= value-use (`,` value-use)*
 newtype ValueUseList = ValueUseList [SSAId] -- [ValueId]
 
+vals :: [SSAId] -> ValueUseList; vals xs = ValueUseList xs
+
 instance Outputable ValueUseList where
   ppr (ValueUseList []) = empty
   ppr (ValueUseList [v]) = ppr v
-  ppr (ValueUseList vs) = parens (commaList (map ppr vs))
+  ppr (ValueUseList vs) = commaList (map ppr vs)
 
 
 -- value-id ::= `%` suffix-id
