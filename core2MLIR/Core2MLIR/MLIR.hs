@@ -56,13 +56,21 @@ instance Outputable RegionList where
   ppr (RegionList []) = empty
   ppr (RegionList rs) = parens (commaList (map ppr rs))
 
+-- | region list with a single region
+singleRegionList :: Region -> RegionList
+singleRegionList r = RegionList [r]
+
+-- | region list with single basic block 
+singleBBRegionList :: Block -> RegionList
+singleBBRegionList bb = RegionList [Region [bb]]
+
 -- block           ::= block-label operation+
 -- | It's not worth the hassle of non-empty sadly. I'll just expose a 
 -- smart constructor?
 data Block = Block BlockLabel [Operation]
 
 instance Outputable Block where
-   ppr (Block label ops) = ppr label <+> colon <+> (vcat $ map ppr ops)
+   ppr (Block label ops) = ppr label <+> (vcat $ map ppr ops)
 
 
 block :: String -- ^ BB name
@@ -80,9 +88,10 @@ blockAppendOp op (Block name ops) = Block name (ops ++ [op])
 data BlockLabel = BlockLabel BlockId BlockArgList
 
 instance Outputable BlockLabel where
+  ppr (BlockLabel name []) =  ppr name O.<> colon
   ppr (BlockLabel name args) = 
     let prettyArgs args = parens (commaList [ppr v O.<> colon O.<> ppr t | (v, t) <- args])
-    in ppr name  <+> prettyArgs args O.<> colon
+    in ppr name  <+> prettyArgs args 
 -- // Non-empty list of names and types.
 -- value-id-and-type-list ::= value-id-and-type (`,` value-id-and-type)*
 -- block-arg-list ::= `(` value-id-and-type-list? `)`
@@ -241,7 +250,6 @@ newtype OpResult = OpResult String -- TODO: add the maybe int to pick certain re
 -- value-use ::= value-id
 -- value-use-list ::= value-use (`,` value-use)*
 newtype ValueUseList = ValueUseList [SSAId] -- [ValueId]
-
 
 instance Outputable ValueUseList where
   ppr (ValueUseList []) = empty

@@ -3,6 +3,8 @@
 Convert GHC Core to MLIR.
 
 - [Link to download the latest build of my master thesis](https://github.com/bollu/coremlir/releases/latest/download/thesis.pdf)
+- [`fast-math` haskell library has some RULES limitations](https://github.com/liyang/fast-math/)
+
 
 # Notes on GHC
 
@@ -25,6 +27,41 @@ Convert GHC Core to MLIR.
 
 
 # Log:  [newest] to [oldest]
+
+# Friday. Nov 6th
+
+- [Core Spec](https://gitlab.haskell.org/ghc/ghc/-/blob/master/docs/core-spec/core-spec.pdf)
+
+```
+data X = X1 !Int | X2 !Char
+foo :: X -> X;
+foo x = case x of X1 i -> X1 (i * 2); X2 c = X2 (c + 'a')
+
+
+(%x1, %x2) = lz.variant(%x)
+%x1_plus_1 = add(%x1, 1)
+%y1 = lz.construct(@X1, %x1_plus_1)
+
+%x2_plus_a = add(%x1, 97) -- ord(a) = 97
+%y2 = lz.construct(@X2, %x2_plus_a)
+%out = lz.union(%y1, %y2)
+```
+
+# Monday, Nov 2nd
+
+#### From `fast-math`:
+
+> How does this interact with LLVM?  The LLVM backend can perform a number of
+> these optimizations for us as well if we pass it the right flags. It does not
+> perform all of them, however. (Possibly GHC's optimization passes remove the
+> opportunity?) In any event, executables from the built-in code generator and
+> llvm generator will both see speed improvements.
+
+- [GHC page on rewrite rules has more food for thought](https://wiki.haskell.org/GHC/Using_rules)
+
+
+
+
 
 # Friday, Oct 30th
 
