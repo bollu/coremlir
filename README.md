@@ -28,6 +28,25 @@ Convert GHC Core to MLIR.
 
 # Log:  [newest] to [oldest]
 
+# Monday: Nov 6th
+
+- [`flrc` documentation](https://github.com/bollu/flrc/blob/master/doc/building-ghc.md)
+> Moreover, GHC and its libraries have to be (slightly) patched in order to
+> produce external cores that is suitable for HRC to consume, mostly to remove
+> GHC-specific runtime references, and to insert additional primitives required
+> for immutable array and so on . Also, HRC has runtime support for arbitrary
+> precision integers, so GHC's integer-gmp library is no longer compatible. We've
+> implemented a new library based on integer-simple to integrate GHC's big
+> integer with HRC's.
+> 
+> However, recent GHC versions have dropped the support for external core (due to
+> lack of maintainers), and therefore, HRC is stuck with an older version of GHC
+> 7.6.3.
+
+- [Link to normalizer that converts core to ANF](https://github.com/bollu/flrc/blob/master/compiler/core-hs/normalize.sml)
+
+
+
 # Friday. Nov 6th
 
 - [Core Spec](https://gitlab.haskell.org/ghc/ghc/-/blob/master/docs/core-spec/core-spec.pdf)

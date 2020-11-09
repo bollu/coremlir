@@ -227,24 +227,26 @@ codegenExpr' (Lam param body) = do
   -- TODO: add param
   let entry = MLIR.block "entry"  [] (ops ++ [haskreturnop (finalval, haskvalty)])
   let r = MLIR.Region [entry]
+  curid <- builderMakeUniqueSSAId
   let op = MLIR.defaultop {
        MLIR.opname = "hask.lambda", 
        MLIR.opregions = MLIR.RegionList [r],
+       MLIR.opresults = MLIR.OpResultList [curid],
        MLIR.opty = MLIR.FunctionType (MLIR.blockArgTys entry)   [haskvalty]
   }
-  curid <- builderMakeUniqueSSAId
   return ([op], curid)
 
 codegenExpr' (App f x) = do
  (fops, fname) <- codegenExpr' f
  (xops, xname) <- codegenExpr' x
- let lamop = MLIR.defaultop {
+ curid <- builderMakeUniqueSSAId
+ let op = MLIR.defaultop {
        MLIR.opname = "hask.ap", 
        MLIR.opvals = MLIR.ValueUseList [fname, xname],
+       MLIR.opresults = MLIR.OpResultList [curid],
        MLIR.opty = MLIR.FunctionType [haskvalty, haskvalty] [haskvalty]
  }
- curid <- builderMakeUniqueSSAId
- return (fops ++ xops ++ [lamop], curid)
+ return (fops ++ xops ++ [op], curid)
 
 codegenExpr' (Case scr wild _ alts) = do
  (ops_scr, name_scr) <- codegenExpr' scr
@@ -253,26 +255,38 @@ codegenExpr' (Case scr wild _ alts) = do
  let op = MLIR.defaultop { 
      MLIR.opname = "hask.case",
      MLIR.opregions = MLIR.RegionList (map snd attrRgns),
+     MLIR.opresults = MLIR.OpResultList [curid],
      MLIR.opattrs = mconcat (map fst attrRgns)
   }
  return (ops_scr ++ [op], curid)
 
+codegenExpr' (Let _ e) = do
+ curid <- builderMakeUniqueSSAId
+ let op = MLIR.defaultop { MLIR.opname = "hask.let", MLIR.opresults = MLIR.OpResultList [curid] }
+ return ([op], curid)
+
 codegenExpr' (Type t) = do
  curid <- builderMakeUniqueSSAId
- let op = MLIR.defaultop { MLIR.opname = "hask.type" }
- return ([], curid)
+ let op = MLIR.defaultop { MLIR.opname = "hask.type", MLIR.opresults = MLIR.OpResultList [curid] }
+ return ([op], curid)
+
+codegenExpr' (Lit t) = do
+ curid <- builderMakeUniqueSSAId
+ let op = MLIR.defaultop { MLIR.opname = "hask.lit", MLIR.opresults = MLIR.OpResultList [curid] }
+ return ([op], curid)
 
 codegenExpr' (Cast _ e) = do
  curid <- builderMakeUniqueSSAId
- let op = MLIR.defaultop { MLIR.opname = "hask.cast" }
- return ([], curid)
+ let op = MLIR.defaultop { MLIR.opname = "hask.cast",  MLIR.opresults = MLIR.OpResultList [curid] }
+ return ([op], curid)
 
 codegenExpr' (Tick _ e) = do
- let op = MLIR.defaultop { MLIR.opname = "hask.tick" }
  curid <- builderMakeUniqueSSAId
- return ([], curid)
+ let op = MLIR.defaultop { MLIR.opname = "hask.tick", MLIR.opresults = MLIR.OpResultList [curid] }
+ return ([op], curid)
+
 
 codegenExpr' _ = do 
- let op = MLIR.defaultop { MLIR.opname = "unk" }
  curid <- builderMakeUniqueSSAId
- return ([], curid)
+ let op = MLIR.defaultop { MLIR.opname = "unk",  MLIR.opresults = MLIR.OpResultList [curid] }
+ return ([op], curid)

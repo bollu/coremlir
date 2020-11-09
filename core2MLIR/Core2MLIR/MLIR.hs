@@ -55,7 +55,7 @@ defaultRegion :: Region
 defaultRegion = Region []
 
 instance Outputable Region where
-  ppr (Region bs) = lbrace <+> nest 4 (vcat (map ppr bs)) <+> rbrace
+  ppr (Region bs) = (hang lbrace 2 (vcat (map ppr bs))) $+$ rbrace
  
 -- generic-operation ::= string-literal `(` value-use-list? `)`  successor-list?
 --                       (`(` region-list `)`)? attribute-dict? `:` function-type
@@ -83,7 +83,7 @@ blockArgTys (Block (BlockLabel _ (idAndTys)) _)  = map snd idAndTys
 
 
 instance Outputable Block where
-   ppr (Block label ops) = ppr label <+> (vcat $ map ppr ops)
+   ppr (Block label ops) = hang (ppr label) 2 (vcat $ blankLine:map ppr ops)
 
 
 block :: String -- ^ BB name
@@ -173,6 +173,7 @@ instance Outputable AttributeValue where
 data Operation = 
   Operation { opname :: String, 
               opvals :: ValueUseList, 
+              opresults :: OpResultList,
               opsuccs :: SuccessorList, 
               opregions :: RegionList,
               opattrs :: AttributeDict,
@@ -180,17 +181,18 @@ data Operation =
             }
 
 instance Outputable Operation where
-  ppr op = 
+  ppr op =
+       (ppr (opresults op) O.<>
        doubleQuotes (text (opname op)) O.<> 
        parens (ppr (opvals op)) O.<>
-       ppr (opsuccs op) O.<>
-       (ppr (opregions op)) O.<>
-       ppr (opattrs op) O.<> colon O.<> ppr (opty op)
+       ppr (opsuccs op)) $+$
+       (((ppr (opregions op)))  O.<>
+       ppr (opattrs op) O.<> colon O.<> ppr (opty op))
 
 
 -- | default operation.
 defaultop :: Operation
-defaultop = Operation "DEFAULTOP" (ValueUseList []) SuccessorList (RegionList [])  (AttributeDict []) defaultFunctionType
+defaultop = Operation "DEFAULTOP" (ValueUseList []) (OpResultList []) SuccessorList (RegionList [])  (AttributeDict []) defaultFunctionType
 
 
 commaList :: Outputable a => [a] -> SDoc
@@ -249,9 +251,16 @@ instance Outputable SuccessorList where
   ppr (SuccessorList) = empty
 -- custom-operation  ::= bare-id custom-operation-format
 -- op-result-list    ::= op-result (`,` op-result)* `=`
-newtype OpResultList = NonEmpty OpResult
+newtype OpResultList =  OpResultList [OpResult]
+
+instance Outputable OpResultList where
+   ppr (OpResultList []) = empty
+   ppr (OpResultList [x]) = ppr x O.<> O.text " = "
+   ppr (OpResultList xs) = parens (commaList xs) O.<> O.text " = " 
 -- op-result         ::= value-id (`:` integer-literal)
-newtype OpResult = OpResult String -- TODO: add the maybe int to pick certain results out
+-- newtype OpResult = OpResult String -- TODO: add the maybe int to pick certain results out
+type OpResult = SSAId
+
 -- successor-list    ::= successor (`,` successor)*
 -- successor         ::= caret-id (`:` bb-arg-list)?
 -- region-list       ::= region (`,` region)*
@@ -271,7 +280,7 @@ vals :: [SSAId] -> ValueUseList; vals xs = ValueUseList xs
 instance Outputable ValueUseList where
   ppr (ValueUseList []) = empty
   ppr (ValueUseList [v]) = ppr v
-  ppr (ValueUseList vs) = commaList (map ppr vs)
+  ppr (ValueUseList vs) = commaList vs
 
 
 -- value-id ::= `%` suffix-id
