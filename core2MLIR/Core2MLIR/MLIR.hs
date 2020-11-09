@@ -30,11 +30,12 @@ instance Outputable BareId where
 data SSAId = SSAId String
 
 sanitizeSSAId :: String -> String
-sanitizeSSAId "#" = "$hash"
 sanitizeSSAId "[]" = "$list"
 sanitizeSSAId "()" = "$unittuple"
-sanitizeSSAId "*" = "$star"
-sanitizeSSAId ('#':xs) = "$hash$" ++ sanitizeSSAId xs
+sanitizeSSAId ('#':xs) = "hash" ++ sanitizeSSAId xs
+sanitizeSSAId ('+':xs) = "plus" ++ sanitizeSSAId xs
+sanitizeSSAId ('-':xs) = "minus" ++ sanitizeSSAId xs
+sanitizeSSAId ('*':xs) = "star" ++ sanitizeSSAId xs
 sanitizeSSAId (x:xs) = x:sanitizeSSAId xs
 sanitizeSSAId [] = []
 
@@ -61,6 +62,10 @@ instance Outputable Region where
 --                       (`(` region-list `)`)? attribute-dict? `:` function-type
 -- region-list       ::= region (`,` region)*
 newtype RegionList = RegionList [Region]
+
+nullRegionList :: RegionList -> Bool
+nullRegionList (RegionList xs) = null xs
+
 instance Outputable RegionList where
   ppr (RegionList []) = empty
   ppr (RegionList rs) = parens (commaList (map ppr rs))
@@ -104,7 +109,7 @@ instance Outputable BlockLabel where
   ppr (BlockLabel name []) =  ppr name O.<> colon
   ppr (BlockLabel name args) = 
     let prettyArgs args = parens (commaList [ppr v O.<> colon O.<> ppr t | (v, t) <- args])
-    in ppr name  <+> prettyArgs args 
+    in ppr name  <+> prettyArgs args O.<> colon
 -- // Non-empty list of names and types.
 -- value-id-and-type-list ::= value-id-and-type (`,` value-id-and-type)*
 -- block-arg-list ::= `(` value-id-and-type-list? `)`
@@ -185,7 +190,7 @@ instance Outputable Operation where
        (ppr (opresults op) O.<>
        doubleQuotes (text (opname op)) O.<> 
        parens (ppr (opvals op)) O.<>
-       ppr (opsuccs op)) $+$
+       ppr (opsuccs op)) O.$+$ -- (if nullRegionList (opregions op) then (O.<>) else (O.$+$))
        (((ppr (opregions op)))  O.<>
        ppr (opattrs op) O.<> colon O.<> ppr (opty op))
 

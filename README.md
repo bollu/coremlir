@@ -45,6 +45,11 @@ Convert GHC Core to MLIR.
 
 - [Link to normalizer that converts core to ANF](https://github.com/bollu/flrc/blob/master/compiler/core-hs/normalize.sml)
 
+- Interesting bit of encoding trivia: can have closure captured variables as parameters 
+  to the `hask.lambda` operation, while its actual "body type" can be the 
+  lambda parameters itself. Now, we will need to have custom type of `Region`?
+  that exposes *only* these variables? or we write a pass. interesting ideas.
+
 
 
 # Friday. Nov 6th

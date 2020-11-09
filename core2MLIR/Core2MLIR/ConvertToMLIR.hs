@@ -170,10 +170,6 @@ isCaseAltsOnlyDefault _ = Nothing
 
 
 
--- | case needs scrutinee, alts, 
-createCase :: MLIR.SSAId -> [(MLIR.SymbolRefId, MLIR.Region)] -> MLIR.Operation
-createCase scrutinee alts = error "foo"
-
 
 -- | create unique int
 builderMakeUniqueInt :: State Int Int
@@ -202,16 +198,21 @@ codegenAltLhs' DEFAULT          = MLIR.AttributeSymbolRef (MLIR.SymbolRefId "def
 
 codegenAltRHS' :: Wild -> [Var] -> CoreExpr -> State Int MLIR.Region
 codegenAltRHS' wild bnds rhs = do
-     -- doc_wild <- cvtWild wild
-     -- doc_binds <- traverse cvtVar bnds
-     -- let params = hsep $ punctuate comma $ (doc_wild >< text ": !hask.untyped"):[b >< text ": !hask.untyped" | b <- doc_binds]
-     -- builderAppend $ text  "{"
-     -- builderAppend $ text "^entry(" >< params >< text "):"
-     -- -- | TODO: we need a way to nest stuff
-     -- name_rhs <- builderNest 2 $ flattenExpr rhs
-     -- builderAppend $ (text "hask.return(") >< name_rhs >< (text ")")
-     -- builderAppend $ text "}"
-     return MLIR.defaultRegion
+ (ops, finalval) <- codegenExpr' rhs
+ let entry = MLIR.block "entry"  
+                    [(MLIR.SSAId (varToString b), haskvalty)| b <- bnds]
+                    (ops ++ [haskreturnop (finalval, haskvalty)])
+ let r = MLIR.Region [entry]
+ -- doc_wild <- cvtWild wild
+ -- doc_binds <- traverse cvtVar bnds
+ -- let params = hsep $ punctuate comma $ (doc_wild >< text ": !hask.untyped"):[b >< text ": !hask.untyped" | b <- doc_binds]
+ -- builderAppend $ text  "{"
+ -- builderAppend $ text "^entry(" >< params >< text "):"
+ -- -- | TODO: we need a way to nest stuff
+ -- name_rhs <- builderNest 2 $ flattenExpr rhs
+ -- builderAppend $ (text "hask.return(") >< name_rhs >< (text ")")
+ -- builderAppend $ text "}"
+ return r
 
 -- | int is the index, Var is the variable
 -- return: attribute dict is LHS, region is RHS
@@ -225,14 +226,16 @@ codegenExpr' (Var x) = return ([], MLIR.SSAId (nameStableString . varName $ x))
 codegenExpr' (Lam param body) = do
   (ops, finalval) <- codegenExpr' body
   -- TODO: add param
-  let entry = MLIR.block "entry"  [] (ops ++ [haskreturnop (finalval, haskvalty)])
+  let entry = MLIR.block "entry"  [(MLIR.SSAId (varToString param), haskvalty)] 
+                    (ops ++ [haskreturnop (finalval, haskvalty)])
   let r = MLIR.Region [entry]
   curid <- builderMakeUniqueSSAId
   let op = MLIR.defaultop {
        MLIR.opname = "hask.lambda", 
        MLIR.opregions = MLIR.RegionList [r],
        MLIR.opresults = MLIR.OpResultList [curid],
-       MLIR.opty = MLIR.FunctionType (MLIR.blockArgTys entry)   [haskvalty]
+       -- | interesting! can have closure captured variables as parameters =)
+       MLIR.opty = MLIR.FunctionType []  [haskvalty]
   }
   return ([op], curid)
 
@@ -249,16 +252,18 @@ codegenExpr' (App f x) = do
  return (fops ++ xops ++ [op], curid)
 
 codegenExpr' (Case scr wild _ alts) = do
- (ops_scr, name_scr) <- codegenExpr' scr
+ (scrops, scrname) <- codegenExpr' scr
  attrRgns <- traverse (codegenAlt' (Wild wild))   ((zip [0,1..] alts) :: [(Int, CoreAlt)])
  curid <- builderMakeUniqueSSAId
  let op = MLIR.defaultop { 
      MLIR.opname = "hask.case",
+     MLIR.opvals = MLIR.ValueUseList [scrname],
      MLIR.opregions = MLIR.RegionList (map snd attrRgns),
      MLIR.opresults = MLIR.OpResultList [curid],
-     MLIR.opattrs = mconcat (map fst attrRgns)
+     MLIR.opattrs = mconcat (map fst attrRgns),
+     MLIR.opty = MLIR.FunctionType [haskvalty] [haskvalty]
   }
- return (ops_scr ++ [op], curid)
+ return (scrops ++ [op], curid)
 
 codegenExpr' (Let _ e) = do
  curid <- builderMakeUniqueSSAId
@@ -267,12 +272,23 @@ codegenExpr' (Let _ e) = do
 
 codegenExpr' (Type t) = do
  curid <- builderMakeUniqueSSAId
- let op = MLIR.defaultop { MLIR.opname = "hask.type", MLIR.opresults = MLIR.OpResultList [curid] }
+ let op = MLIR.defaultop { 
+            MLIR.opname = "hask.type", 
+            MLIR.opresults = MLIR.OpResultList [curid],
+            MLIR.opty = MLIR.FunctionType [] [haskvalty]
+          }
  return ([op], curid)
 
 codegenExpr' (Lit t) = do
  curid <- builderMakeUniqueSSAId
- let op = MLIR.defaultop { MLIR.opname = "hask.lit", MLIR.opresults = MLIR.OpResultList [curid] }
+ let op = MLIR.defaultop { 
+    MLIR.opname = "hask.lit", 
+    -- | TODO: rename to codegenLit?
+    MLIR.opattrs = MLIR.AttributeDict [("value", codegenAltLHSLit' t)],
+    -- | FML. I might have to pick the type based on nonsense.
+    MLIR.opty = MLIR.FunctionType []   [haskvalty],
+    MLIR.opresults = MLIR.OpResultList [curid]
+  }
  return ([op], curid)
 
 codegenExpr' (Cast _ e) = do
@@ -284,7 +300,6 @@ codegenExpr' (Tick _ e) = do
  curid <- builderMakeUniqueSSAId
  let op = MLIR.defaultop { MLIR.opname = "hask.tick", MLIR.opresults = MLIR.OpResultList [curid] }
  return ([op], curid)
-
 
 codegenExpr' _ = do 
  curid <- builderMakeUniqueSSAId
