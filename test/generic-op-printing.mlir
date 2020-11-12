@@ -1,9 +1,5 @@
 // test generic op printing
-// RUN: ../build/bin/hask-opt %s  -interpret | FileCheck %s
-// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s || true
-// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
-// CHECK: 8
-// Core2MLIR: GenMLIR BeforeCorePrep
+// RUN: ../build/bin/hask-opt %s  | FileCheck %s
 module {
 
   hask.func @two () -> !hask.adt<@SimpleInt>  {
@@ -12,7 +8,7 @@ module {
      hask.return(%boxed): !hask.adt<@SimpleInt> 
   }
 
-  hask.func @main (%v: !hask.adt<@SimpleInt>, %wt: !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt> {
+  hask.func @main2(%v: !hask.adt<@SimpleInt>, %wt: !hask.thunk<!hask.adt<@SimpleInt>>) -> !hask.adt<@SimpleInt> {
       // %number = "hask.make_i64"  () { value = 0 : i64} : () -> !hask.value
       %number = hask.make_i64(0 : i64)
       // Try to use the generic syntax to build a %boxed_number
@@ -32,5 +28,9 @@ module {
       %two = hask.ref(@two):  !hask.fn<() -> !hask.adt<@SimpleInt>>
       %twot = hask.ap(%two :  !hask.fn<() -> !hask.adt<@SimpleInt>> )
       hask.return(%reti) : !hask.value
+  }
+  hask.func @main() {
+      %number = hask.make_i64(0 : i64)
+      hask.return(%number) : !hask.value
   }
 }

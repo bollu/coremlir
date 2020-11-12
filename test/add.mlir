@@ -1,6 +1,4 @@
 // RUN: ../build/bin/hask-opt %s  -interpret | FileCheck %s
-// RUN: ../build/bin/hask-opt %s -lower-std -lower-llvm | FileCheck %s || true
-// RUN: ../build/bin/hask-opt %s  | ../build/bin/hask-opt -lower-std -lower-llvm |  FileCheck %s || true
 // Check that @plus works with SimpleInt works.
 // CHECK: constructor(SimpleInt 3)
 module {
